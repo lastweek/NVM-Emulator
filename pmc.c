@@ -10,6 +10,7 @@
 #define MSR_IA32_TSC			0x00000010
 #define MSR_IA32_APICBASE		0x0000001B
 #define MSR_IA32_MISC_ENABLE	0x000001A0
+#define MSR_IA32_MISC_PERFMON_ENABLE 	1ULL<<7
 
 #define MSR_IA32_PMC0			0x000000C1
 #define MSR_IA32_PMC1			0x000000C2
@@ -180,10 +181,17 @@ pmc_wrmsr(u32 addr, u64 value)
 static void
 cpu_facility_test(void)
 {
+	u64 tmsr;
 	u32 eax, ebx, ecx, edx;
 	
 	eax = 0x01;
 	pmc_cpuid(&eax, &ebx, &ecx, &edx);
+
+	tmsr = pmc_rdmsr(MSR_IA32_MISC_ENABLE);
+	if (!(tmsr & MSR_IA32_MISC_PERFMON_ENABLE)) {
+		pmc_wrmsr(MSR_IA32_MISC_ENABLE, tmsr | MSR_IA32_MISC_PERFMON_ENABLE);
+		printk(KERN_INFO "PMC Set bit MSR_IA32_MISC_PERFMON_ENABLE to 1\n");
+	}
 
 }
 
@@ -274,7 +282,6 @@ pmc_clear_msrs(void)
 	pmc_wrmsr(MSR_IA32_PERFEVTSEL3, 0x0);
 
 	pmc_wrmsr(MSR_CORE_PERF_GLOBAL_CTRL, 0x0);
-	pmc_wrmsr(MSR_CORE_PERF_GLOBAL_STATUS, 0x0);
 	pmc_wrmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL, 0x0);
 }
 
@@ -296,9 +303,10 @@ pmc_end_counting(void)
 static void
 pmc_enable_LLC_MISS(void)
 {
-	u64 counterVal = (u64)(-999);
+	u64 counterVal = (u64)(64);
 	u64 tmsr;
 	
+	pmc_wrmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL, 1);/* set 1 to clear Ovf_PMC0 bit */
 	pmc_wrmsr(MSR_IA32_PMC0, counterVal);/* set initial value */
 	pmc_wrmsr(MSR_IA32_PERFEVTSEL0,		 /* enable pmc */
 			  (u64)EVTMASK(INST_RETIRED_EVTMASK) |
@@ -327,21 +335,52 @@ void pmc_main(void)
 	cpu_general_info();
 	cpu_print_info();
 	
+	/* Test only */
+	for(i = 0; i < 2000; i++) {
+		tmsr = pmc_rdmsr(i);
+		if (tmsr)
+			printk(KERN_INFO "PMC MSR = 0x%X val = %llu %X %X \n", i, tmsr, (u32)tmsr>>32, (u32)tmsr);
+	}
+	
+	/* Test only */
 	tsc1 = pmc_rdtsc();
 	pmc_enable_LLC_MISS();
 	pmc_start_counting();
+	/*
 	for (i = 0; i < 10000; i++)
 			a[i] = i*100;
 	pmc_end_counting();
-	tsc2 = pmc_rdtsc();
+	*/
 
+	tsc2 = pmc_rdtsc();
 	printk(KERN_INFO "PMC tsc1=%llu tsc2=%llu, period = %llu \n", tsc1,tsc2,(tsc2-tsc1));
+
 	tmsr = pmc_rdmsr(MSR_IA32_PMC0);
 	printk(KERN_INFO "PMC MSR=%X pmc0=%llu %X %X \n", MSR_IA32_PMC0, tmsr, (u32)tmsr>>32, tmsr);
+
 	tmsr = pmc_rdmsr(MSR_IA32_PERFEVTSEL0);
-	printk(KERN_INFO "PMC MSR=%X perf0=%llu %X %X \n", MSR_IA32_PERFEVTSEL0,tmsr, (u32)tmsr>>32, tmsr);
-	tmsr = pmc_rdmsr(MSR_IA32_PERF_STATUS);
-	printk(KERN_INFO "PMC MSR=%X val=%llu %X %X \n", MSR_IA32_PERF_STATUS, (u32)tmsr>>32, tmsr);
+	printk(KERN_INFO "PMC MSR=%X perfevt0=%llu %X %X \n", MSR_IA32_PERFEVTSEL0,tmsr, (u32)tmsr>>32, tmsr);
+	
+	/* Why write fail?????? */
+	pmc_wrmsr(MSR_IA32_MISC_ENABLE, (1ULL<<16));
+	pmc_wrmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL, 0x3);
+	pmc_wrmsr(MSR_CORE_PERF_GLOBAL_CTRL, 0x3);
+	pmc_wrmsr(MSR_IA32_PMC0, 0x3);
+	
+	tmsr = pmc_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
+	printk(KERN_INFO "PMC MSR=%X status=%llu %X %X \n", MSR_CORE_PERF_GLOBAL_STATUS, tmsr, (u32)tmsr>>32, tmsr);
+
+	tmsr = pmc_rdmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL);
+	printk(KERN_INFO "PMC MSR=%X ovf_ctrl=%llu %X %X \n", MSR_CORE_PERF_GLOBAL_OVF_CTRL,tmsr, (u32)tmsr>>32, tmsr);
+	
+	tmsr = pmc_rdmsr(MSR_CORE_PERF_GLOBAL_CTRL);
+	printk(KERN_INFO "PMC MSR=%X ctrl=%llu %X %X \n", MSR_CORE_PERF_GLOBAL_CTRL, tmsr, (u32)tmsr>>32, tmsr);
+	
+	tmsr = pmc_rdmsr(MSR_IA32_PMC0);
+	printk(KERN_INFO "PMC MSR=%X pmc0=%llu %X %X \n", MSR_IA32_PMC0, tmsr, (u32)tmsr>>32, tmsr);
+
+	tmsr = pmc_rdmsr(MSR_IA32_MISC_ENABLE);
+	printk(KERN_INFO "PMC MSR=%X pmc0=%llu %X %X \n", MSR_IA32_MISC_ENABLE, tmsr, (u32)tmsr>>32, tmsr);
 }
 
 module_init(pmc_init);
