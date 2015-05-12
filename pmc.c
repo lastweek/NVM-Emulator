@@ -34,8 +34,6 @@
 #define MSR_CORE_PERF_GLOBAL_OVF_CTRL	0x00000390
 
 /* Bit field of MSR_IA32_PERFEVTSEL */
-#define EVTMASK(val) val
-#define UMASK(val)  (val<<8)
 #define USR_MODE	1ULL<<16
 #define OS_MODE 	1ULL<<17
 #define EDGE_DETECT	1ULL<<18
@@ -43,20 +41,40 @@
 #define INT_ENABLE	1ULL<<20
 #define ENABLE		1ULL<<22
 #define INVERT		1ULL<<23
-#define CMASK(val)  (val<<24)
+#define CMASK(val)  (u64)(val<<24)
 
-/* UMASK and EVTMASK for Pre-defined events */
-#define INST_RETIRED_UMASK	 0x00
-#define INST_RETIRED_EVTMASK 0xC0
-#define LLC_REFE_UMASK		0x4F
-#define LLC_REFE_EVTMASK	0x2E
-#define LLC_MISS_UMASK		0x41
-#define LLC_MISS_EVTMASK	0x2E
 
 typedef unsigned char  u8;
 typedef unsigned short u16;
 typedef unsigned int   u32;
 typedef unsigned long long u64;
+
+/* Intel Predefined Events */
+enum perf_hw_id {
+	CPU_CYCLES = 0,
+	INSTRUCTIONS = 1,
+	CACHE_REFERENCES = 2,
+	CACHE_MISSES = 3,
+	BRANCH_INSTRUCTIONS = 4,
+	BRANCH_MISSES = 5,
+	BUS_CYCLES = 6,
+	STALLED_CYCLES_FRONTEND = 7,
+	STALLED_CYCLES_BACKEND = 8,
+	REF_CPU_CYCLES = 9,
+
+	PERF_COUNT_MAX,
+};
+static u64 pmc_predefined_eventmap[PERF_COUNT_MAX] =
+{
+	[CPU_CYCLES]			= 0x003c,
+	[INSTRUCTIONS]			= 0x00c0,
+	[CACHE_REFERENCES]		= 0x4f2e,
+	[CACHE_MISSES]			= 0x412e,
+	[BRANCH_INSTRUCTIONS]	= 0x00c4,
+	[BRANCH_MISSES]			= 0x00c5,
+	[BUS_CYCLES]			= 0x013c,
+	[REF_CPU_CYCLES]		= 0x0300, /* pseudo-encoding */
+};
 
 int  pmc_init(void);
 int  pmc_exit(void);
@@ -287,32 +305,28 @@ pmc_clear_msrs(void)
 
 /* Set bit 0 in MSR_CORE_PERF_GLOBAL_CTRL to 1 */
 static void
-pmc_start_counting(void)
+pmc_enable_counting(void)
 {
 	pmc_wrmsr(MSR_CORE_PERF_GLOBAL_CTRL, 1);
 }
 
 /* Set bit 0 in MSR_CORE_PERF_GLOBAL_CTRL to 0 */
 static void
-pmc_end_counting(void)
+pmc_disable_counting(void)
 {
 	pmc_wrmsr(MSR_CORE_PERF_GLOBAL_CTRL, 0);
 }
 
 
 static void
-pmc_enable_LLC_MISS(void)
+pmc_enable_event(int event, u64 init_val)
 {
-	u64 counterVal = (u64)(64);
-	u64 tmsr;
-	
-	pmc_wrmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL, 1);/* set 1 to clear Ovf_PMC0 bit */
-	pmc_wrmsr(MSR_IA32_PMC0, counterVal);/* set initial value */
-	pmc_wrmsr(MSR_IA32_PERFEVTSEL0,		 /* enable pmc */
-			  (u64)EVTMASK(INST_RETIRED_EVTMASK) |
-			  	   UMASK(INST_RETIRED_UMASK) |
-				   OS_MODE |
-				   ENABLE
+	pmc_wrmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL, 1);
+	pmc_wrmsr(MSR_IA32_PMC0, init_val);/* set initial value */
+	pmc_wrmsr(MSR_IA32_PERFEVTSEL0,
+				pmc_predefined_eventmap[event]
+				| OS_MODE
+				| ENABLE
 			  );
 }
 
@@ -334,22 +348,22 @@ void pmc_main(void)
 
 	cpu_general_info();
 	cpu_print_info();
-	
-	/* Test only */
+	pmc_clear_msrs();
+
+	/*
 	for(i = 0; i < 2000; i++) {
 		tmsr = pmc_rdmsr(i);
 		if (tmsr)
 			printk(KERN_INFO "PMC MSR = 0x%X val = %llu %X %X \n", i, tmsr, (u32)tmsr>>32, (u32)tmsr);
-	}
+	}*/
 	
-	/* Test only */
 	tsc1 = pmc_rdtsc();
-	pmc_enable_LLC_MISS();
-	pmc_start_counting();
+	pmc_enable_event(CACHE_REFERENCES, -999);
+	pmc_enable_counting();
 	/*
 	for (i = 0; i < 10000; i++)
 			a[i] = i*100;
-	pmc_end_counting();
+	pmc_disable_counting();
 	*/
 
 	tsc2 = pmc_rdtsc();
