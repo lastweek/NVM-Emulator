@@ -5,7 +5,6 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
-
 #include <asm/nmi.h>
 
 /* Architecture MSR Address */
@@ -74,26 +73,7 @@ static u64 pmu_predefined_eventmap[PERF_COUNT_MAX] =
 	[BRANCH_MISSES_RETIRED]			= 0x00c5,
 };
 
-
-/*
-Description from Intel Developer manual 2a [CPUID]:
-EAX Bits 07 - 00: Version ID of architectural performance monitoring
-	Bits 15 - 08: Number of general-purpose performance monitoring counter per logical processor
-	Bits 23 - 16: Bit width of general-purpose, performance monitoring counter
-	Bits 31 - 24: Length of EBX bit vector to enumerate architectural performance monitoring events
-EBX Bit 00: Core cycle event not available if 1
-	Bit 01: Instruction retired event not available if 1
-	Bit 02: Reference cycles event not available if 1
-	Bit 03: Last-level cache reference event not available if 1
-	Bit 04: Last-level cache misses event not available if 1
-	Bit 05: Branch instruction retired event not available if 1
-	Bit 06: Branch mispredict retired event not available if 1
-	Bits 31- 07: Reserved = 0
-ECX Reserved = 0
-EDX Bits 04 - 00: Number of fixed-function performance counters (if Version ID > 1)
-	Bits 12 - 05: Bit width of fixed-function performance counters (if Version ID > 1)
-	Reserved = 0
-*/
+/* Global Variables Derived From CPUID */
 u32  eax_arch_perf_version;
 u32  eax_nr_of_perf_counter_per_cpu;
 u32  eax_bit_width_of_perf_counter;
@@ -104,24 +84,25 @@ u32  edx_bit_width_of_fixed_func_perf_counter;
 u64  CPU_BASE_FREQUENCY;
 char CPU_BRAND[48];
 
+int LATENCY;
 u64 TSC1, TSC2, TSC3;
+u64 PMU_PMC0_INIT_VALUE;
+
 
 void pmu_main(void);
-int
-pmu_init(void)
+
+int pmu_init(void)
 {
 	printk(KERN_INFO "PMU module init.\n");
 	pmu_main();
 }
 
-int
-pmu_exit(void)
+int pmu_exit(void)
 {
 	printk(KERN_INFO "PMU module exit.\n");
 }
 
-void
-pmu_err(char *fmt)
+void pmu_err(char *fmt)
 {
 	printk(KERN_INFO "PMU Error: %s", fmt);
 	pmu_exit();
@@ -171,7 +152,7 @@ pmu_rdmsr(u32 addr)
 	return retval;
 }
 
-static void
+static inline void
 pmu_wrmsr(u32 addr, u64 value)
 {
 	asm volatile(
@@ -224,6 +205,7 @@ cpu_brand_frequency(void)
 	}
 	
 	/* Extract frequency from brand string. */
+	/* A lazy guy write the freq manually... */
 	CPU_BASE_FREQUENCY = 2000000000;
 }
 
@@ -289,14 +271,14 @@ pmu_clear_msrs(void)
 	}
 }
 
-/* Enable pmc0 */
+/* Enable PMC0 */
 static inline void
 pmu_enable_counting(void)
 {
 	if (eax_arch_perf_version > 1)
 		pmu_wrmsr(MSR_CORE_PERF_GLOBAL_CTRL, 1);
 }
-/* Disable pmc0 */
+/* Disable PMC0 */
 static inline void
 pmu_disable_counting(void)
 {
@@ -311,7 +293,7 @@ pmu_clear_ovf(void)
 		pmu_wrmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL, 1);
 }
 
-/* Make sure the specified predefined event exist first */
+/* Pre-Defined event enable routine */
 static void
 pmu_enable_predefined_event(int event, u64 init_val)
 {
@@ -343,23 +325,23 @@ pmu_lapic_init(void)
 	apic_write(APIC_LVTPC, APIC_DM_NMI);
 }
 
+/* FIXME */
 static int
 pmu_nmi_handler(unsigned int cmd, struct pt_regs *regs)
 {
-	u64 delta;
+	u64 delta, tmsr;
+	
+	pmu_clear_ovf();
+	pmu_wrmsr(MSR_IA32_PMC0, PMU_PMC0_INIT_VALUE);
+	pmu_enable_counting();
+
 	TSC2 = pmu_rdtsc();
 	delta = TSC2 - TSC1;
-	printk(KERN_INFO "PMU Event Overflowed TimeStamp: %lld\n", TSC2);
+	printk(KERN_INFO "PMU Event Overflowed TSC: %lld", TSC2);
 	
-	/*
-	 * Do the really latency
-	 * NOP = 1 processor cycle
-	 */
-
-	/* FIXME
-	for (int i = 0; i < ??; i++)
+	/* How to measure the cycles accurate??? */
+	for (int i = 0; i < LATENCY; i++)
 		asm("nop");
-	*/
 
 	return NMI_HANDLED;
 }
@@ -368,7 +350,10 @@ void pmu_main(void)
 {
 	u64 tsc1, tsc2, tmsr;
 	int i;
-
+	
+	LATENCY = 100;
+	PMU_PMC0_INIT_VALUE = -999;
+	
 	/* Check CPU status */
 	cpu_general_info();
 	cpu_print_info();
@@ -379,7 +364,7 @@ void pmu_main(void)
 	register_nmi_handler(NMI_LOCAL, pmu_nmi_handler, 0, "PMU");
 	
 	/* Start Counting */
-	pmu_enable_predefined_event(LLC_REFERENCES, -999);
+	pmu_enable_predefined_event(LLC_REFERENCES, PMU_PMC0_INIT_VALUE);
 	pmu_enable_counting();
 	TSC1 = pmu_rdtsc();
 	printk(KERN_INFO "PMU Event Start Counting TimeStamp: %lld\n", TSC1);
@@ -387,16 +372,16 @@ void pmu_main(void)
 	/* Some fake code */
 	for (i = 0; i < 10000; i++)
 			a[i] = i*100;
-
 	pmu_disable_counting();
-	tsc2 = pmu_rdtsc();
-	tmsr = pmu_rdmsr(MSR_IA32_PMC0);
-	printk(KERN_INFO "PMU tsc1=%llu tsc2=%llu, time=%llu\n", tsc1, tsc2, (tsc2-tsc1));
-	printk(KERN_INFO "PMU MSR=0x%x pmu0=%llu\n", MSR_IA32_PMC0, tmsr);
-	tmsr = pmu_rdmsr(MSR_IA32_PERFEVTSEL0);
-	printk(KERN_INFO "PMU MSR=0x%x perfevtsel0=0x%llx\n", MSR_IA32_PERFEVTSEL0, tmsr);
 	
-	/* Why write fail?????? version == 1 will fail*/
+	tsc2 = pmu_rdtsc();
+	printk(KERN_INFO "PMU Event End TSC: %lld", tsc2);
+	tmsr = pmu_rdmsr(MSR_IA32_PMC0);
+	printk(KERN_INFO "PMU Event End PMC0: 0x%llx", tmsr);
+	tmsr = pmu_rdmsr(MSR_IA32_PERFEVTSEL0);
+	printk(KERN_INFO "PMU MSR PERFEVTSEL0: 0x%llx", tmsr);
+	
+	/*
 	pmu_wrmsr(MSR_IA32_MISC_ENABLE, (1ULL<<16));
 	pmu_wrmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL, 0x3);
 	pmu_wrmsr(MSR_CORE_PERF_GLOBAL_CTRL, 0x3);
@@ -412,6 +397,7 @@ void pmu_main(void)
 
 	tmsr = pmu_rdmsr(MSR_IA32_MISC_ENABLE);
 	printk(KERN_INFO "PMU MSR=%x MISC=%llx \n", MSR_IA32_MISC_ENABLE, tmsr);
+	*/
 }
 
 module_init(pmu_init);
