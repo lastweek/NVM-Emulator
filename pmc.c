@@ -1,10 +1,12 @@
 /*
  *	2015/05/08 Created by Shan Yizhou.
- *	pmc.c: Intel x86 PerfMon sample module.
+ *	pmu.c: Intel x86 PerfMon sample module.
  */
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
+
+#include <asm/nmi.h>
 
 /* Architecture MSR Address */
 #define MSR_IA32_TSC			0x00000010
@@ -61,7 +63,7 @@ enum perf_hw_id {
 
 	PERF_COUNT_MAX,
 };
-static u64 pmc_predefined_eventmap[PERF_COUNT_MAX] =
+static u64 pmu_predefined_eventmap[PERF_COUNT_MAX] =
 {
 	[UNHALTED_CYCLES]		= 0x003c,
 	[INSTRUCTIONS_RETIRED]	= 0x00c0,
@@ -102,30 +104,32 @@ u32  edx_bit_width_of_fixed_func_perf_counter;
 u64  CPU_BASE_FREQUENCY;
 char CPU_BRAND[48];
 
-void pmc_main(void);
+u64 TSC1, TSC2, TSC3;
+
+void pmu_main(void);
 int
-pmc_init(void)
+pmu_init(void)
 {
-	printk(KERN_INFO "PMC module init.\n");
-	pmc_main();
+	printk(KERN_INFO "PMU module init.\n");
+	pmu_main();
 }
 
 int
-pmc_exit(void)
+pmu_exit(void)
 {
-	printk(KERN_INFO "PMC module exit.\n");
+	printk(KERN_INFO "PMU module exit.\n");
 }
 
 void
-pmc_err(char *fmt)
+pmu_err(char *fmt)
 {
-	printk(KERN_INFO "PMC Error: %s", fmt);
-	pmc_exit();
+	printk(KERN_INFO "PMU Error: %s", fmt);
+	pmu_exit();
 }
 
 /* x86_64 Only */
 static void
-pmc_cpuid(u32 *eax, u32 *ebx, u32 *ecx, u32 *edx)
+pmu_cpuid(u32 *eax, u32 *ebx, u32 *ecx, u32 *edx)
 {
 	unsigned int op = *eax;
 	asm volatile(
@@ -138,7 +142,7 @@ pmc_cpuid(u32 *eax, u32 *ebx, u32 *ecx, u32 *edx)
 
 /* Time Stamp Counter Addr: 0x10 in MSR */
 static u64
-pmc_rdtsc(void)
+pmu_rdtsc(void)
 {
 	u32 edx, eax;
 	u64 retval = 0;
@@ -153,7 +157,7 @@ pmc_rdtsc(void)
 }
 
 static u64
-pmc_rdmsr(u32 addr)
+pmu_rdmsr(u32 addr)
 {
 	u32 edx, eax;
 	u64 retval = 0;
@@ -168,7 +172,7 @@ pmc_rdmsr(u32 addr)
 }
 
 static void
-pmc_wrmsr(u32 addr, u64 value)
+pmu_wrmsr(u32 addr, u64 value)
 {
 	asm volatile(
 		"wrmsr"
@@ -185,11 +189,11 @@ cpu_facility_test(void)
 	u32 eax, ebx, ecx, edx;
 	
 	eax = 0x01;
-	pmc_cpuid(&eax, &ebx, &ecx, &edx);
+	pmu_cpuid(&eax, &ebx, &ecx, &edx);
 
-	tmsr = pmc_rdmsr(MSR_IA32_MISC_ENABLE);
+	tmsr = pmu_rdmsr(MSR_IA32_MISC_ENABLE);
 	if (!(tmsr & MSR_IA32_MISC_PERFMON_ENABLE)) {
-		printk(KERN_INFO "PMC WARNING: MSR_IA32_MISC_PERFMON_ENABLE = 0 \n");
+		printk(KERN_INFO "PMU WARNING: MSR_IA32_MISC_PERFMON_ENABLE = 0 \n");
 	}
 
 }
@@ -204,15 +208,15 @@ cpu_brand_frequency(void)
 	u32 eax, ebx, ecx, edx;
 
 	eax = 0x80000000;
-	pmc_cpuid(&eax, &ebx, &ecx, &edx);
+	pmu_cpuid(&eax, &ebx, &ecx, &edx);
 
 	if (eax < 0x80000004U)
-		pmc_err("CPUID, Extended function Not supported.\n");
+		pmu_err("CPUID, Extended function Not supported.\n");
 	
 	s = CPU_BRAND;
 	for (i = 0; i < 3; i++) {
 		eax = 0x80000002U + i;
-		pmc_cpuid(&eax, &ebx, &ecx, &edx);
+		pmu_cpuid(&eax, &ebx, &ecx, &edx);
 		memcpy(s, &eax, 4); s += 4;
 		memcpy(s, &ebx, 4); s += 4;
 		memcpy(s, &ecx, 4); s += 4;
@@ -231,7 +235,7 @@ cpu_perf_info(void)
 	u32 eax, ebx, ecx, edx;
 	
 	eax = 0x0A;
-	pmc_cpuid(&eax, &ebx, &ecx, &edx);
+	pmu_cpuid(&eax, &ebx, &ecx, &edx);
 	
 	ebx_predefined_event_mask		=  ebx;
 	eax_arch_perf_version			=  eax & 0xFFU;
@@ -255,138 +259,163 @@ cpu_general_info(void)
 static void
 cpu_print_info(void)
 {
-	printk(KERN_INFO "PMC %s\n", CPU_BRAND);
-	printk(KERN_INFO "PMC Architectual Performance Monitoring Version ID: %u\n", eax_arch_perf_version);
-	printk(KERN_INFO "PMC Number of general-purpose perf counter per cpu: %u\n", eax_nr_of_perf_counter_per_cpu);
-	printk(KERN_INFO "PMC Bit width of general-purpose, perf counter reg: %u\n", eax_bit_width_of_perf_counter);
-	printk(KERN_INFO "PMC Length of [EBX] bit vector to enumerate events: %u\n", eax_len_of_ebx_to_enumerate);
-	printk(KERN_INFO "PMC EBX event not avaliable if 1: %x\n", ebx_predefined_event_mask);
+	printk(KERN_INFO "PMU %s\n", CPU_BRAND);
+	printk(KERN_INFO "PMU Architectual Performance Monitoring Version ID: %u\n", eax_arch_perf_version);
+	printk(KERN_INFO "PMU Number of general-purpose perf counter per cpu: %u\n", eax_nr_of_perf_counter_per_cpu);
+	printk(KERN_INFO "PMU Bit width of general-purpose, perf counter reg: %u\n", eax_bit_width_of_perf_counter);
+	printk(KERN_INFO "PMU Length of [EBX] bit vector to enumerate events: %u\n", eax_len_of_ebx_to_enumerate);
+	printk(KERN_INFO "PMU EBX event not avaliable if 1: %x\n", ebx_predefined_event_mask);
 	
 	if (eax_arch_perf_version > 1) {
-		printk(KERN_INFO "PMC Number of fixed-func perf counters:    %u\n", edx_nr_of_fixed_func_perf_counter);
-		printk(KERN_INFO "PMC Bit width of fixed-func perf counters: %u\n", edx_bit_width_of_fixed_func_perf_counter);
+		printk(KERN_INFO "PMU Number of fixed-func perf counters:    %u\n", edx_nr_of_fixed_func_perf_counter);
+		printk(KERN_INFO "PMU Bit width of fixed-func perf counters: %u\n", edx_bit_width_of_fixed_func_perf_counter);
 	}
 }
 
 static void
-pmc_clear_msrs(void)
+pmu_clear_msrs(void)
 {
-	pmc_wrmsr(MSR_IA32_PMC0, 0x0);
-	pmc_wrmsr(MSR_IA32_PMC1, 0x0);
-	pmc_wrmsr(MSR_IA32_PMC2, 0x0);
-	pmc_wrmsr(MSR_IA32_PMC3, 0x0);
-	
-	pmc_wrmsr(MSR_IA32_PERFEVTSEL0, 0x0);
-	pmc_wrmsr(MSR_IA32_PERFEVTSEL1, 0x0);
-	pmc_wrmsr(MSR_IA32_PERFEVTSEL2, 0x0);
-	pmc_wrmsr(MSR_IA32_PERFEVTSEL3, 0x0);
-
-	pmc_wrmsr(MSR_CORE_PERF_GLOBAL_CTRL, 0x0);
-	pmc_wrmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL, 0x0);
+	pmu_wrmsr(MSR_IA32_PMC0, 0x0);
+	pmu_wrmsr(MSR_IA32_PMC1, 0x0);
+	pmu_wrmsr(MSR_IA32_PERFEVTSEL0, 0x0);
+	pmu_wrmsr(MSR_IA32_PERFEVTSEL1, 0x0);
+	if (eax_arch_perf_version > 1) {
+		pmu_wrmsr(MSR_IA32_PMC2, 0x0);
+		pmu_wrmsr(MSR_IA32_PMC3, 0x0);
+		pmu_wrmsr(MSR_IA32_PERFEVTSEL2, 0x0);
+		pmu_wrmsr(MSR_IA32_PERFEVTSEL3, 0x0);
+		pmu_wrmsr(MSR_CORE_PERF_GLOBAL_CTRL, 0x0);
+		pmu_wrmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL, 0x0);
+	}
 }
 
 /* Enable pmc0 */
 static inline void
-pmc_enable_counting(void)
+pmu_enable_counting(void)
 {
 	if (eax_arch_perf_version > 1)
-		pmc_wrmsr(MSR_CORE_PERF_GLOBAL_CTRL, 1);
+		pmu_wrmsr(MSR_CORE_PERF_GLOBAL_CTRL, 1);
 }
 /* Disable pmc0 */
 static inline void
-pmc_disable_counting(void)
+pmu_disable_counting(void)
 {
 	if (eax_arch_perf_version > 1)
-		pmc_wrmsr(MSR_CORE_PERF_GLOBAL_CTRL, 0);
+		pmu_wrmsr(MSR_CORE_PERF_GLOBAL_CTRL, 0);
 }
 /* Clear ovf_pmc0 */
 static inline void
-pmc_clear_ovf(void)
+pmu_clear_ovf(void)
 {
 	if (eax_arch_perf_version > 1)
-		pmc_wrmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL, 1);
+		pmu_wrmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL, 1);
 }
 
+/* Make sure the specified predefined event exist first */
 static void
-pmc_enable_predefined_event(int event, u64 init_val)
+pmu_enable_predefined_event(int event, u64 init_val)
 {
-	pmc_clear_ovf();
-	pmc_wrmsr(MSR_IA32_PMC0, init_val);
-	pmc_wrmsr(MSR_IA32_PERFEVTSEL0,
-				pmc_predefined_eventmap[event]
+	pmu_clear_ovf();
+	pmu_wrmsr(MSR_IA32_PMC0, init_val);
+	pmu_wrmsr(MSR_IA32_PERFEVTSEL0,
+				pmu_predefined_eventmap[event]
 				| OS_MODE
 				| ENABLE );
 }
 
+/* General-purpose event enable routine */
 static void
-pmc_enable_general_event(u64 event, u64 umask, u64 init_val)
+pmu_enable_general_event(u64 event, u64 umask, u64 init_val)
 {
-	pmc_clear_ovf();
-	pmc_wrmsr(MSR_IA32_PMC0, init_val);
-	pmc_wrmsr(MSR_IA32_PERFEVTSEL0,
+	pmu_clear_ovf();
+	pmu_wrmsr(MSR_IA32_PMC0, init_val);
+	pmu_wrmsr(MSR_IA32_PERFEVTSEL0,
 				event
 				| umask
 				| OS_MODE
 				| ENABLE );
 }
 
-/*
+/* Always use NMI for PMU */
 static void
-pmc_init_handler(void)
+pmu_lapic_init(void)
 {
 	apic_write(APIC_LVTPC, APIC_DM_NMI);
-	register_die_notifier(&..);
-	register_nmi_handler(...);
 }
-*/
 
-void
-pmc_main(void)
+static int
+pmu_nmi_handler(unsigned int cmd, struct pt_regs *regs)
+{
+	u64 delta;
+	TSC2 = pmu_rdtsc();
+	delta = TSC2 - TSC1;
+	printk(KERN_INFO "PMU Event Overflowed TimeStamp: %lld\n", TSC2);
+	
+	/*
+	 * Do the really latency
+	 * NOP = 1 processor cycle
+	 */
+
+	/* FIXME
+	for (int i = 0; i < ??; i++)
+		asm("nop");
+	*/
+
+	return NMI_HANDLED;
+}
+
+void pmu_main(void)
 {
 	u64 tsc1, tsc2, tmsr;
-	int a[10000];
 	int i;
 
-	/* Initial Step */
+	/* Check CPU status */
 	cpu_general_info();
 	cpu_print_info();
-	pmc_clear_msrs();
+	pmu_clear_msrs();
+
+	/* Register NMI handler */
+	pmu_lapic_init();
+	register_nmi_handler(NMI_LOCAL, pmu_nmi_handler, 0, "PMU");
 	
-	/* Enable Event Step */
-	tsc1 = pmc_rdtsc();
-	//pmc_enable_general_event((u64)0x3, 0, 0xF);
-	pmc_enable_predefined_event(LLC_REFERENCES, -999);
-	pmc_enable_counting();
+	/* Start Counting */
+	pmu_enable_predefined_event(LLC_REFERENCES, -999);
+	pmu_enable_counting();
+	TSC1 = pmu_rdtsc();
+	printk(KERN_INFO "PMU Event Start Counting TimeStamp: %lld\n", TSC1);
+	
+	/* Some fake code */
 	for (i = 0; i < 10000; i++)
 			a[i] = i*100;
-	pmc_disable_counting();
-	tsc2 = pmc_rdtsc();
-	tmsr = pmc_rdmsr(MSR_IA32_PMC0);
-	printk(KERN_INFO "PMC tsc1=%llu tsc2=%llu, time=%llu\n", tsc1, tsc2, (tsc2-tsc1));
-	printk(KERN_INFO "PMC MSR=0x%x pmc0=%llu\n", MSR_IA32_PMC0, tmsr);
-	tmsr = pmc_rdmsr(MSR_IA32_PERFEVTSEL0);
-	printk(KERN_INFO "PMC MSR=0x%x perfevtsel0=0x%llx\n", MSR_IA32_PERFEVTSEL0, tmsr);
+
+	pmu_disable_counting();
+	tsc2 = pmu_rdtsc();
+	tmsr = pmu_rdmsr(MSR_IA32_PMC0);
+	printk(KERN_INFO "PMU tsc1=%llu tsc2=%llu, time=%llu\n", tsc1, tsc2, (tsc2-tsc1));
+	printk(KERN_INFO "PMU MSR=0x%x pmu0=%llu\n", MSR_IA32_PMC0, tmsr);
+	tmsr = pmu_rdmsr(MSR_IA32_PERFEVTSEL0);
+	printk(KERN_INFO "PMU MSR=0x%x perfevtsel0=0x%llx\n", MSR_IA32_PERFEVTSEL0, tmsr);
 	
 	/* Why write fail?????? version == 1 will fail*/
-	pmc_wrmsr(MSR_IA32_MISC_ENABLE, (1ULL<<16));
-	pmc_wrmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL, 0x3);
-	pmc_wrmsr(MSR_CORE_PERF_GLOBAL_CTRL, 0x3);
+	pmu_wrmsr(MSR_IA32_MISC_ENABLE, (1ULL<<16));
+	pmu_wrmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL, 0x3);
+	pmu_wrmsr(MSR_CORE_PERF_GLOBAL_CTRL, 0x3);
 	
-	tmsr = pmc_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
-	printk(KERN_INFO "PMC MSR=%x status=%llx \n", MSR_CORE_PERF_GLOBAL_STATUS, tmsr);
+	tmsr = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
+	printk(KERN_INFO "PMU MSR=%x status=%llx \n", MSR_CORE_PERF_GLOBAL_STATUS, tmsr);
 
-	tmsr = pmc_rdmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL);
-	printk(KERN_INFO "PMC MSR=%X ovf_ctrl=%llx \n", MSR_CORE_PERF_GLOBAL_OVF_CTRL, tmsr);
+	tmsr = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL);
+	printk(KERN_INFO "PMU MSR=%X ovf_ctrl=%llx \n", MSR_CORE_PERF_GLOBAL_OVF_CTRL, tmsr);
 	
-	tmsr = pmc_rdmsr(MSR_CORE_PERF_GLOBAL_CTRL);
-	printk(KERN_INFO "PMC MSR=%x ctrl=%llx \n", MSR_CORE_PERF_GLOBAL_CTRL, tmsr);
+	tmsr = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_CTRL);
+	printk(KERN_INFO "PMU MSR=%x ctrl=%llx \n", MSR_CORE_PERF_GLOBAL_CTRL, tmsr);
 
-	tmsr = pmc_rdmsr(MSR_IA32_MISC_ENABLE);
-	printk(KERN_INFO "PMC MSR=%x MISC=%llx \n", MSR_IA32_MISC_ENABLE, tmsr);
+	tmsr = pmu_rdmsr(MSR_IA32_MISC_ENABLE);
+	printk(KERN_INFO "PMU MSR=%x MISC=%llx \n", MSR_IA32_MISC_ENABLE, tmsr);
 }
 
-module_init(pmc_init);
-module_exit(pmc_exit);
+module_init(pmu_init);
+module_exit(pmu_exit);
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("PerfMon module");
 MODULE_AUTHOR("Yizhou Shan");
