@@ -241,15 +241,15 @@ cpu_general_info(void)
 static void
 cpu_print_info(void)
 {
-	printk(KERN_INFO "PMU %s\n", CPU_BRAND);
-	printk(KERN_INFO "PMU Architectual PerfMon Version ID: %u\n", eax_arch_perf_version);
-	printk(KERN_INFO "PMU General-purpose perf counter per cpu: %u\n", eax_nr_of_perf_counter_per_cpu);
-	printk(KERN_INFO "PMU Bit width of general perf counter: %u\n", eax_bit_width_of_perf_counter);
-	printk(KERN_INFO "PMU Pre-defined events not avaliable if 1: %x\n", ebx_predefined_event_mask);
+	printk(KERN_INFO "PMU %s", CPU_BRAND);
+	printk(KERN_INFO "PMU Architectual PerfMon Version ID: %u", eax_arch_perf_version);
+	printk(KERN_INFO "PMU General-purpose perf counter per cpu: %u", eax_nr_of_perf_counter_per_cpu);
+	printk(KERN_INFO "PMU Bit width of general perf counter: %u", eax_bit_width_of_perf_counter);
+	printk(KERN_INFO "PMU Pre-defined events not avaliable if 1: %x", ebx_predefined_event_mask);
 	
 	if (eax_arch_perf_version > 1) {
-		printk(KERN_INFO "PMU Fixed-func perf counters per cpu: %u\n", edx_nr_of_fixed_func_perf_counter);
-		printk(KERN_INFO "PMU Bit width of fixed-func perf counter: %u\n", edx_bit_width_of_fixed_func_perf_counter);
+		printk(KERN_INFO "PMU Fixed-func perf counters per cpu: %u", edx_nr_of_fixed_func_perf_counter);
+		printk(KERN_INFO "PMU Bit width of fixed-func perf counter: %u", edx_bit_width_of_fixed_func_perf_counter);
 	}
 }
 
@@ -326,13 +326,16 @@ pmu_lapic_init(void)
 
 /* FIXME */
 static int
-pmu_nmi_handler(unsigned int cmd, struct pt_regs *regs)
+pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
 	u64 delta, tmsr;
 	int idx;
+
+	if (type != NMI_LOCAL)
+		return NMI_DONE; /* NMI_DONE=0, means not handled */
 	
 	tmsr = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
-	if (!(tmsr&0x1)) /* PMC0 isn't Overflowed */
+	if (!(tmsr & 0x1)) /* PMC0 isn't Overflowed, dont handle */
 		return NMI_DONE;
 
 	// pmu_clear_ovf();
@@ -342,6 +345,7 @@ pmu_nmi_handler(unsigned int cmd, struct pt_regs *regs)
 	TSC2 = pmu_rdtsc();
 	delta = TSC2 - TSC1;
 	printk(KERN_INFO "PMU nmi_handler: Event Overflowed TSC=%lld", TSC2);
+	printk(KERN_INFO "PMU nmi_handler: Event happend %d times, period TSC=%lld", PMU_PMC0_INIT_VALUE, delta);
 	
 	/*
 	 * NOP isn't the only latency cycle...
@@ -374,15 +378,7 @@ void pmu_main(void)
 	pmu_enable_predefined_event(LLC_REFERENCES, PMU_PMC0_INIT_VALUE);
 	pmu_enable_counting();
 	TSC1 = pmu_rdtsc();
-	printk(KERN_INFO "PMU Event Start Counting TimeStamp: %lld\n", TSC1);
-	
-	tsc2 = pmu_rdtsc();
-	printk(KERN_INFO "PMU Event End TSC: %lld", tsc2);
-	tmsr = pmu_rdmsr(MSR_IA32_PMC0);
-	printk(KERN_INFO "PMU Event End PMC0: 0x%llx", tmsr);
-	tmsr = pmu_rdmsr(MSR_IA32_PERFEVTSEL0);
-	printk(KERN_INFO "PMU MSR PERFEVTSEL0: 0x%llx", tmsr);
-	
+	printk(KERN_INFO "PMU Event Start Counting TSC: %lld", TSC1);
 	
 	// pmu_wrmsr(MSR_IA32_MISC_ENABLE, (1ULL<<16));
 	// pmu_wrmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL, 0x3);
