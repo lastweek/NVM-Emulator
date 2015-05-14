@@ -5,7 +5,9 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
+
 #include <asm/nmi.h>
+#include <asm/msr.h>
 
 /* Architecture MSR Address */
 #define MSR_IA32_APICBASE		0x0000001B
@@ -334,6 +336,8 @@ pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	if (type != NMI_LOCAL)
 		return NMI_DONE; /* NMI_DONE=0, means not handled */
 	
+	/* FIXME pmu_active maybe? */
+
 	tmsr = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
 	if (!(tmsr & 0x1)) /* PMC0 isn't Overflowed, dont handle */
 		return NMI_DONE;
