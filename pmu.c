@@ -334,7 +334,7 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	 * This generic handler doesn't seem to have any issues where the
 	 * unmasking occurs so it was left at the top.
 	 */
-	apic_write(APIC_LVTPC, APIC_DM_NMI);
+	//apic_write(APIC_LVTPC, APIC_DM_NMI);
 	
 	delta = TSC2 - TSC1;
 	TSC1 = TSC2;
@@ -368,13 +368,22 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 
 void pmu_main(void)
 {
-	u64 tmsr, tmsr2, tmsr3;
+	u64 tmsr1, tmsr2, tmsr3;
 
+	/*
+	 * FIXME
+	 * The LATENCY is hard to evaluate. A well-designed algorithm needed.
+	 * The PMU_PMC0_INIT_VALUE is also tentative.
+	 */
 	EVENT_COUNT = 0;
 	LATENCY = 100;
 	PMU_PMC0_INIT_VALUE = -32;
 	
-	/* Check CPU status */
+	/*
+	 * Check CPU status and PMU parameters. Pay attention to the status of
+	 * pre-defined performance events. Not all Intel CPUs support all 7 events.
+	 * For us, LLC_MISSES matters only.
+	 */
 	cpu_general_info();
 	cpu_print_info();
 
@@ -388,22 +397,28 @@ void pmu_main(void)
 	pmu_lapic_init();
 	register_nmi_handler(NMI_LOCAL, pmu_nmi_handler, NMI_FLAG_FIRST, "PMU_NMI_HANDLER");
 
-	/* Start Counting */
+	/*
+	 * Set initial value, enable interrupts and enbale counting.
+	 * TSC1 can change in pmu_nmi_handler. ;)
+	 */
 	pmu_clear_msrs();
 	pmu_enable_predefined_event(LLC_REFERENCES, PMU_PMC0_INIT_VALUE);
 	pmu_enable_counting();
 	TSC1 = pmu_rdtsc();
 	printk(KERN_INFO "PMU Event Start Counting TSC: %llu\n", TSC1);
 	
-	tmsr = pmu_rdmsr(MSR_IA32_PMC0);
+	/*
+	 * We have set USR_MODE in MSR_IA32_PERFEVTSEL0,
+	 * so the performance event counter will count User-Level only.
+	 * Don't worry about the latency this code can bring. ;)
+	 */
+	tmsr1 = pmu_rdmsr(MSR_IA32_PMC0);
 	tmsr2 = pmu_rdmsr(MSR_IA32_PERFEVTSEL0);
-	printk(KERN_INFO "PMU Event Start Counting PMC0=%llx PERFEVTSEL0=%llx\n", tmsr, tmsr2);
-	
-	tmsr = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_CTRL);
+	printk(KERN_INFO "PMU Event Start Counting PMC0=%llx PERFEVTSEL0=%llx\n", tmsr1, tmsr2);
+	tmsr1 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_CTRL);
 	tmsr2 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
 	tmsr3 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL);
-	printk(KERN_INFO "PMU Event Start Counting G_CTRL=%llx G_STATUS=%llx OVF_CTRL=%llx\n", tmsr, tmsr2, tmsr3);
-
+	printk(KERN_INFO "PMU Event Start Counting G_CTRL=%llx G_STATUS=%llx OVF_CTRL=%llx\n", tmsr1, tmsr2, tmsr3);
 }
 
 module_init(pmu_init);
