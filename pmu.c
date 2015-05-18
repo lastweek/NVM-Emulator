@@ -3,6 +3,7 @@
  *	pmu.c: Intel x86 PerfMon sample module.
  */
 
+#include <linux/init.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
@@ -11,14 +12,14 @@
 #include <asm/nmi.h>
 #include <asm/msr.h>
 
-//#define MSR_IA32_MISC_ENABLE	0x000001A0
+#define MSR_IA32_MISC_ENABLE	0x000001A0
 #define MSR_IA32_MISC_PERFMON_ENABLE 	1ULL<<7
 
-//#define MSR_IA32_PMC0			0x000000C1
+#define MSR_IA32_PMC0			0x000000C1
 #define MSR_IA32_PERFEVTSEL0	0x00000186
 
-//#define MSR_CORE_PERF_GLOBAL_STATUS		0x0000038E
-//#define MSR_CORE_PERF_GLOBAL_CTRL		0x0000038F
+#define MSR_CORE_PERF_GLOBAL_STATUS		0x0000038E
+#define MSR_CORE_PERF_GLOBAL_CTRL		0x0000038F
 #define MSR_CORE_PERF_GLOBAL_OVF_CTRL	0x00000390
 
 /* Bit field of MSR_IA32_PERFEVTSEL */
@@ -31,7 +32,6 @@
 #define ENABLE		1ULL<<22
 #define INVERT		1ULL<<23
 #define CMASK(val)  (u64)(val<<24)
-
 
 typedef unsigned char  u8;
 typedef unsigned short u16;
@@ -69,32 +69,30 @@ u32  eax_len_of_ebx_to_enumerate;
 u32  ebx_predefined_event_mask;
 u32  edx_nr_of_fixed_func_perf_counter;
 u32  edx_bit_width_of_fixed_func_perf_counter;
-u64  CPU_BASE_FREQUENCY;
-char CPU_BRAND[48];
 
 u64 TSC1, TSC2, TSC3;
+u64  CPU_BASE_FREQUENCY;
+char CPU_BRAND[48];
 u64 PMU_PMC0_INIT_VALUE;
-int LATENCY;
-int EVENT_COUNT;
+int PMU_LATENCY;
+int PMU_EVENT_COUNT;
 
 void pmu_main(void);
 
 //#################################################
 // MODULE PART
 //#################################################
-
-int pmu_init(void)
+static int pmu_init(void)
 {
 	printk(KERN_INFO "PMU module init.\n");
 	pmu_main();
-
 	return 0;
 }
 
-void pmu_exit(void)
+static void pmu_exit(void)
 {
 	unregister_nmi_handler(NMI_LOCAL, "PMU_NMI_HANDLER");
-	printk(KERN_INFO "PMU Event occurs %d times.\n", EVENT_COUNT);
+	printk(KERN_INFO "PMU Event occurs %d times.\n", PMU_EVENT_COUNT);
 	printk(KERN_INFO "PMU module exit.\n");
 }
 
@@ -102,14 +100,12 @@ static void
 pmu_err(char *msg)
 {
 	printk(KERN_INFO "PMU Error: %s", msg);
-	pmu_exit();
+	pmu_exit();//Dont work
 }
 
 //#################################################
 // CPU PART
 //#################################################
-
-/* x86_64 Only */
 static void
 pmu_cpuid(u32 *eax, u32 *ebx, u32 *ecx, u32 *edx)
 {
@@ -121,8 +117,6 @@ pmu_cpuid(u32 *eax, u32 *ebx, u32 *ecx, u32 *edx)
 	);
 }
 
-
-/* Time Stamp Counter Addr: 0x10 in MSR */
 static u64
 pmu_rdtsc(void)
 {
@@ -133,7 +127,6 @@ pmu_rdtsc(void)
 		"rdtsc"
 		:"=a"(eax), "=d"(edx)
 	);
-
 	retval = (u64)edx << 32 | (u64)eax;
 	return retval;
 }
@@ -163,26 +156,29 @@ pmu_wrmsr(u32 addr, u64 value)
 	);
 }
 
-/* See whether CPU support the facilities we need. */
+/*
+ * See whether CPU support facilities we need.
+ */
 static void
 cpu_facility_test(void)
 {
-	u64 tmsr;
+	u64 msr;
 	u32 eax, ebx, ecx, edx;
 	
 	/* FIXME Do more things... */
 	eax = 0x01;
 	pmu_cpuid(&eax, &ebx, &ecx, &edx);
 
-	tmsr = pmu_rdmsr(MSR_IA32_MISC_ENABLE);
-	if (!(tmsr & MSR_IA32_MISC_PERFMON_ENABLE)) {
+	msr = pmu_rdmsr(MSR_IA32_MISC_ENABLE);
+	if (!(msr & MSR_IA32_MISC_PERFMON_ENABLE)) {
 		pmu_err("MSR_IA32_MISC_PERFMON_ENABLE = 0, PerfMon Disabled");
 	}
-
 }
 
-/* Get CPU brand and frequency */
-/* See Intel Developer-Manual 2 [CPUID] for detail. */
+/*
+ * Get CPU brand and frequency.
+ * See Intel Developer-Manual 2 [CPUID] for detail.
+ */
 static void
 cpu_brand_frequency(void)
 {
@@ -212,7 +208,9 @@ cpu_brand_frequency(void)
 }
 
 
-/* Get Host CPU Performance Monitoring Information */
+/*
+ * Get Host CPU Performance Monitoring Information.
+ */
 static void
 cpu_perf_info(void)
 {
@@ -230,8 +228,6 @@ cpu_perf_info(void)
 	edx_bit_width_of_fixed_func_perf_counter = (edx & 0x1FE0U) >> 5;
 }
 
-
-/* Get and test Host CPU General Information */
 static void
 cpu_general_info(void)
 {
@@ -248,29 +244,21 @@ cpu_print_info(void)
 	printk(KERN_INFO "PMU General-purpose perf counter per cpu: %u\n", eax_nr_of_perf_counter_per_cpu);
 	printk(KERN_INFO "PMU Bit width of general perf counter: %u\n", eax_bit_width_of_perf_counter);
 	printk(KERN_INFO "PMU Pre-defined events not avaliable if 1: %x\n", ebx_predefined_event_mask);
-	
-	if (eax_arch_perf_version > 1) {
-		printk(KERN_INFO "PMU Fixed-func perf counters per cpu: %u\n", edx_nr_of_fixed_func_perf_counter);
-		printk(KERN_INFO "PMU Bit width of fixed-func perf counter: %u\n", edx_bit_width_of_fixed_func_perf_counter);
-	}
 }
+
 
 //#################################################
 // PMU PART
 //#################################################
-
 static void
 pmu_clear_msrs(void)
 {
 	pmu_wrmsr(MSR_IA32_PMC0, 0x0);
 	pmu_wrmsr(MSR_IA32_PERFEVTSEL0, 0x0);
-	if (eax_arch_perf_version > 1) {
-		pmu_wrmsr(MSR_CORE_PERF_GLOBAL_CTRL, 0x0);
-		pmu_wrmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL, 0x0);
-	}
+	pmu_wrmsr(MSR_CORE_PERF_GLOBAL_CTRL, 0x0);
+	pmu_wrmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL, 0x0);
 }
 
-/* Enable PMC0 */
 static inline void
 pmu_enable_counting(void)
 {
@@ -281,13 +269,13 @@ pmu_disable_counting(void)
 {
 	pmu_wrmsr(MSR_CORE_PERF_GLOBAL_CTRL, 0);
 }
+
 static inline void
 pmu_clear_ovf(void)
 {
 	pmu_wrmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL, 1);
 }
 
-/* Pre-Defined event enable routine */
 static void
 pmu_enable_predefined_event(int event, u64 init_val)
 {
@@ -304,7 +292,6 @@ pmu_enable_predefined_event(int event, u64 init_val)
 //#################################################
 // NMI PART
 //#################################################
-
 static void
 pmu_lapic_init(void)
 {
@@ -313,7 +300,7 @@ pmu_lapic_init(void)
 
 int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
-	u64 delta, tmsr, tmsr2, tmsr3;
+	u64 delta, tmsr, tmsr1, tmsr2, tmsr3;
 	int idx;
 	
 	/* Get TimeStamp First! */
@@ -334,33 +321,33 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	 * This generic handler doesn't seem to have any issues where the
 	 * unmasking occurs so it was left at the top.
 	 */
-	//apic_write(APIC_LVTPC, APIC_DM_NMI);
+	apic_write(APIC_LVTPC, APIC_DM_NMI);
 	
 	delta = TSC2 - TSC1;
 	TSC1 = TSC2;
-	printk(KERN_INFO "PMU nmi_handler: Overflow Catched! TSC2=%llu, period=%llu\n", TSC2, delta);
+	printk(KERN_INFO "PMU NMI: Overflow Catched! TSC2=%llu, period=%llu\n", TSC2, delta);
 	
-	tmsr = pmu_rdmsr(MSR_IA32_PMC0);
+	tmsr1 = pmu_rdmsr(MSR_IA32_PMC0);
 	tmsr2 = pmu_rdmsr(MSR_IA32_PERFEVTSEL0);
-	printk(KERN_INFO "PMU nmi_handler: PMC0=%llx PERFEVTSEL0=%llx\n", tmsr, tmsr2);
-	
-	tmsr = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_CTRL);
+	printk(KERN_INFO "PMU NMI: PMC0=%llx PERFEVTSEL0=%llx\n", tmsr1, tmsr2);
+	tmsr1 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_CTRL);
 	tmsr2 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
 	tmsr3 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL);
-	printk(KERN_INFO "PMU nmi_handler: G_CTRL=%llx G_STATUS=%llx OVF_CTRL=%llx\n", tmsr, tmsr2, tmsr3);
+	printk(KERN_INFO "PMU NMI: G_CTRL=%llx G_STATUS=%llx OVF_CTRL=%llx\n", tmsr1, tmsr2, tmsr3);
 	
-	/* Start Counting Again */
+	/*
+	 * Start Counting Again.
+	 */
 	pmu_clear_msrs();
 	pmu_enable_predefined_event(LLC_REFERENCES, PMU_PMC0_INIT_VALUE);
 	pmu_enable_counting();
-	
-	/* FIXME */
-	for (idx = 0; idx < LATENCY; idx++)
+
+	for (idx = 0; idx < PMU_LATENCY; idx++)
 		asm("nop");
 
-	EVENT_COUNT++;
-	if (EVENT_COUNT == 20){
-		pmu_clear_msrs();/*Stop*/
+	PMU_EVENT_COUNT++;
+	if (PMU_EVENT_COUNT == 20){
+		pmu_clear_msrs();//stop
 	}
 
 	return 1;
@@ -375,9 +362,9 @@ void pmu_main(void)
 	 * The LATENCY is hard to evaluate. A well-designed algorithm needed.
 	 * The PMU_PMC0_INIT_VALUE is also tentative.
 	 */
-	EVENT_COUNT = 0;
-	LATENCY = 100;
-	PMU_PMC0_INIT_VALUE = -32;
+	PMU_EVENT_COUNT = 0;
+	PMU_LATENCY = 0;
+	PMU_PMC0_INIT_VALUE = -9999;
 	
 	/*
 	 * Check CPU status and PMU parameters. Pay attention to the status of
@@ -398,12 +385,15 @@ void pmu_main(void)
 	register_nmi_handler(NMI_LOCAL, pmu_nmi_handler, NMI_FLAG_FIRST, "PMU_NMI_HANDLER");
 
 	/*
-	 * Set initial value, enable interrupts and enbale counting.
+	 * Clear various MSRs, set initial value of PMC0.
+	 * Enable LLC_MISSES event, enable interrupt when overflow.
+	 * Enbale counting with MSR_CORE_PERF_GLOBAL_CTRL.
 	 * TSC1 can change in pmu_nmi_handler. ;)
 	 */
 	pmu_clear_msrs();
-	pmu_enable_predefined_event(LLC_REFERENCES, PMU_PMC0_INIT_VALUE);
+	pmu_enable_predefined_event(LLC_MISSES, PMU_PMC0_INIT_VALUE);
 	pmu_enable_counting();
+	
 	TSC1 = pmu_rdtsc();
 	printk(KERN_INFO "PMU Event Start Counting TSC: %llu\n", TSC1);
 	
@@ -414,7 +404,7 @@ void pmu_main(void)
 	 */
 	tmsr1 = pmu_rdmsr(MSR_IA32_PMC0);
 	tmsr2 = pmu_rdmsr(MSR_IA32_PERFEVTSEL0);
-	printk(KERN_INFO "PMU Event Start Counting PMC0=%llx PERFEVTSEL0=%llx\n", tmsr1, tmsr2);
+	printk(KERN_INFO "PMU Event Start Counting PMC0=%lld PERFEVTSEL0=%llx\n", tmsr1|(0xFF<<48), tmsr2);
 	tmsr1 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_CTRL);
 	tmsr2 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
 	tmsr3 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL);
@@ -424,3 +414,5 @@ void pmu_main(void)
 module_init(pmu_init);
 module_exit(pmu_exit);
 MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("PerfMon NMI Hander");
+MODULE_AUTHOR("Shan Yizhou");
