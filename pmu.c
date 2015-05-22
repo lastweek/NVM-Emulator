@@ -16,10 +16,11 @@
 #define MSR_IA32_MISC_ENABLE			0x000001A0
 #define MSR_CORE_PERF_GLOBAL_STATUS		0x0000038E
 #define MSR_CORE_PERF_GLOBAL_CTRL		0x0000038F
+*/
+
 #define MSR_IA32_PERFEVTSEL0			0x00000186
 #define MSR_IA32_MISC_PERFMON_ENABLE 	1ULL<<7
 #define MSR_CORE_PERF_GLOBAL_OVF_CTRL	0x00000390
-*/
 
 typedef unsigned char  u8;
 typedef unsigned short u16;
@@ -337,7 +338,9 @@ __pmu_clear_ovf(void *info)
 static void
 __pmu_enable_predefined_event(void *info)
 {
-	pmu_clear_ovf();
+	int event = ((struct event *)info)->event;
+	u64 init_val = ((struct event *)info)->init_val;
+
 	pmu_wrmsr(MSR_IA32_PMC0, init_val);
 	pmu_wrmsr(MSR_IA32_PERFEVTSEL0,
 				pmu_predefined_eventmap[event]
@@ -418,10 +421,10 @@ pmu_lapic_init(void)
 int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
 	u64 delta, tmsr, tmsr1, tmsr2, tmsr3;
-	int idx, per_cpu_count;
+	int idx;
 	
 	/* GET TIMESTAMP FIRST! */
-	TSC2 = pmu_rdtsc();
+	this_cpu_write(TSC2, pmu_rdtsc());
 	
 	tmsr = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
 	if (!(tmsr & 0x1))	// PMC0 isn't overflowed, dont handle
@@ -437,17 +440,19 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	 */
 	apic_write(APIC_LVTPC, APIC_DM_NMI);
 	
-	delta = TSC2 - TSC1;
-	TSC1 = TSC2;
-	printk(KERN_INFO "PMU NMI: Overflow Catched! TSC2=%llu, period=%llu\n", TSC2, delta);
+	printk(KERN_INFO "PMU NMI cpu%d: Overflow Catched! TSC2=%llu\n",
+					smp_processor_id(), this_cpu_read(TSC2));
 	
 	tmsr1 = pmu_rdmsr(MSR_IA32_PMC0);
 	tmsr2 = pmu_rdmsr(MSR_IA32_PERFEVTSEL0);
-	printk(KERN_INFO "PMU NMI: PMC0=%llx PERFEVTSEL0=%llx\n", tmsr1, tmsr2);
+	printk(KERN_INFO "PMU NMI cpu%d: PMC0=%llx PERFEVTSEL0=%llx\n",
+					smp_processor_id(), tmsr1, tmsr2);
+
 	tmsr1 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_CTRL);
 	tmsr2 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
 	tmsr3 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL);
-	printk(KERN_INFO "PMU NMI: G_CTRL=%llx G_STATUS=%llx OVF_CTRL=%llx\n", tmsr1, tmsr2, tmsr3);
+	printk(KERN_INFO "PMU NMI cpu%d: G_CTRL=%llx G_STATUS=%llx OVF_CTRL=%llx\n",
+					smp_processor_id(), tmsr1, tmsr2, tmsr3);
 
 	/*
 	 * Start Counting Again.
@@ -461,10 +466,9 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	 */
 	for (idx = 0; idx < PMU_LATENCY; idx++)
 		asm("nop");
-
-	per_cpu_count = ++get_cpu_var(PMU_EVENT_COUNT);
-	put_cpu_var(PMU_EVENT_COUNT);
-	if (per_cpu_count == 20){
+	
+	this_cpu_add(PMU_EVENT_COUNT, 1);
+	if (this_cpu_read(PMU_EVENT_COUNT) == 10){
 		pmu_clear_msrs();//stop
 	}
 
@@ -475,7 +479,7 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 void pmu_main(void)
 {
 	int cpu;
-	u64 tmsr1, tmsr2, tmsr3;
+	u64 tmsr1, tmsr2, tmsr3, tsc1;
 
 	PMU_EVENT_COUNT		=	0;
 	PMU_LATENCY			=	0;
@@ -507,8 +511,9 @@ void pmu_main(void)
 	pmu_enable_predefined_event(LLC_MISSES, PMU_PMC0_INIT_VALUE);
 	pmu_enable_counting();
 	
-	TSC1 = pmu_rdtsc();
-	printk(KERN_INFO "PMU Event Start Counting TSC: %llu\n", TSC1);
+	tsc1 = pmu_rdtsc();
+
+	printk(KERN_INFO "PMU Event Start Counting TSC: %llu\n", tsc1);
 	
 	/*
 	 * We have set USR_MODE in MSR_IA32_PERFEVTSEL0,
@@ -529,7 +534,7 @@ void pmu_main(void)
 // MODULE PART
 //#################################################
 
-static int
+static void
 pmu_test(void *info)
 {
 	printk(KERN_INFO "PMU test, this is cpu %d\n", smp_processor_id());
@@ -540,12 +545,13 @@ pmu_init(void)
 {
 	printk(KERN_INFO "PMU module init.\n");
 	printk(KERN_INFO "PMU online cpus: %d.\n", num_online_cpus());
-
+	
+	int cpu;
 	for_each_online_cpu(cpu) {
 		pmu_cpu_function_call(cpu, pmu_test, NULL);
 	}
 
-	//pmu_main();
+	pmu_main();
 	
 	return 0;
 }
