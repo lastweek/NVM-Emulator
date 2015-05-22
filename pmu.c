@@ -1,13 +1,18 @@
+/**
+ *	Desciption:
+ *	Intel PMU can interrupt CPU in NMI manner when it overflows.
+ *	This module inserts a pmu_nmi_handler to the NMI ISR list,
+ *	in which we can do something everytime PMU overflows.
+ **/
+
 #include <linux/init.h>
-#include <linux/smp.h>
-#include <linux/module.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/string.h>
-#include <linux/rculist.h>
+#include <linux/smp.h>
 #include <linux/percpu-defs.h>
 #include <linux/percpu.h>
 #include <linux/cpumask.h>
-
 #include <asm/nmi.h>
 #include <asm/msr.h>
 
@@ -453,7 +458,7 @@ pmu_lapic_init(void)
 int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
 	int i;
-	u64 delta, tmsr, tmsr1, tmsr2, tmsr3;
+	u64 tmsr;
 	struct pre_event info = {
 		.event = LLC_REFERENCES,
 		.init_val = PMU_PMC0_INIT_VALUE
@@ -466,17 +471,16 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	if (!(tmsr & 0x1))	// PMC0 isn't overflowed, dont handle
 		return NMI_DONE;
 
-	/*
+	/**
 	 * Some chipsets need to unmask the LVTPC in a particular spot
 	 * inside the nmi handler.  As a result, the unmasking was pushed
 	 * into all the nmi handlers.
-	 *
 	 * This generic handler doesn't seem to have any issues where the
 	 * unmasking occurs so it was left at the top.
-	 */
+	 **/
 	apic_write(APIC_LVTPC, APIC_DM_NMI);
 	
-	printk(KERN_INFO "PMU NMI cpu%d: Overflow! TSC2=%llu\n",
+	printk(KERN_INFO"PMU NMI cpu%d overflow! TSC=%llu\n",
 					smp_processor_id(), this_cpu_read(TSC2));
 	
 	__pmu_show_msrs(NULL);
@@ -485,9 +489,9 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	__pmu_enable_predefined_event(&info);
 	__pmu_enable_counting(NULL);
 	
-	/*
+	/**
 	 * Simulate Lantency
-	 */
+	 **/
 	for (i = 0; i < PMU_LATENCY; i++)
 		asm("nop");
 	
@@ -499,46 +503,37 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	return NMI_HANDLED;
 }
 
-
-
 static void
 pmu_main(void)
 {
-	int cpu;
-	u64 tmsr1, tmsr2, tmsr3, tsc1;
+	u64 tsc1;
 
-	PMU_EVENT_COUNT		=	0;
-	PMU_LATENCY			=	0;
-	PMU_PMC0_INIT_VALUE	=	-9999;
-	
-	/*
+	/**
 	 * Pay attention to the status of predefined performance events.
 	 * Not all Intel CPUs support all 7 events. LLC_MISSES matters only.
-	 */
-
+	 **/
 	cpu_general_info();
 	cpu_print_info();
-
 	
-	/*
-	 * We must AVOID walking kernel code path as much as possiable.
+	/**
+	 * We MUST AVOID walking kernel code path as much as possiable.
 	 * [NMI_FLAG_FIRST] will tell kernel to put our pmu_nmi_hander
 	 * to the head of nmiaction list. Therefore, whenever kernel receives
 	 * NMI interrupts, our pmu_nmi_handler will be called first!
 	 * Note that the impact to kernel remains unknown. ;)
-	 */
-
+	 **/
 	pmu_lapic_init();
 	register_nmi_handler(NMI_LOCAL, pmu_nmi_handler, NMI_FLAG_FIRST, "PMU_NMI_HANDLER");
 
 	pmu_clear_msrs();
+	pmu_show_msrs();
 	pmu_enable_predefined_event(LLC_MISSES, PMU_PMC0_INIT_VALUE);
+	pmu_show_msrs();
+
 	//pmu_enable_counting();
 	
 	tsc1 = pmu_rdtsc();
 	printk(KERN_INFO "PMU Event Start Counting TSC: %llu\n", tsc1);
-
-	pmu_show_msrs();
 }
 
 
@@ -546,25 +541,15 @@ pmu_main(void)
 // MODULE PART
 //#################################################
 
-static void
-pmu_test(void *info)
-{
-	printk(KERN_INFO "PMU test, this is cpu %d\n", smp_processor_id());
-}
-
 static int
 pmu_init(void)
 {
+	PMU_EVENT_COUNT		=	0;
+	PMU_LATENCY			=	0;
+	PMU_PMC0_INIT_VALUE	=	-9999;
 	printk(KERN_INFO "PMU MODULE INIT ON CPU%d\n", smp_processor_id());
 	printk(KERN_INFO "PMU ONLINE CPUS: %d\n", num_online_cpus());
-	
-	int cpu;
-	for_each_online_cpu(cpu) {
-		pmu_cpu_function_call(cpu, pmu_test, NULL);
-	}
-
 	pmu_main();
-	
 	return 0;
 }
 
@@ -575,9 +560,7 @@ pmu_exit(void)
 	for_each_online_cpu(cpu) {
 		printk(KERN_INFO "PMU cpu %d, count=%d\n", cpu, per_cpu(PMU_EVENT_COUNT, cpu));
 	}
-
 	unregister_nmi_handler(NMI_LOCAL, "PMU_NMI_HANDLER");
-	
 	printk(KERN_INFO "PMU module exit.\n");
 }
 
