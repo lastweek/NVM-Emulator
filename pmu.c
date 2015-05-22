@@ -55,9 +55,10 @@ enum perf_hw_id {
 	BRANCH_INSTRUCTIONS_RETIRED	=	5,
 	BRANCH_MISSES_RETIRED		=	6,
 
-	PERF_COUNT_MAX,
+	EVENT_COUNT_MAX,
 };
-static u64 pmu_predefined_eventmap[PERF_COUNT_MAX] =
+
+static u64 intel_predefined_eventmap[EVENT_COUNT_MAX] =
 {
 	[UNHALTED_CYCLES]				= 0x003c,
 	[INSTRUCTIONS_RETIRED]			= 0x00c0,
@@ -66,6 +67,16 @@ static u64 pmu_predefined_eventmap[PERF_COUNT_MAX] =
 	[LLC_MISSES]					= 0x412e,
 	[BRANCH_INSTRUCTIONS_RETIRED]	= 0x00c4,
 	[BRANCH_MISSES_RETIRED]			= 0x00c5,
+};
+
+struct pre_event {
+	int event;
+	u64 threshold;
+};
+
+static struct pre_event pre_event_info = {
+	.event = 0,
+	.threshold = 0
 };
 
 /**
@@ -241,74 +252,27 @@ cpu_print_info(void)
 //#################################################
 
 /**
- * struct pre_event - pmu predefined event
- * @event: predefined event number
- * @init_val: initial value for this event
- */
-struct pre_event {
-	int event;
-	u64 init_val;
-};
-
-/**
- * struct remote_function_call - rfc
- * @p:    the task to attach
- * @func: the function to be called
- * @info: the function call argument
- * @ret:  the function return value
- */
-struct remote_function_call {
-	struct	task_struct *p;
-	void	(*func)(void *info);
-	void	*info;
-	int 	ret;
-};
-
-/**
- * A wrapper for remote cpu function call.
- */
-static void
-remote_function(void *info)
-{
-	struct remote_function_call *rfc = info;
-	struct task_struct *p = rfc->p;
-
-	// Do Nothing. For future use...
-	if (p) {
-		rfc->ret = -EAGAIN;
-	}
-	
-	rfc->func(info);
-}
-
-/**
- * pmu_cpu_function_call - call a function on the cpu
- * @cpu :	the cpu to run
+ * pmu_cpu_function_call - Call a function on specific CPU
  * @func:	the function to be called
  * @info:	the function call argument
  *
- * Calls the function @func on the remote cpu.
- * Wait until the function finish.
- *
- * returns: @func return value or -ENXIO when the cpu is offline
+ * Wait until function has completed on other CPUs.
  */
-static int
+static void
 pmu_cpu_function_call(int cpu, void (*func)(void *info), void *info)
 {
-	struct remote_function_call data = {
-		.p		= NULL,
-		.func	= func,
-		.info	= info,
-		.ret	= -ENXIO, // No such CPU
-	};
+	int err;
+	err = smp_call_function_single(cpu, func, info, 1);
+	
+	if (err) {
+		//why fail
+	}
+}
 
-	if (cpu == smp_processor_id())
-		func(info);
-	else
-		/* We trust smp call always success */
-		smp_call_function_single(cpu, remote_function, &data, 1);
-
-	return data.ret;
+static int
+pmu_task_function_call(void)
+{
+	return 0;
 }
 
 /**
@@ -361,12 +325,19 @@ __pmu_clear_ovf(void *info)
 static void
 __pmu_enable_predefined_event(void *info)
 {
-	int event = ((struct pre_event *)info)->event;
-	u64 init_val = ((struct pre_event *)info)->init_val;
+	int evt;
+	u64 val;
 
-	pmu_wrmsr(MSR_IA32_PMC0, init_val);
+	if (!info)
+		return;
+	evt = ((struct pre_event *)info)->event;
+	val = ((struct pre_event *)info)->threshold;
+	if (evt >= EVENT_COUNT_MAX || evt < 0)
+		return;
+	
+	pmu_wrmsr(MSR_IA32_PMC0, val);
 	pmu_wrmsr(MSR_IA32_PERFEVTSEL0,
-				pmu_predefined_eventmap[event]
+				intel_predefined_eventmap[evt]
 				| USR_MODE
 				| INT_ENABLE
 				| ENABLE );
@@ -429,16 +400,13 @@ pmu_clear_ovf(void)
 }
 
 static void
-pmu_enable_predefined_event(int event, u64 init_val)
+pmu_enable_predefined_event(int event, u64 threshold)
 {
-	struct pre_event info = {
-		.event = event,
-		.init_val = init_val
-	};
-
 	int cpu;
+	pre_event_info.event = event;
+	pre_event_info.threshold = threshold;
 	for_each_online_cpu(cpu) {
-		pmu_cpu_function_call(cpu, __pmu_enable_predefined_event, &info);
+		pmu_cpu_function_call(cpu, __pmu_enable_predefined_event, &pre_event_info);
 	}
 }
 
@@ -459,10 +427,6 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
 	int i;
 	u64 tmsr;
-	struct pre_event info = {
-		.event = LLC_REFERENCES,
-		.init_val = PMU_PMC0_INIT_VALUE
-	};
 	
 	/* GET TIMESTAMP FIRST! */
 	this_cpu_write(TSC2, pmu_rdtsc());
@@ -480,13 +444,13 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	 **/
 	apic_write(APIC_LVTPC, APIC_DM_NMI);
 	
-	printk(KERN_INFO"PMU NMI cpu%d overflow! TSC=%llu\n",
+	printk(KERN_INFO"PMU NMI CPU %d OVERFLOW! TSC=%llu\n",
 					smp_processor_id(), this_cpu_read(TSC2));
 	
 	__pmu_show_msrs(NULL);
 
 	__pmu_clear_msrs(NULL);
-	__pmu_enable_predefined_event(&info);
+	__pmu_enable_predefined_event(&pre_event_info);
 	__pmu_enable_counting(NULL);
 	
 	/**
@@ -497,7 +461,7 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	
 	this_cpu_add(PMU_EVENT_COUNT, 1);
 	if (this_cpu_read(PMU_EVENT_COUNT) == 10){
-		pmu_clear_msrs();//stop
+		__pmu_clear_msrs(NULL);
 	}
 
 	return NMI_HANDLED;
@@ -507,6 +471,10 @@ static void
 pmu_main(void)
 {
 	u64 tsc1;
+
+	PMU_EVENT_COUNT		=	0;
+	PMU_LATENCY			=	0;
+	PMU_PMC0_INIT_VALUE	=	-9999;
 
 	/**
 	 * Pay attention to the status of predefined performance events.
@@ -529,8 +497,7 @@ pmu_main(void)
 	pmu_show_msrs();
 	pmu_enable_predefined_event(LLC_MISSES, PMU_PMC0_INIT_VALUE);
 	pmu_show_msrs();
-
-	//pmu_enable_counting();
+	pmu_enable_counting();
 	
 	tsc1 = pmu_rdtsc();
 	printk(KERN_INFO "PMU Event Start Counting TSC: %llu\n", tsc1);
@@ -544,9 +511,6 @@ pmu_main(void)
 static int
 pmu_init(void)
 {
-	PMU_EVENT_COUNT		=	0;
-	PMU_LATENCY			=	0;
-	PMU_PMC0_INIT_VALUE	=	-9999;
 	printk(KERN_INFO "PMU MODULE INIT ON CPU%d\n", smp_processor_id());
 	printk(KERN_INFO "PMU ONLINE CPUS: %d\n", num_online_cpus());
 	pmu_main();
