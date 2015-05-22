@@ -11,12 +11,10 @@
 #include <asm/nmi.h>
 #include <asm/msr.h>
 
-/*
 #define MSR_IA32_PMC0					0x000000C1
 #define MSR_IA32_MISC_ENABLE			0x000001A0
 #define MSR_CORE_PERF_GLOBAL_STATUS		0x0000038E
 #define MSR_CORE_PERF_GLOBAL_CTRL		0x0000038F
-*/
 
 #define MSR_IA32_PERFEVTSEL0			0x00000186
 #define MSR_IA32_MISC_PERFMON_ENABLE 	1ULL<<7
@@ -238,11 +236,11 @@ cpu_print_info(void)
 //#################################################
 
 /**
- * struct event - pmu predefined event
+ * struct pre_event - pmu predefined event
  * @event: predefined event number
  * @init_val: initial value for this event
  */
-struct event {
+struct pre_event {
 	int event;
 	u64 init_val;
 };
@@ -308,6 +306,26 @@ pmu_cpu_function_call(int cpu, void (*func)(void *info), void *info)
 	return data.ret;
 }
 
+/**
+ * These set of functions are intended for single cpu.
+ **/
+static void
+__pmu_show_msrs(void *info)
+{
+	u64 tmsr1, tmsr2, tmsr3;
+	
+	tmsr1 = pmu_rdmsr(MSR_IA32_PMC0);
+	tmsr2 = pmu_rdmsr(MSR_IA32_PERFEVTSEL0);
+	printk(KERN_INFO "PMU cpu%d: PMC0=%llx PERFEVTSEL0=%llx\n",
+					smp_processor_id(), tmsr1, tmsr2);
+
+	tmsr1 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_CTRL);
+	tmsr2 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
+	tmsr3 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL);
+	printk(KERN_INFO "PMU cpu%d: G_CTRL=%llx G_STATUS=%llx OVF_CTRL=%llx\n",
+					smp_processor_id(), tmsr1, tmsr2, tmsr3);
+}
+
 static void
 __pmu_clear_msrs(void *info)
 {
@@ -338,8 +356,8 @@ __pmu_clear_ovf(void *info)
 static void
 __pmu_enable_predefined_event(void *info)
 {
-	int event = ((struct event *)info)->event;
-	u64 init_val = ((struct event *)info)->init_val;
+	int event = ((struct pre_event *)info)->event;
+	u64 init_val = ((struct pre_event *)info)->init_val;
 
 	pmu_wrmsr(MSR_IA32_PMC0, init_val);
 	pmu_wrmsr(MSR_IA32_PERFEVTSEL0,
@@ -353,6 +371,20 @@ static void
 __pmu_lapic_init(void *info)
 {
 	apic_write(APIC_LVTPC, APIC_DM_NMI);
+}
+
+
+/**
+ * These set of functions are intended
+ * to walk through all online cpus.
+ **/
+static void
+pmu_show_msrs(void)
+{
+	int cpu;
+	for_each_online_cpu(cpu) {
+		pmu_cpu_function_call(cpu, __pmu_show_msrs, NULL);
+	}
 }
 
 static void
@@ -394,7 +426,7 @@ pmu_clear_ovf(void)
 static void
 pmu_enable_predefined_event(int event, u64 init_val)
 {
-	struct event info = {
+	struct pre_event info = {
 		.event = event,
 		.init_val = init_val
 	};
@@ -420,8 +452,12 @@ pmu_lapic_init(void)
 
 int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
+	int i;
 	u64 delta, tmsr, tmsr1, tmsr2, tmsr3;
-	int idx;
+	struct pre_event info = {
+		.event = LLC_REFERENCES,
+		.init_val = PMU_PMC0_INIT_VALUE
+	};
 	
 	/* GET TIMESTAMP FIRST! */
 	this_cpu_write(TSC2, pmu_rdtsc());
@@ -440,31 +476,19 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	 */
 	apic_write(APIC_LVTPC, APIC_DM_NMI);
 	
-	printk(KERN_INFO "PMU NMI cpu%d: Overflow Catched! TSC2=%llu\n",
+	printk(KERN_INFO "PMU NMI cpu%d: Overflow! TSC2=%llu\n",
 					smp_processor_id(), this_cpu_read(TSC2));
 	
-	tmsr1 = pmu_rdmsr(MSR_IA32_PMC0);
-	tmsr2 = pmu_rdmsr(MSR_IA32_PERFEVTSEL0);
-	printk(KERN_INFO "PMU NMI cpu%d: PMC0=%llx PERFEVTSEL0=%llx\n",
-					smp_processor_id(), tmsr1, tmsr2);
+	__pmu_show_msrs(NULL);
 
-	tmsr1 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_CTRL);
-	tmsr2 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
-	tmsr3 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL);
-	printk(KERN_INFO "PMU NMI cpu%d: G_CTRL=%llx G_STATUS=%llx OVF_CTRL=%llx\n",
-					smp_processor_id(), tmsr1, tmsr2, tmsr3);
-
-	/*
-	 * Start Counting Again.
-	 */
-	pmu_clear_msrs();
-	pmu_enable_predefined_event(LLC_REFERENCES, PMU_PMC0_INIT_VALUE);
-	pmu_enable_counting();
+	__pmu_clear_msrs(NULL);
+	__pmu_enable_predefined_event(&info);
+	__pmu_enable_counting(NULL);
 	
 	/*
 	 * Simulate Lantency
 	 */
-	for (idx = 0; idx < PMU_LATENCY; idx++)
+	for (i = 0; i < PMU_LATENCY; i++)
 		asm("nop");
 	
 	this_cpu_add(PMU_EVENT_COUNT, 1);
@@ -476,7 +500,9 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 }
 
 
-void pmu_main(void)
+
+static void
+pmu_main(void)
 {
 	int cpu;
 	u64 tmsr1, tmsr2, tmsr3, tsc1;
@@ -502,31 +528,17 @@ void pmu_main(void)
 	 * Note that the impact to kernel remains unknown. ;)
 	 */
 
-	for_each_online_cpu(cpu) {
-		pmu_cpu_function_call(cpu, pmu_lapic_init, NULL);
-	}
+	pmu_lapic_init();
 	register_nmi_handler(NMI_LOCAL, pmu_nmi_handler, NMI_FLAG_FIRST, "PMU_NMI_HANDLER");
 
 	pmu_clear_msrs();
 	pmu_enable_predefined_event(LLC_MISSES, PMU_PMC0_INIT_VALUE);
-	pmu_enable_counting();
+	//pmu_enable_counting();
 	
 	tsc1 = pmu_rdtsc();
-
 	printk(KERN_INFO "PMU Event Start Counting TSC: %llu\n", tsc1);
-	
-	/*
-	 * We have set USR_MODE in MSR_IA32_PERFEVTSEL0,
-	 * so the performance event counter will count User-Level only.
-	 * Don't worry about the latency this code can bring. ;)
-	 */
-	tmsr1 = pmu_rdmsr(MSR_IA32_PMC0);
-	tmsr2 = pmu_rdmsr(MSR_IA32_PERFEVTSEL0);
-	printk(KERN_INFO "PMU Event Start Counting PMC0=%lld PERFEVTSEL0=%llx\n", tmsr1|(0xFF<<48), tmsr2);
-	tmsr1 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_CTRL);
-	tmsr2 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
-	tmsr3 = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_OVF_CTRL);
-	printk(KERN_INFO "PMU Event Start Counting G_CTRL=%llx G_STATUS=%llx OVF_CTRL=%llx\n", tmsr1, tmsr2, tmsr3);
+
+	pmu_show_msrs();
 }
 
 
@@ -543,8 +555,8 @@ pmu_test(void *info)
 static int
 pmu_init(void)
 {
-	printk(KERN_INFO "PMU module init.\n");
-	printk(KERN_INFO "PMU online cpus: %d.\n", num_online_cpus());
+	printk(KERN_INFO "PMU MODULE INIT ON CPU%d\n", smp_processor_id());
+	printk(KERN_INFO "PMU ONLINE CPUS: %d\n", num_online_cpus());
 	
 	int cpu;
 	for_each_online_cpu(cpu) {
