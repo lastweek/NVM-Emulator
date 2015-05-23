@@ -240,10 +240,10 @@ static void
 cpu_print_info(void)
 {
 	printk(KERN_INFO"PMU %s\n", CPU_BRAND);
-	printk(KERN_INFO"PMU PMU Version:%u\n", PERF_VERSION);
-	printk(KERN_INFO"PMU PC per cpu:%u\n", PC_PER_CPU);
-	printk(KERN_INFO"PMU PC bitwidth:%u\n", PC_BIT_WIDTH);
-	printk(KERN_INFO"PMU Predefined events mask:%x\n", PRE_EVENT_MASK);
+	printk(KERN_INFO"PMU PMU Version: %u\n", PERF_VERSION);
+	printk(KERN_INFO"PMU PC per cpu: %u\n", PC_PER_CPU);
+	printk(KERN_INFO"PMU PC bit width: %u\n", PC_BIT_WIDTH);
+	printk(KERN_INFO"PMU Predefined events mask: %x\n", PRE_EVENT_MASK);
 }
 
 
@@ -269,10 +269,29 @@ pmu_cpu_function_call(int cpu, void (*func)(void *info), void *info)
 	}
 }
 
-static int
-pmu_task_function_call(void)
+/**
+ * pmu_task_function_call - call a function on cpu on which a task runs
+ * @p:		the task to evaluate
+ * @func:	the function to be called
+ * @info:	the function call argument
+ *
+ * Calls the function @func when the task is currently running. This might
+ * be on the current CPU, which just calls the function directly
+ *
+ * returns: @func return value, or
+ *	    -ESRCH  - when the process isn't running
+ *	    -EAGAIN - when the process moved away
+ **/
+static void
+pmu_task_function_call(struct task_struct *p, int (*func) (void *info), void *info)
 {
-	return 0;
+	int err;
+	if (task_curr(p))
+		err = smp_call_function_single(task_cpu(p), func, info, 1);
+
+	if (err) {
+		//why fail
+	}
 }
 
 /**
@@ -428,11 +447,11 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	int i;
 	u64 tmsr;
 	
-	/* GET TIMESTAMP FIRST! */
+	// GET TIMESTAMP FIRST! 
 	this_cpu_write(TSC2, pmu_rdtsc());
 	
 	tmsr = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
-	if (!(tmsr & 0x1))	// PMC0 isn't overflowed, dont handle
+	if (!(tmsr & 0x1))	// PMC0 is not overflow
 		return NMI_DONE;
 
 	/**
@@ -447,8 +466,6 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	printk(KERN_INFO"PMU NMI CPU %d OVERFLOW! TSC=%llu\n",
 					smp_processor_id(), this_cpu_read(TSC2));
 	
-	__pmu_show_msrs(NULL);
-
 	__pmu_clear_msrs(NULL);
 	__pmu_enable_predefined_event(&pre_event_info);
 	__pmu_enable_counting(NULL);
@@ -459,7 +476,7 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	for (i = 0; i < PMU_LATENCY; i++)
 		asm("nop");
 	
-	this_cpu_add(PMU_EVENT_COUNT, 1);
+	this_cpu_inc(PMU_EVENT_COUNT);
 	if (this_cpu_read(PMU_EVENT_COUNT) == 10){
 		__pmu_clear_msrs(NULL);
 	}
@@ -494,9 +511,7 @@ pmu_main(void)
 	register_nmi_handler(NMI_LOCAL, pmu_nmi_handler, NMI_FLAG_FIRST, "PMU_NMI_HANDLER");
 
 	pmu_clear_msrs();
-	pmu_show_msrs();
 	pmu_enable_predefined_event(LLC_MISSES, PMU_PMC0_INIT_VALUE);
-	pmu_show_msrs();
 	pmu_enable_counting();
 	
 	tsc1 = pmu_rdtsc();
