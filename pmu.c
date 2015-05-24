@@ -5,12 +5,14 @@
  *	in which we can do something everytime PMU overflows.
  *
  *	Performance monitoring events are architectural when they
- *	behave consistently across microarchitectures. There are 
- *	pre-defined architectural events in Intel cpus.
-
+ *	behave consistently across microarchitectures. There are 7
+ *	pre-defined architectural events in Intel cpus, including
+ *	LLC_MISSES.
+ *
  *	Each logical processor has its own set of MSR_IA32_PEREVTSELx
  *	and MSR_IA32_PMCx MSRs. Configuration facilities and counters
- *	aren't shared between logical processors sharing a processor core.
+ *	are not shared between logical processors that sharing a
+ *	processor core.
  **/
 
 #include <linux/init.h>
@@ -189,7 +191,7 @@ cpu_facility_test(void)
 /**
  * Get cpu brand and frequency information.
  * Consult Intel Dev-Manual2 CPUID for detail.
- */
+ **/
 static void
 cpu_brand_frequency(void)
 {
@@ -221,7 +223,7 @@ cpu_brand_frequency(void)
 /**
  * Get and initialize PMU information.
  * All cores in one CPU package have the same PMU settings.
- */
+ **/
 static void
 cpu_perf_info(void)
 {
@@ -470,8 +472,11 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	 **/
 	this_cpu_write(TSC2, pmu_rdtsc());
 	
+	/**
+	 * PMC0 IS NOT OVERFLOW. RETURN 0
+	 **/
 	tmsr = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
-	if (!(tmsr & 0x1))	// PMC0 is not overflow
+	if (!(tmsr & 0x1))
 		return NMI_DONE;
 
 	/**
@@ -559,6 +564,7 @@ pmu_exit(void)
 	for_each_online_cpu(cpu) {
 		printk(KERN_INFO "PMU CPU %d, count=%d\n", cpu, per_cpu(PMU_EVENT_COUNT, cpu));
 	}
+
 	pmu_show_msrs();
 	unregister_nmi_handler(NMI_LOCAL, "PMU_NMI_HANDLER");
 	printk(KERN_INFO "PMU module exit.\n");
