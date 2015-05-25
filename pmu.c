@@ -24,6 +24,7 @@
 #include <linux/percpu-defs.h>
 #include <linux/percpu.h>
 #include <linux/cpumask.h>
+#include <linux/delay.h>
 #include <asm/nmi.h>
 #include <asm/msr.h>
 
@@ -102,7 +103,7 @@ static u32  PRE_EVENT_MASK;
 /**
  * MODULE GLOBAL VARIABLES
  **/
-static u32  PMU_LATENCY;
+static u64  PMU_LATENCY;
 static u64  PMU_PMC0_INIT_VALUE;
 static u64  CPU_BASE_FREQUENCY;
 static char CPU_BRAND[48];
@@ -464,7 +465,7 @@ pmu_lapic_init(void)
 
 int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
-	int i;
+	u64 i;
 	u64 tmsr;
 	
 	/**
@@ -472,35 +473,23 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	 **/
 	this_cpu_write(TSC2, pmu_rdtsc());
 	
-	/**
-	 * PMC0 IS NOT OVERFLOW. RETURN 0
-	 **/
 	tmsr = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
 	if (!(tmsr & 0x1))
 		return NMI_DONE;
-
-	/**
-	 * Some chipsets need to unmask the LVTPC in a particular
-	 * spot inside the nmi handler.  As a result, the unmasking
-	 * was pushed into all the nmi handlers.
-	 **/
-	apic_write(APIC_LVTPC, APIC_DM_NMI);
 	
+	printk(KERN_INFO"PMU NMI CPU %d Event End Counting TSC2=%lld\n",
+			smp_processor_id(), this_cpu_read(TSC2));
+	/**
+	 * Simulate Lantency
+	 **/
+	//mdelay(1);
+
 	/**
 	 * Restart counting on THIS cpu.
 	 **/
 	//__pmu_clear_msrs(NULL);
 	//__pmu_enable_predefined_event(&pre_event_info);
 	//__pmu_enable_counting(NULL);
-	__pmu_disable_counting(NULL);
-
-	printk(KERN_INFO"PMU NMI CPU %d OVF! TSC=%llu\n",
-					smp_processor_id(), this_cpu_read(TSC2));
-	/**
-	 * Simulate Lantency
-	 **/
-	for (i = 0; i < PMU_LATENCY; i++)
-		asm("nop");
 
 	this_cpu_inc(PMU_EVENT_COUNT);
 	return NMI_HANDLED;
@@ -512,8 +501,8 @@ pmu_main(void)
 	u64 tsc1;
 
 	PMU_EVENT_COUNT		=	0;
-	PMU_LATENCY			=	0;
-	PMU_PMC0_INIT_VALUE	=	-9999;
+	PMU_LATENCY			=	CPU_BASE_FREQUENCY*10;
+	PMU_PMC0_INIT_VALUE	=	-32;
 
 	/**
 	 * Pay attention to the status of predefined performance events.
@@ -565,7 +554,6 @@ pmu_exit(void)
 		printk(KERN_INFO "PMU CPU %d, count=%d\n", cpu, per_cpu(PMU_EVENT_COUNT, cpu));
 	}
 
-	pmu_show_msrs();
 	unregister_nmi_handler(NMI_LOCAL, "PMU_NMI_HANDLER");
 	printk(KERN_INFO "PMU module exit.\n");
 }

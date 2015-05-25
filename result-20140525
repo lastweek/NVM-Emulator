@@ -1,0 +1,94 @@
+NO PMU
+
+File ../../datasets/kmeans/edge contains  numObjects = 17695, each of size 18
+Performing **** Regular Kmeans (Loop N first) **** use array reduction ******
+ K, Tcluster,   Tvalid,   Tsum
+ 4,   0.0402,   0.0000,   0.0402
+ 5,   0.0588,   0.0000,   0.0588
+ 6,   0.0394,   0.0000,   0.0394
+ 7,   0.1118,   0.0000,   0.1118
+ 8,   0.0840,   0.0000,   0.0840
+ 9,   0.0948,   0.0000,   0.0948
+10,   0.1699,   0.0000,   0.1699
+11,   0.1122,   0.0000,   0.1122
+12,   0.1205,   0.0000,   0.1205
+13,   0.1463,   0.0000,   0.1463
+-------------------------------------------------------------------------------
+  ,   0.9779,   0.0000,   0.9779
+I/O time =   0.0020
+Conclude : best no. of clusters found = 13
+Total timing =     0.9967 sec
+-------------------------------------------------------------------------------
+
+
+Count = -32
+mdelay = 1
+
+File ../../datasets/kmeans/edge contains  numObjects = 17695, each of size 18
+Performing **** Regular Kmeans (Loop N first) **** use array reduction ******
+ K, Tcluster,   Tvalid,   Tsum
+ 4,   0.0905,   0.0000,   0.0905
+ 5,   0.1860,   0.0000,   0.1860
+ 6,   0.1050,   0.0000,   0.1050
+ 7,   0.2410,   0.0000,   0.2410
+ 8,   0.1528,   0.0000,   0.1528
+ 9,   0.2419,   0.0000,   0.2419
+10,   0.3139,   0.0000,   0.3139
+11,   0.2295,   0.0000,   0.2295
+12,   0.2883,   0.0000,   0.2883
+13,   0.2722,   0.0000,   0.2722
+-------------------------------------------------------------------------------
+  ,   2.1211,   0.0000,   2.1211
+I/O time =   0.0051
+Conclude : best no. of clusters found = 13
+Total timing =     2.3731 sec
+-------------------------------------------------------------------------------
+[  417.603645] PMU CPU 0, count=52860
+[  417.603651] PMU CPU 1, count=56986
+[  417.603653] PMU CPU 2, count=54212
+[  417.603654] PMU CPU 3, count=53846
+
+
+count = -9999
+mdelay = 1
+
+File ../../datasets/kmeans/edge contains  numObjects = 17695, each of size 18
+Performing **** Regular Kmeans (Loop N first) **** use array reduction ******
+ K, Tcluster,   Tvalid,   Tsum
+ 4,   0.0391,   0.0000,   0.0391
+ 5,   0.0604,   0.0000,   0.0604
+ 6,   0.0391,   0.0000,   0.0391
+ 7,   0.1171,   0.0000,   0.1171
+ 8,   0.0823,   0.0000,   0.0823
+ 9,   0.0945,   0.0000,   0.0945
+10,   0.1707,   0.0000,   0.1707
+11,   0.1111,   0.0000,   0.1111
+12,   0.1232,   0.0000,   0.1232
+13,   0.1458,   0.0000,   0.1458
+-------------------------------------------------------------------------------
+  ,   0.9833,   0.0000,   0.9833
+I/O time =   0.0019
+Conclude : best no. of clusters found = 13
+Total timing =     1.0028 sec
+-------------------------------------------------------------------------------
+[  801.025917] PMU CPU 0, count=18
+[  801.025926] PMU CPU 1, count=58
+[  801.025934] PMU CPU 2, count=28
+[  801.025937] PMU CPU 3, count=32
+
+
+count= -9999
+[ 1785.946517] PMU Event Start Counting         TSC: 4053706141236
+[ 1785.957247] PMU NMI CPU 0 Event End Counting TSC2=4053730385085
+[ 1785.958114] PMU NMI CPU 2 Event End Counting TSC2=4053732346964
+[ 1785.960687] PMU NMI CPU 3 Event End Counting TSC2=4053738167360
+[ 1786.362075] PMU NMI CPU 1 Event End Counting TSC2=4054645490056
+
+count= -32
+[ 1837.111091] PMU Event Start Counting         TSC: 4169362925169
+[ 1837.111093] PMU NMI CPU 0 Event End Counting TSC2=4169362927015
+[ 1837.111117] PMU NMI CPU 3 Event End Counting TSC2=4169362983937
+[ 1837.111229] PMU NMI CPU 1 Event End Counting TSC2=4169363230992
+[ 1837.111571] PMU NMI CPU 2 Event End Counting TSC2=4169364007829
+
+
