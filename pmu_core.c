@@ -473,6 +473,8 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	 **/
 	this_cpu_write(TSC2, pmu_rdtsc());
 	
+	apic_write(APIC_LVTPC, APIC_DM_NMI);
+	
 	tmsr = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
 	if (!(tmsr & 0x1))
 		return NMI_DONE;
@@ -482,14 +484,14 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	/**
 	 * Simulate Lantency
 	 **/
-	//mdelay(1);
+	udelay(1);
 
 	/**
 	 * Restart counting on THIS cpu.
 	 **/
-	//__pmu_clear_msrs(NULL);
-	//__pmu_enable_predefined_event(&pre_event_info);
-	//__pmu_enable_counting(NULL);
+	__pmu_clear_msrs(NULL);
+	__pmu_enable_predefined_event(&pre_event_info);
+	__pmu_enable_counting(NULL);
 
 	this_cpu_inc(PMU_EVENT_COUNT);
 	return NMI_HANDLED;

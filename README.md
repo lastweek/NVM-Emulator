@@ -1,3 +1,3 @@
 # NVM
-Non-Volatile Memory System
-
+Current develop status:
+	Simulate NVM's latency via Intel PMU system.
