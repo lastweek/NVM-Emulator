@@ -7,6 +7,12 @@
  *	Westmere(Tick 32nm) is the second edition of Nehalem(Tock 45nm).
  */
 
+/*
+	NOTE:
+	Check PCI configuration space to see uncore clock ratio?
+	How to access pci device?
+*/
+
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -25,9 +31,19 @@
 #define NHM_UNCORE_PERF_GLOBAL_STATUS	0x392
 #define NHM_UNCORE_PERF_GLOBAL_OVF_CTRL	0x393
 
-/* Nehalem Perf Control Registers */
+/* Nehalem Performance Control Registers */
 #define NHM_UNCORE_PMCO					0x3b0
 #define NHM_UNCORE_PERFEVTSEL0			0X3C0
+
+#define NHM_CONTROL_REG_BIT_WIDTH		64
+#define NHM_COUNTER_REG_BIT_WIDTH		48
+
+/* Control Bit In NHM_UNCORE_PERFEVTSEL */
+#define NHM_OCC_CTR_RST		((1ULL)<<17)
+#define NHM_EDGE_DETECT		((1ULL)<<18)
+#define NHM_PMI_ENABLE		((1ULL)<<20)
+#define NHM_COUNT_ENABLE	((1ULL)<<22)
+#define NHM_INVERT			((1ULL)<<23)
 
 typedef unsigned char		u8;
 typedef unsigned short		u16;
