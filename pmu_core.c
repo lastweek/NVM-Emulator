@@ -1,5 +1,6 @@
 /**
  *	Desciption:
+ *	
  *	Intel PMU can interrupt CPU in NMI manner when it overflows.
  *	This module inserts a pmu_nmi_handler to the NMI ISR list,
  *	in which we can do something everytime PMU overflows.
@@ -28,19 +29,21 @@
 #include <asm/nmi.h>
 #include <asm/msr.h>
 
-#define MSR_IA32_PMC0					0x000000C1
-#define MSR_IA32_MISC_ENABLE			0x000001A0
-#define MSR_CORE_PERF_GLOBAL_STATUS		0x0000038E
-#define MSR_CORE_PERF_GLOBAL_CTRL		0x0000038F
+#define MSR_IA32_PMC0					0x0C1
+#define MSR_IA32_PERFEVTSEL0			0x186
 
-#define MSR_IA32_PERFEVTSEL0			0x00000186
-#define MSR_IA32_MISC_PERFMON_ENABLE 	1ULL<<7
-#define MSR_CORE_PERF_GLOBAL_OVF_CTRL	0x00000390
+#define MSR_CORE_PERF_GLOBAL_STATUS		0x38E
+#define MSR_CORE_PERF_GLOBAL_CTRL		0x38F
 
-typedef unsigned char  u8;
-typedef unsigned short u16;
-typedef unsigned int   u32;
-typedef unsigned long long u64;
+#define MSR_IA32_MISC_PERFMON_ENABLE 	((1ULL)<<7)
+#define MSR_CORE_PERF_GLOBAL_OVF_CTRL	0x390
+
+#define MSR_IA32_MISC_ENABLE			0x1A0
+
+typedef unsigned char		u8;
+typedef unsigned short		u16;
+typedef unsigned int		u32;
+typedef unsigned long long	u64;
 
 /**
  * BIT FIELD OF MSR_IA32_PERFEVTSEL0
