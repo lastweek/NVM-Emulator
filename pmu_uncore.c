@@ -39,11 +39,11 @@
 #define NHM_COUNTER_REG_BIT_WIDTH		48
 
 /* Control Bit In NHM_UNCORE_PERFEVTSEL */
-#define NHM_OCC_CTR_RST		((1ULL)<<17)
-#define NHM_EDGE_DETECT		((1ULL)<<18)
-#define NHM_PMI_ENABLE		((1ULL)<<20)
-#define NHM_COUNT_ENABLE	((1ULL)<<22)
-#define NHM_INVERT			((1ULL)<<23)
+#define NHM_PEREVTSEL_OCC_CTR_RST		((1ULL)<<17)
+#define NHM_PEREVTSEL_EDGE_DETECT		((1ULL)<<18)
+#define NHM_PEREVTSEL_PMI_ENABLE		((1ULL)<<20)
+#define NHM_PEREVTSEL_COUNT_ENABLE		((1ULL)<<22)
+#define NHM_PEREVTSEL_INVERT			((1ULL)<<23)
 
 typedef unsigned char		u8;
 typedef unsigned short		u16;
@@ -83,8 +83,22 @@ static u64 nmh_uncore_event_map[NMH_UNCORE_EVENT_ID_MAX] =
 	[nmh_qmc_writes_partial_any]	=	0x382f,
 };
 
+//#################################################
+// NMI HANDLER PART
+//#################################################
 
+int pmu_uncore_nmi_handler(unsigned int type, struct pt_regs *regs)
+{
+	return NMI_DONE;
 
+	return NMI_HANDLED;
+}
+
+static void
+pmu_uncore_register_nmi_handler(void)
+{
+
+}
 
 
 //#################################################
