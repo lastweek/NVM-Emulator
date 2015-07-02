@@ -288,7 +288,7 @@ static inline void nhm_uncore_clear_msrs(void)
 }
 
 /**
- * nhm_uncore_set_event - Set event in specified pmc.
+ * nhm_uncore_set_event - Set event in specified pmc pair.
  * @pid: 	The id of the pmc pair
  * @event:	pre-defined event id
  * @pmcval:	the initial value in pmc
@@ -325,28 +325,27 @@ static inline void nhm_uncore_disable_counting(void)
 
 #define __START_COUNTING__()	nhm_uncore_enable_counting()
 #define __END_COUNTING__()		nhm_uncore_disable_counting()
-#define show_msrs() 	nhm_uncore_show_msrs()
-#define clear_msrs()	nhm_uncore_clear_msrs()
+#define SHOW_MSRS() 	nhm_uncore_show_msrs()
+#define CLEAR_MSRS()	nhm_uncore_clear_msrs()
 #define set_event(pid, event, pmcval) nhm_uncore_set_event(pid, event, pmcval)
 
 void pmu_main(void)
 {
-	nhm_uncore_clear_msrs();
+	CLEAR_MSRS();
 	
 	set_event(PMC_PID0, nhm_qhl_request_remote_writes, 0);
 	set_event(PMC_PID1, nhm_qhl_request_remote_reads, 0);
 	set_event(PMC_PID2, nhm_qhl_request_local_reads, 0);
 	set_event(PMC_PID3, nhm_qhl_request_local_writes, 0);
-	show_msrs();
 	
 	__START_COUNTING__();
 	
 	mdelay(1000);
-	show_msrs();
+	SHOW_MSRS();
 	mdelay(1000);
-	show_msrs();
+	SHOW_MSRS();
 	mdelay(1000);
-	show_msrs();
+	SHOW_MSRS();
 	
 	__END_COUNTING__();
 }
