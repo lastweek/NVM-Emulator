@@ -21,11 +21,11 @@
 #define __MSR_IA32_DEBUG_CTL			0x1d9
 
 #define __MSR_IA32_MISC_ENABLE_PERFMON_ENABLE	(__AC(1, ULL)<<7)
-#define __MSR_IA32_DEBUG_CTL_ENABLE_UNCORE_PMI	(__AC(1,ULL)<<13)
+#define __MSR_IA32_DEBUG_CTL_ENABLE_UNCORE_PMI	(__AC(1, ULL)<<13)
 
-/* Nehalem Uncore PMU MSR Bit Width */
-#define NHM_CONTROL_REG_BIT_WIDTH		64
-#define NHM_COUNTER_REG_BIT_WIDTH		48
+/* Nehalem PMC Bit Width */
+#define NHM_UNCORE_PMC_BIT_WIDTH		48
+#define NHM_UNCORE_PMC_VALUE_MASK		((__AC(1, ULL)<<48) - 1)
 
 /* Nehalem Global Control Registers */
 #define NHM_UNCORE_PERF_GLOBAL_CTRL		0x391	/* Read/Write */
@@ -335,6 +335,11 @@ nhm_uncore_set_event(int pid, int event, int pmi, long long pmcval)
 	if (pmi)
 		selval |= NHM_PEREVTSEL_PMI_ENABLE;
 	
+	/* ok ok ok, this is a very very very safty mask!
+	   Writing to reserved bits in MSR cause CPU to
+	   generate #GP fault. #GP handler will make you die */
+	pmcval |= NHM_UNCORE_PMC_VALUE_MASK;
+
 	uncore_wrmsr(pid + NHM_UNCORE_PMC_BASE, (u64)pmcval);
 	uncore_wrmsr(pid + NHM_UNCORE_SEL_BASE, selval);
 }
@@ -361,8 +366,8 @@ static inline void nhm_uncore_disable_counting(void)
 //#################################################
 
 /* Old version kernel will screw up if someone
- * unregister a not-even-registed handler. So this
- * flag helps to judge whether we have registered before */
+   unregister a not-even-registed handler. So this
+   flag helps to judge whether we have registered before */
 static int is_nmi_handler_registed = 0;
 
 int nhm_uncore_nmi_handler(unsigned int type, struct pt_regs *regs)
