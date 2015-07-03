@@ -1,3 +1,9 @@
+/*
+ * NOTE:
+ * The scope of the UNCORE PMU is: Package. 
+ * Therefore, everything only needs to be done once in a package
+ * by a logical core in that package.
+ */
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -6,17 +12,17 @@
 #include <linux/sched.h>
 #include <linux/percpu.h>
 #include <linux/delay.h>
-#include <asm/msr.h>
+#include <asm/nmi.h>
 
 #define __AC(X,Y)	(X##Y)
 
-#define __MSR_IA32_MISC_ENABLE			0x1A0
-#define __MSR_IA32_MISC_PERFMON_ENABLE 	(__AC(1, ULL)<<7)
+/* Architectual MSRs and Control Bit */
+#define __MSR_IA32_MISC_ENABLE			0x1a0
+#define __MSR_IA32_DEBUG_CTL			0x1d9
 
-/*
- * NOTE:
- * The scope of the uncore PMU relative MSRs is: Package. 
- */
+#define __MSR_IA32_MISC_ENABLE_PERFMON_ENABLE	(__AC(1, ULL)<<7)
+#define __MSR_IA32_DEBUG_CTL_ENABLE_UNCORE_PMI	(__AC(1,ULL)<<13)
+
 /* Nehalem Uncore PMU MSR Bit Width */
 #define NHM_CONTROL_REG_BIT_WIDTH		64
 #define NHM_COUNTER_REG_BIT_WIDTH		48
@@ -26,49 +32,36 @@
 #define NHM_UNCORE_PERF_GLOBAL_STATUS	0x392	/* Read-Only */
 #define NHM_UNCORE_PERF_GLOBAL_OVF_CTRL	0x393	/* Write-Only */
 
-/* Nehalem Performance Control Registers */
-#define NHM_UNCORE_PMCO				0x3b0	/* Read/Write */
-#define NHM_UNCORE_PMC1				0x3b1	/* Read/Write */
-#define NHM_UNCORE_PMC2				0x3b2	/* Read/Write */
-#define NHM_UNCORE_PMC3				0x3b3	/* Read/Write */
-#define NHM_UNCORE_PMC4				0x3b4	/* Read/Write */
-#define NHM_UNCORE_PMC5				0x3b5	/* Read/Write */
-#define NHM_UNCORE_PMC6				0x3b6	/* Read/Write */
-#define NHM_UNCORE_PMC7				0x3b7	/* Read/Write */
-#define NHM_UNCORE_PERFEVTSEL0		0x3c0	/* Read/Write */
-#define NHM_UNCORE_PERFEVTSEL1		0x3c1	/* Read/Write */
-#define NHM_UNCORE_PERFEVTSEL2		0x3c2	/* Read/Write */
-#define NHM_UNCORE_PERFEVTSEL3		0x3c3	/* Read/Write */
-#define NHM_UNCORE_PERFEVTSEL4		0x3c4	/* Read/Write */
-#define NHM_UNCORE_PERFEVTSEL5		0x3c5	/* Read/Write */
-#define NHM_UNCORE_PERFEVTSEL6		0x3c6	/* Read/Write */
-#define NHM_UNCORE_PERFEVTSEL7		0x3c7	/* Read/Write */
+/* Nehalem Performance Counter and Control Registers */
+#define NHM_UNCORE_PMCO					0x3b0	/* Read/Write */
+#define NHM_UNCORE_PMC1					0x3b1	/* Read/Write */
+#define NHM_UNCORE_PMC2					0x3b2	/* Read/Write */
+#define NHM_UNCORE_PMC3					0x3b3	/* Read/Write */
+#define NHM_UNCORE_PMC4					0x3b4	/* Read/Write */
+#define NHM_UNCORE_PMC5					0x3b5	/* Read/Write */
+#define NHM_UNCORE_PMC6					0x3b6	/* Read/Write */
+#define NHM_UNCORE_PMC7					0x3b7	/* Read/Write */
+#define NHM_UNCORE_PERFEVTSEL0			0x3c0	/* Read/Write */
+#define NHM_UNCORE_PERFEVTSEL1			0x3c1	/* Read/Write */
+#define NHM_UNCORE_PERFEVTSEL2			0x3c2	/* Read/Write */
+#define NHM_UNCORE_PERFEVTSEL3			0x3c3	/* Read/Write */
+#define NHM_UNCORE_PERFEVTSEL4			0x3c4	/* Read/Write */
+#define NHM_UNCORE_PERFEVTSEL5			0x3c5	/* Read/Write */
+#define NHM_UNCORE_PERFEVTSEL6			0x3c6	/* Read/Write */
+#define NHM_UNCORE_PERFEVTSEL7			0x3c7	/* Read/Write */
 
 #define NHM_UNCORE_PMC_BASE			NHM_UNCORE_PMCO
 #define NHM_UNCORE_SEL_BASE			NHM_UNCORE_PERFEVTSEL0
 
-/*
- *	Each PMCx and PERFEVTSELx forms a pair.
- *	When we manipulate PMU, we usually handle a pmc pair.
- *	Hence, in the code below, we operate PMCx and PERFEVTSELx
- *	through their corresponding pair id.
- */
-enum NHM_UNCORE_PMC_PAIR_ID {
-	PMC_PID0, PMC_PID1, PMC_PID2, PMC_PID3,
-	PMC_PID4, PMC_PID5, PMC_PID6, PMC_PID7,
-	PMC_PID_MAX
-};
+/* Control Bit in NHM_UNCORE_PERFEVTSEL */
+#define NHM_PEREVTSEL_EVENT_MASK			(__AC(0xf, ULL))
+#define NHM_PEREVTSEL_UNIT_MASK				(__AC(0xf, ULL)<<8)
+#define NHM_PEREVTSEL_OCC_CTR_RST			(__AC(1, ULL)<<17)
+#define NHM_PEREVTSEL_EDGE_DETECT			(__AC(1, ULL)<<18)
+#define NHM_PEREVTSEL_PMI_ENABLE			(__AC(1, ULL)<<20)
+#define NHM_PEREVTSEL_COUNT_ENABLE			(__AC(1, ULL)<<22)
+#define NHM_PEREVTSEL_INVERT				(__AC(1, ULL)<<23)
 
-/**
- * for_each_pmc_pair - loop each pmc pair in PMU
- * @id:  pair id
- * @pmc: pmc msr address
- * @sel: perfevtsel msr address
- */
-#define for_each_pmc_pair(id, pmc, sel) \
-	for ((id) = 0, (pmc) = NHM_UNCORE_PMC_BASE, (sel) = NHM_UNCORE_SEL_BASE; \
-		(id) < PMC_PID_MAX; (id)++, (pmc)++, (sel)++)
-		 
 /* Control Bit in NHM_UNCORE_PERF_GLOBAL_CTRL */
 #define NHM_UNCORE_GLOBAL_CTRL_EN_PMC0		(__AC(1, ULL)<<0)
 #define NHM_UNCORE_GLOBAL_CTRL_EN_PMC1		(__AC(1, ULL)<<1)
@@ -85,14 +78,49 @@ enum NHM_UNCORE_PMC_PAIR_ID {
 #define NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE3	(__AC(1, ULL)<<51)
 #define NHM_UNCORE_GLOBAL_CTRL_EN_FRZ		(__AC(1, ULL)<<63)
 
-/* Control Bit in NHM_UNCORE_PERFEVTSEL */
-#define NHM_PEREVTSEL_EVENT_MASK	(__AC(0xf, ULL))
-#define NHM_PEREVTSEL_UNIT_MASK		(__AC(0xf, ULL)<<8)
-#define NHM_PEREVTSEL_OCC_CTR_RST	(__AC(1, ULL)<<17)
-#define NHM_PEREVTSEL_EDGE_DETECT	(__AC(1, ULL)<<18)
-#define NHM_PEREVTSEL_PMI_ENABLE	(__AC(1, ULL)<<20)
-#define NHM_PEREVTSEL_COUNT_ENABLE	(__AC(1, ULL)<<22)
-#define NHM_PEREVTSEL_INVERT		(__AC(1, ULL)<<23)
+#define NHM_UNCORE_GLOBAL_CTRL_EN_PMI	\
+	(NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE0 |	\
+	 NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE1 |	\
+	 NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE2 |	\
+	 NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE3 )
+
+/* GLOBAL_CTRL/STATUS/OVF_CTRL PMC MASK */
+#define NHM_UNCORE_PMC_MASK				\
+	(NHM_UNCORE_GLOBAL_CTRL_EN_PMC0 |	\
+	 NHM_UNCORE_GLOBAL_CTRL_EN_PMC1 |	\
+	 NHM_UNCORE_GLOBAL_CTRL_EN_PMC2 |	\
+	 NHM_UNCORE_GLOBAL_CTRL_EN_PMC3 |	\
+	 NHM_UNCORE_GLOBAL_CTRL_EN_PMC4 |	\
+	 NHM_UNCORE_GLOBAL_CTRL_EN_PMC5 |	\
+	 NHM_UNCORE_GLOBAL_CTRL_EN_PMC6 |	\
+	 NHM_UNCORE_GLOBAL_CTRL_EN_PMC7 )
+
+/*
+ *	Each PMCx and PERFEVTSELx forms a pair.
+ *	When we manipulate PMU, we usually handle a PMC/SEL pair.
+ *	Hence, in the code below, we operate PMCx and PERFEVTSELx
+ *	through their corresponding pair id.
+ */
+enum NHM_UNCORE_PMC_PAIR_ID {
+	PMC_PID0, PMC_PID1, PMC_PID2, PMC_PID3,
+	PMC_PID4, PMC_PID5, PMC_PID6, PMC_PID7,
+	PMC_PID_MAX
+};
+
+/**
+ * for_each_pmc_pair - loop each pmc pair in NHM PMU
+ * @id:  pair id
+ * @pmc: pmc msr address
+ * @sel: perfevtsel msr address
+ */
+#define for_each_pmc_pair(id, pmc, sel) \
+	for ((id) = 0, (pmc) = NHM_UNCORE_PMC_BASE, (sel) = NHM_UNCORE_SEL_BASE; \
+		(id) < PMC_PID_MAX; (id)++, (pmc)++, (sel)++)
+
+
+//#################################################
+// NHM UNCORE EVENT
+//#################################################
 
 enum nhm_uncore_event_id {
 	nhm_qhl_request_ioh_reads		=	1,
@@ -101,7 +129,6 @@ enum nhm_uncore_event_id {
 	nhm_qhl_request_remote_writes	=	4,
 	nhm_qhl_request_local_reads		=	5,
 	nhm_qhl_request_local_writes	=	6,
-	
 	nhm_qmc_normal_reads_any		=	7,
 	nhm_qmc_writes_full_any			=	8,
 	nhm_qmc_writes_partial_any		=	9,
@@ -111,21 +138,21 @@ enum nhm_uncore_event_id {
 
 static u64 nhm_uncore_event_map[NHM_UNCORE_EVENT_ID_MAX] = 
 {
-	/* Event = 0x20, UMASK = 0xxx */
 	[nhm_qhl_request_ioh_reads]		=	0x0120,
 	[nhm_qhl_request_ioh_writes]	=	0x0220,
 	[nhm_qhl_request_remote_reads]	=	0x0420,
 	[nhm_qhl_request_remote_writes]	=	0x0820,
 	[nhm_qhl_request_local_reads]	=	0x1020,
 	[nhm_qhl_request_local_writes]	=	0x2020,
-	
-	/* Event = 0x2c, UMASK = 0x07 */
 	[nhm_qmc_normal_reads_any]		=	0x072c,
-	
-	/* Event = 0x2f, UMASK = 0xxx */
 	[nhm_qmc_writes_full_any]		=	0x072f,
 	[nhm_qmc_writes_partial_any]	=	0x382f,
 };
+
+
+//#################################################
+//  ASSEMBLY PART
+//#################################################
 
 static void
 uncore_cpuid(u32 *eax, u32 *ebx, u32 *ecx, u32 *edx)
@@ -169,16 +196,19 @@ static void uncore_wrmsr(u32 addr, u64 value)
 {
 	asm volatile(
 		"wrmsr"
-		:
-		:"c"(addr), "d"((u32)(value>>32)), "a"((u32)value)
+		: :"c"(addr), "d"((u32)(value>>32)), "a"((u32)value)
 	);
 }
+
+//#################################################
+// CPU INFO PART
+//#################################################
 
 static u32  PERF_VERSION;
 static u64  CPU_BASE_FREQUENCY;
 static char CPU_BRAND[48];
 
-static void cpu_brand_frequency(void)
+static void cpu_brand_info(void)
 {
 	char *s;
 	int i;
@@ -240,22 +270,22 @@ static void cpu_perf_info(void)
 	printk(KERN_INFO "PMU CPU_PMU Version ID: %u\n", PERF_VERSION);
 
 	msr = uncore_rdmsr(__MSR_IA32_MISC_ENABLE);
-	if (!(msr & __MSR_IA32_MISC_PERFMON_ENABLE)) {
+	if (!(msr & __MSR_IA32_MISC_ENABLE_PERFMON_ENABLE)) {
 		printk(KERN_INFO"PMU ERROR! CPU_PMU Disabled!\n");
 	}
 }
 
-static void cpu_print_info(void)
+static void uncore_cpu_info(void)
 {
-	cpu_brand_frequency();
+	cpu_brand_info();
 	cpu_version_info();
 	cpu_perf_info();
 }
 
-/**
- * nhm_uncore_show_msrs - Show registers current state
- * Only show active pmc and perfsel register pairs.
- */
+//#################################################
+// NHM UNCORE PMU PART
+//#################################################
+
 static void nhm_uncore_show_msrs(void)
 {
 	int id;
@@ -288,34 +318,36 @@ static inline void nhm_uncore_clear_msrs(void)
 }
 
 /**
- * nhm_uncore_set_event - Set event in specified pmc pair.
+ * nhm_uncore_set_event - Set event in pmc.
  * @pid: 	The id of the pmc pair
  * @event:	pre-defined event id
+ * @pmi:	No-zero to enable pmi
  * @pmcval:	the initial value in pmc
  */
-static inline void nhm_uncore_set_event(int pid, int event, u64 pmcval)
+static inline void
+nhm_uncore_set_event(int pid, int event, int pmi, long long pmcval)
 {
 	u64 selval;
 	
 	selval = nhm_uncore_event_map[event] |
-			 //NHM_PEREVTSEL_PMI_ENABLE    |
 			 NHM_PEREVTSEL_COUNT_ENABLE  ;
+
+	if (pmi)
+		selval |= NHM_PEREVTSEL_PMI_ENABLE;
 	
-	uncore_wrmsr(pid + NHM_UNCORE_PMC_BASE, pmcval);
+	uncore_wrmsr(pid + NHM_UNCORE_PMC_BASE, (u64)pmcval);
 	uncore_wrmsr(pid + NHM_UNCORE_SEL_BASE, selval);
 }
 
+/**
+ * nhm_uncore_enable_counting - enable counting
+ * o Enable all pmc pairs
+ * o Set all cores to receive PMI
+ */
 static inline void nhm_uncore_enable_counting(void)
 {
 	uncore_wrmsr(NHM_UNCORE_PERF_GLOBAL_CTRL,
-				 NHM_UNCORE_GLOBAL_CTRL_EN_PMC0 |
-				 NHM_UNCORE_GLOBAL_CTRL_EN_PMC1 |
-				 NHM_UNCORE_GLOBAL_CTRL_EN_PMC2 |
-				 NHM_UNCORE_GLOBAL_CTRL_EN_PMC3 |
-				 NHM_UNCORE_GLOBAL_CTRL_EN_PMC4 |
-				 NHM_UNCORE_GLOBAL_CTRL_EN_PMC5 |
-				 NHM_UNCORE_GLOBAL_CTRL_EN_PMC6 |
-				 NHM_UNCORE_GLOBAL_CTRL_EN_PMC7 );
+				NHM_UNCORE_PMC_MASK | NHM_UNCORE_GLOBAL_CTRL_EN_PMI );
 }
 
 static inline void nhm_uncore_disable_counting(void)
@@ -323,53 +355,127 @@ static inline void nhm_uncore_disable_counting(void)
 	uncore_wrmsr(NHM_UNCORE_PERF_GLOBAL_CTRL, 0);
 }
 
-#define __START_COUNTING__()	nhm_uncore_enable_counting()
-#define __END_COUNTING__()		nhm_uncore_disable_counting()
-#define SHOW_MSRS() 	nhm_uncore_show_msrs()
-#define CLEAR_MSRS()	nhm_uncore_clear_msrs()
-#define set_event(pid, event, pmcval) nhm_uncore_set_event(pid, event, pmcval)
 
-void pmu_main(void)
+//#################################################
+// NMI PART
+//#################################################
+
+/* Old version kernel will screw up if someone
+ * unregister a not-even-registed handler. So this
+ * flag helps to judge whether we have registered before */
+static int is_nmi_handler_registed = 0;
+
+int nhm_uncore_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
-	CLEAR_MSRS();
+	u64 msrval;
+
+	msrval = uncore_rdmsr(NHM_UNCORE_PERF_GLOBAL_STATUS);
+	if (!(msrval & 0xff))
+		return NMI_DONE;
+
 	
-	set_event(PMC_PID0, nhm_qhl_request_remote_writes, 0);
-	set_event(PMC_PID1, nhm_qhl_request_remote_reads, 0);
-	set_event(PMC_PID2, nhm_qhl_request_local_reads, 0);
-	set_event(PMC_PID3, nhm_qhl_request_local_writes, 0);
-	
-	__START_COUNTING__();
-	
-	mdelay(1000);
-	SHOW_MSRS();
-	mdelay(1000);
-	SHOW_MSRS();
-	mdelay(1000);
-	SHOW_MSRS();
-	
-	__END_COUNTING__();
+	return NMI_HANDLED;
 }
 
-int pmu_init(void)
+static void nhm_uncore_register_nmi_handler(void)
+{
+	int retval;
+	
+	retval = register_nmi_handler(NMI_LOCAL, nhm_uncore_nmi_handler,
+			NMI_FLAG_FIRST, "NHM_UNCORE_HANDLER");
+	if (!retval)
+		is_nmi_handler_registed = 1;
+}
+
+static void nhm_uncore_unregister_nmi_handler(void)
+{
+	if (is_nmi_handler_registed)
+		unregister_nmi_handler(NMI_LOCAL, "NHM_UNCORE_HANDLER");
+}
+
+/**
+ * nmh_uncore_pmi_init - Init PMU Interrupt
+ * Set Enable_Uncore_PMI in  MSR_IA32_DEBUG_CTL.
+ * Init apic.(Is that necessary for uncore?)
+ */
+static void nhm_uncore_pmi_init(void)
+{
+	u64 mval;
+	
+	mval = uncore_rdmsr(__MSR_IA32_DEBUG_CTL);
+	mval |= __MSR_IA32_DEBUG_CTL_ENABLE_UNCORE_PMI;
+	uncore_wrmsr(__MSR_IA32_DEBUG_CTL, mval);
+}
+
+
+//#################################################
+// GENERAL MODULE PART
+//#################################################
+
+#define __START_COUNTING__ \
+	nhm_uncore_enable_counting();
+
+#define __END_COUNTING__ \
+	nhm_uncore_disable_counting();
+
+#define uncore_set_event(pid, event, pmi, pmcval) \
+	nhm_uncore_set_event(pid, event, pmi, pmcval)
+
+#define uncore_pmi_init() \
+	nhm_uncore_pmi_init()
+
+#define uncore_register_nmi_handler() \
+	nhm_uncore_register_nmi_handler()
+
+#define uncore_unregister_nmi_handler() \
+	nhm_uncore_unregister_nmi_handler()
+
+#define show() 	nhm_uncore_show_msrs()
+#define clear()	nhm_uncore_clear_msrs()
+
+void uncore_pmu_main(void)
+{
+	//uncore_pmi_init();
+	//uncore_register_nmi_handler();
+
+	clear();
+	uncore_set_event(PMC_PID0, nhm_qhl_request_remote_writes, 1, -100);
+	uncore_set_event(PMC_PID1, nhm_qhl_request_remote_reads,  1, -100);
+	uncore_set_event(PMC_PID2, nhm_qhl_request_local_reads,   1, -100);
+	uncore_set_event(PMC_PID3, nhm_qhl_request_local_writes,  1, -100);
+	show();
+	
+	__START_COUNTING__
+	
+	mdelay(1000);
+	show();
+	mdelay(1000);
+	show();
+	
+	__END_COUNTING__
+	
+}
+
+int uncore_pmu_init(void)
 {
 	printk(KERN_INFO "PMU <--- INIT ---> ON CPU %d\n", smp_processor_id());
 	printk(KERN_INFO "PMU ONLINE CPUS: %d\n", num_online_cpus());
-	cpu_print_info();
-	pmu_main();
+	
+	uncore_cpu_info();
+	uncore_pmu_main();
+	
 	return 0;
 }
 
-void pmu_exit(void)
+void uncore_pmu_exit(void)
 {
-	/*
-	for_each_online_cpu(cpu) {
-		printk(KERN_INFO "PMU CPU %d\n", cpu);
-	}
-	*/
-	//unregister_nmi_handler(NMI_LOCAL, "PMU_NMI_HANDLER");
+	/* Do some regular cleaning up */
+	clear();
+	uncore_unregister_nmi_handler();
+
 	printk(KERN_INFO "PMU <--- EXIT ---> ON CPU %d\n", smp_processor_id());
 }
 
-module_init(pmu_init);
-module_exit(pmu_exit);
+module_init(uncore_pmu_init);
+module_exit(uncore_pmu_exit);
 MODULE_LICENSE("GPL");
