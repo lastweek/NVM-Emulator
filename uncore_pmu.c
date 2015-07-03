@@ -28,9 +28,9 @@
 #define NHM_UNCORE_PMC_VALUE_MASK		((__AC(1, ULL)<<48) - 1)
 
 /* Nehalem Global Control Registers */
-#define NHM_UNCORE_PERF_GLOBAL_CTRL		0x391	/* Read/Write */
-#define NHM_UNCORE_PERF_GLOBAL_STATUS	0x392	/* Read-Only */
-#define NHM_UNCORE_PERF_GLOBAL_OVF_CTRL	0x393	/* Write-Only */
+#define NHM_UNCORE_GLOBAL_CTRL			0x391	/* Read/Write */
+#define NHM_UNCORE_GLOBAL_STATUS		0x392	/* Read-Only */
+#define NHM_UNCORE_GLOBAL_OVF_CTRL		0x393	/* Write-Only */
 
 /* Nehalem Performance Counter and Control Registers */
 #define NHM_UNCORE_PMCO					0x3b0	/* Read/Write */
@@ -50,19 +50,19 @@
 #define NHM_UNCORE_PERFEVTSEL6			0x3c6	/* Read/Write */
 #define NHM_UNCORE_PERFEVTSEL7			0x3c7	/* Read/Write */
 
-#define NHM_UNCORE_PMC_BASE			NHM_UNCORE_PMCO
-#define NHM_UNCORE_SEL_BASE			NHM_UNCORE_PERFEVTSEL0
+#define NHM_UNCORE_PMC_BASE		NHM_UNCORE_PMCO
+#define NHM_UNCORE_SEL_BASE		NHM_UNCORE_PERFEVTSEL0
 
-/* Control Bit in NHM_UNCORE_PERFEVTSEL */
-#define NHM_PEREVTSEL_EVENT_MASK			(__AC(0xf, ULL))
-#define NHM_PEREVTSEL_UNIT_MASK				(__AC(0xf, ULL)<<8)
+/* Control Bit in PERFEVTSEL */
+#define NHM_PEREVTSEL_EVENT_MASK			(__AC(0xff, ULL))
+#define NHM_PEREVTSEL_UNIT_MASK				(__AC(0xff, ULL)<<8)
 #define NHM_PEREVTSEL_OCC_CTR_RST			(__AC(1, ULL)<<17)
 #define NHM_PEREVTSEL_EDGE_DETECT			(__AC(1, ULL)<<18)
 #define NHM_PEREVTSEL_PMI_ENABLE			(__AC(1, ULL)<<20)
 #define NHM_PEREVTSEL_COUNT_ENABLE			(__AC(1, ULL)<<22)
 #define NHM_PEREVTSEL_INVERT				(__AC(1, ULL)<<23)
 
-/* Control Bit in NHM_UNCORE_PERF_GLOBAL_CTRL */
+/* Control Bit in GLOBAL_CTRL */
 #define NHM_UNCORE_GLOBAL_CTRL_EN_PMC0		(__AC(1, ULL)<<0)
 #define NHM_UNCORE_GLOBAL_CTRL_EN_PMC1		(__AC(1, ULL)<<1)
 #define NHM_UNCORE_GLOBAL_CTRL_EN_PMC2		(__AC(1, ULL)<<2)
@@ -71,20 +71,23 @@
 #define NHM_UNCORE_GLOBAL_CTRL_EN_PMC5		(__AC(1, ULL)<<5)
 #define NHM_UNCORE_GLOBAL_CTRL_EN_PMC6		(__AC(1, ULL)<<6)
 #define NHM_UNCORE_GLOBAL_CTRL_EN_PMC7		(__AC(1, ULL)<<7)
-
 #define NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE0	(__AC(1, ULL)<<48)
 #define NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE1	(__AC(1, ULL)<<49)
 #define NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE2	(__AC(1, ULL)<<50)
 #define NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE3	(__AC(1, ULL)<<51)
 #define NHM_UNCORE_GLOBAL_CTRL_EN_FRZ		(__AC(1, ULL)<<63)
 
-#define NHM_UNCORE_GLOBAL_CTRL_EN_PMI	\
+#define NHM_UNCORE_GLOBAL_CTRL_EN_PMI		\
 	(NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE0 |	\
 	 NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE1 |	\
 	 NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE2 |	\
 	 NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE3 )
 
-/* GLOBAL_CTRL/STATUS/OVF_CTRL PMC MASK */
+/* Control Bit in GLOBAL_CTRL and OVF_CTRL */
+#define NHM_UNCORE_GLOBAL_OVF_FC0			(__AC(1, ULL)<<32)
+#define NHM_UNCORE_GLOBAL_OVF_PMI			(__AC(1, ULL)<<61)
+#define NHM_UNCORE_GLOBAL_OVF_CHG			(__AC(1, ULL)<<63)
+
 #define NHM_UNCORE_PMC_MASK				\
 	(NHM_UNCORE_GLOBAL_CTRL_EN_PMC0 |	\
 	 NHM_UNCORE_GLOBAL_CTRL_EN_PMC1 |	\
@@ -94,6 +97,19 @@
 	 NHM_UNCORE_GLOBAL_CTRL_EN_PMC5 |	\
 	 NHM_UNCORE_GLOBAL_CTRL_EN_PMC6 |	\
 	 NHM_UNCORE_GLOBAL_CTRL_EN_PMC7 )
+
+/* General Control MSR Mask */
+#define NHM_UNCORE_GLOBAL_CTRL_MASK		\
+	(NHM_UNCORE_PMC_MASK | NHM_UNCORE_GLOBAL_CTRL_EN_PMI)
+
+#define NHM_UNCORE_GLOBAL_STATUS_MASK	\
+	(NHM_UNCORE_PMC_MASK		|		\
+	 NHM_UNCORE_GLOBAL_OVF_PMI	|		\
+	 NHM_UNCORE_GLOBAL_OVF_CHG  )
+
+/* Clear FC0 in case some bad things happen */
+#define NHM_UNCORE_GLOBAL_OVF_CTRL_MASK	\
+	(NHM_UNCORE_GLOBAL_STATUS_MASK | NHM_UNCORE_GLOBAL_OVF_FC0)
 
 /*
  *	Each PMCx and PERFEVTSELx forms a pair.
@@ -292,16 +308,23 @@ static void nhm_uncore_show_msrs(void)
 	u64 pmc, sel;
 	u64 a, b;
 	
-	a = uncore_rdmsr(NHM_UNCORE_PERF_GLOBAL_CTRL);
-	printk(KERN_INFO "PMU SHOW --> UNCORE_GLOBAL_CTRL = 0x%llx\n", a);
+	printk(KERN_INFO "PMU\n");
+	
+	a = uncore_rdmsr(NHM_UNCORE_GLOBAL_CTRL);
+	printk(KERN_INFO "PMU SHOW --> GLOBAL_CTRL = 0x%llx\n", a);
+
+	a = uncore_rdmsr(NHM_UNCORE_GLOBAL_STATUS);
+	printk(KERN_INFO "PMU SHOW --> GLOBAL_STATUS = 0x%llx\n", a);
 
 	for_each_pmc_pair(id, pmc, sel) {
 		a = uncore_rdmsr(pmc);
 		b = uncore_rdmsr(sel);
 		if (b) {/* active */
-			printk(KERN_INFO "PMU SHOW --> PMC%d = %lld SEL%d = 0x%llx\n",id,a,id,b);
+			printk(KERN_INFO "PMU SHOW --> PMC%d = %-20lld SEL%d = 0x%llx\n",id,a,id,b);
 		}
 	}
+
+	printk(KERN_INFO "PMU\n");
 }
 
 static inline void nhm_uncore_clear_msrs(void)
@@ -309,12 +332,16 @@ static inline void nhm_uncore_clear_msrs(void)
 	int id;
 	u64 pmc, sel;
 
+	/* A little weird.
+	   Write into OVF_CTRL to clear GLOBAL_STATUS ... */
+	uncore_wrmsr(NHM_UNCORE_GLOBAL_OVF_CTRL, NHM_UNCORE_GLOBAL_OVF_CTRL_MASK);
+	
+	uncore_wrmsr(NHM_UNCORE_GLOBAL_CTRL, 0);
+	
 	for_each_pmc_pair(id, pmc, sel) {
 		uncore_wrmsr(pmc, 0);
 		uncore_wrmsr(sel, 0);
 	}
-
-	uncore_wrmsr(NHM_UNCORE_PERF_GLOBAL_CTRL, 0);
 }
 
 /**
@@ -338,7 +365,7 @@ nhm_uncore_set_event(int pid, int event, int pmi, long long pmcval)
 	/* ok ok ok, this is a very very very safty mask!
 	   Writing to reserved bits in MSR cause CPU to
 	   generate #GP fault. #GP handler will make you die */
-	pmcval |= NHM_UNCORE_PMC_VALUE_MASK;
+	pmcval &= NHM_UNCORE_PMC_VALUE_MASK;
 
 	uncore_wrmsr(pid + NHM_UNCORE_PMC_BASE, (u64)pmcval);
 	uncore_wrmsr(pid + NHM_UNCORE_SEL_BASE, selval);
@@ -351,13 +378,12 @@ nhm_uncore_set_event(int pid, int event, int pmi, long long pmcval)
  */
 static inline void nhm_uncore_enable_counting(void)
 {
-	uncore_wrmsr(NHM_UNCORE_PERF_GLOBAL_CTRL,
-				NHM_UNCORE_PMC_MASK | NHM_UNCORE_GLOBAL_CTRL_EN_PMI );
+	uncore_wrmsr(NHM_UNCORE_GLOBAL_CTRL, NHM_UNCORE_GLOBAL_CTRL_MASK);
 }
 
 static inline void nhm_uncore_disable_counting(void)
 {
-	uncore_wrmsr(NHM_UNCORE_PERF_GLOBAL_CTRL, 0);
+	uncore_wrmsr(NHM_UNCORE_GLOBAL_CTRL, 0);
 }
 
 
@@ -365,16 +391,19 @@ static inline void nhm_uncore_disable_counting(void)
 // NMI PART
 //#################################################
 
-/* Old version kernel will screw up if someone
-   unregister a not-even-registed handler. So this
-   flag helps to judge whether we have registered before */
-static int is_nmi_handler_registed = 0;
+int is_nmi_handler_registed = 0;
+char *nmi_handler_name = "NHM_UNCORE_NMI_HANDLER";
 
 int nhm_uncore_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
 	u64 msrval;
 
-	msrval = uncore_rdmsr(NHM_UNCORE_PERF_GLOBAL_STATUS);
+	printk(KERN_INFO "PMU NMI!!!! CPU %d\n", smp_processor_id());
+	
+	msrval = uncore_rdmsr(NHM_UNCORE_GLOBAL_STATUS);
+	printk(KERN_INFO "PMU NMI status = %llx\n", 
+		msrval & NHM_UNCORE_GLOBAL_STATUS_MASK);
+	
 	if (!(msrval & 0xff))
 		return NMI_DONE;
 
@@ -387,7 +416,7 @@ static void nhm_uncore_register_nmi_handler(void)
 	int retval;
 	
 	retval = register_nmi_handler(NMI_LOCAL, nhm_uncore_nmi_handler,
-			NMI_FLAG_FIRST, "NHM_UNCORE_HANDLER");
+			NMI_FLAG_FIRST, nmi_handler_name);
 	if (!retval)
 		is_nmi_handler_registed = 1;
 }
@@ -395,7 +424,7 @@ static void nhm_uncore_register_nmi_handler(void)
 static void nhm_uncore_unregister_nmi_handler(void)
 {
 	if (is_nmi_handler_registed)
-		unregister_nmi_handler(NMI_LOCAL, "NHM_UNCORE_HANDLER");
+		unregister_nmi_handler(NMI_LOCAL, nmi_handler_name);
 }
 
 /**
@@ -440,8 +469,8 @@ static void nhm_uncore_pmi_init(void)
 
 void uncore_pmu_main(void)
 {
-	//uncore_pmi_init();
-	//uncore_register_nmi_handler();
+	uncore_pmi_init();
+	uncore_register_nmi_handler();
 
 	clear();
 	uncore_set_event(PMC_PID0, nhm_qhl_request_remote_writes, 1, -100);
@@ -463,7 +492,8 @@ void uncore_pmu_main(void)
 
 int uncore_pmu_init(void)
 {
-	printk(KERN_INFO "PMU <--- INIT ---> ON CPU %d\n", smp_processor_id());
+	char *banner = "PMU <-------- INIT -------->";
+	printk(KERN_INFO "%s ON CPU %d\nPMU\n", banner, smp_processor_id());
 	printk(KERN_INFO "PMU ONLINE CPUS: %d\n", num_online_cpus());
 	
 	uncore_cpu_info();
@@ -474,11 +504,13 @@ int uncore_pmu_init(void)
 
 void uncore_pmu_exit(void)
 {
+	char *banner = "PMU --------> EXIT <--------";
+
 	/* Do some regular cleaning up */
 	clear();
-	uncore_unregister_nmi_handler();
+	//uncore_unregister_nmi_handler();
 
-	printk(KERN_INFO "PMU <--- EXIT ---> ON CPU %d\n", smp_processor_id());
+	printk(KERN_INFO "%s ON CPU %d\n", banner, smp_processor_id());
 }
 
 module_init(uncore_pmu_init);
