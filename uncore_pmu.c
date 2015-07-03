@@ -1,8 +1,15 @@
 /*
- * NOTE:
- * The scope of the UNCORE PMU is: Package. 
- * Therefore, everything only needs to be done once in a package
- * by a logical core in that package.
+ * NOTE 0:
+ *	UNCORE PMU programming varies from different
+ *	microarchitecture. This module is dedicated
+ *	for Nehalem(Westmere) Xeon 5600 series.
+ * NOTE 1:
+ * 	The scope of the UNCORE PMU is Package. 
+ *	So, everything only needs to be done once in
+ *	a package by a logical core in that package.
+ * NOTE 2:
+ *	Do not write the reserved bit in MSR. If you do that
+ *	in kernel mode, the GPF handler just panic kernel.
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -25,7 +32,7 @@
 
 /* Nehalem PMC Bit Width */
 #define NHM_UNCORE_PMC_BIT_WIDTH		48
-#define NHM_UNCORE_PMC_VALUE_MASK		((__AC(1, ULL)<<48) - 1)
+#define NHM_UNCORE_PMC_VALUE_MASK		((__AC(1, ULL)<<48)-1)
 
 /* Nehalem Global Control Registers */
 #define NHM_UNCORE_GLOBAL_CTRL			0x391	/* Read/Write */
@@ -50,8 +57,8 @@
 #define NHM_UNCORE_PERFEVTSEL6			0x3c6	/* Read/Write */
 #define NHM_UNCORE_PERFEVTSEL7			0x3c7	/* Read/Write */
 
-#define NHM_UNCORE_PMC_BASE		NHM_UNCORE_PMCO
-#define NHM_UNCORE_SEL_BASE		NHM_UNCORE_PERFEVTSEL0
+#define NHM_UNCORE_PMC_BASE_ADDR		NHM_UNCORE_PMCO
+#define NHM_UNCORE_SEL_BASE_ADDR		NHM_UNCORE_PERFEVTSEL0
 
 /* Control Bit in PERFEVTSEL */
 #define NHM_PEREVTSEL_EVENT_MASK			(__AC(0xff, ULL))
@@ -130,7 +137,7 @@ enum NHM_UNCORE_PMC_PAIR_ID {
  * @sel: perfevtsel msr address
  */
 #define for_each_pmc_pair(id, pmc, sel) \
-	for ((id) = 0, (pmc) = NHM_UNCORE_PMC_BASE, (sel) = NHM_UNCORE_SEL_BASE; \
+	for ((id) = 0, (pmc) = NHM_UNCORE_PMC_BASE_ADDR, (sel) = NHM_UNCORE_SEL_BASE_ADDR; \
 		(id) < PMC_PID_MAX; (id)++, (pmc)++, (sel)++)
 
 
@@ -170,7 +177,7 @@ static u64 nhm_uncore_event_map[NHM_UNCORE_EVENT_ID_MAX] =
 //  ASSEMBLY PART
 //#################################################
 
-static void
+static inline void
 uncore_cpuid(u32 *eax, u32 *ebx, u32 *ecx, u32 *edx)
 {
 	unsigned int op = *eax;
@@ -181,7 +188,7 @@ uncore_cpuid(u32 *eax, u32 *ebx, u32 *ecx, u32 *edx)
 	);
 }
 
-static u64 uncore_rdtsc(void)
+static inline u64 uncore_rdtsc(void)
 {
 	u32 edx, eax;
 	u64 retval = 0;
@@ -194,7 +201,7 @@ static u64 uncore_rdtsc(void)
 	return retval;
 }
 
-static u64 uncore_rdmsr(u32 addr)
+static inline u64 uncore_rdmsr(u32 addr)
 {
 	u32 edx, eax;
 	u64 retval = 0;
@@ -208,7 +215,7 @@ static u64 uncore_rdmsr(u32 addr)
 	return retval;
 }
 
-static void uncore_wrmsr(u32 addr, u64 value)
+static inline void uncore_wrmsr(u32 addr, u64 value)
 {
 	asm volatile(
 		"wrmsr"
@@ -332,10 +339,9 @@ static inline void nhm_uncore_clear_msrs(void)
 	int id;
 	u64 pmc, sel;
 
-	/* A little weird.
-	   Write into OVF_CTRL to clear GLOBAL_STATUS ... */
+	/* It is a little weird, you need to
+	   write into OVF_CTRL to clear GLOBAL_STATUS ... */
 	uncore_wrmsr(NHM_UNCORE_GLOBAL_OVF_CTRL, NHM_UNCORE_GLOBAL_OVF_CTRL_MASK);
-	
 	uncore_wrmsr(NHM_UNCORE_GLOBAL_CTRL, 0);
 	
 	for_each_pmc_pair(id, pmc, sel) {
@@ -356,8 +362,7 @@ nhm_uncore_set_event(int pid, int event, int pmi, long long pmcval)
 {
 	u64 selval;
 	
-	selval = nhm_uncore_event_map[event] |
-			 NHM_PEREVTSEL_COUNT_ENABLE  ;
+	selval = nhm_uncore_event_map[event] | NHM_PEREVTSEL_COUNT_ENABLE;
 
 	if (pmi)
 		selval |= NHM_PEREVTSEL_PMI_ENABLE;
@@ -367,8 +372,8 @@ nhm_uncore_set_event(int pid, int event, int pmi, long long pmcval)
 	   generate #GP fault. #GP handler will make you die */
 	pmcval &= NHM_UNCORE_PMC_VALUE_MASK;
 
-	uncore_wrmsr(pid + NHM_UNCORE_PMC_BASE, (u64)pmcval);
-	uncore_wrmsr(pid + NHM_UNCORE_SEL_BASE, selval);
+	uncore_wrmsr(NHM_UNCORE_PMC_BASE_ADDR + pid, (u64)pmcval);
+	uncore_wrmsr(NHM_UNCORE_SEL_BASE_ADDR + pid, selval);
 }
 
 /**
@@ -391,8 +396,8 @@ static inline void nhm_uncore_disable_counting(void)
 // NMI PART
 //#################################################
 
-int is_nmi_handler_registed = 0;
-char *nmi_handler_name = "NHM_UNCORE_NMI_HANDLER";
+static int is_nmi_handler_registed = 0;
+const char *nmi_handler_name = "NHM_UNCORE_NMI_HANDLER";
 
 int nhm_uncore_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
@@ -428,9 +433,9 @@ static void nhm_uncore_unregister_nmi_handler(void)
 }
 
 /**
- * nmh_uncore_pmi_init - Init PMU Interrupt
- * Set Enable_Uncore_PMI in  MSR_IA32_DEBUG_CTL.
- * Init apic.(Is that necessary for uncore?)
+ * nmh_uncore_pmi_init - init PMU Interrupt(PMI)
+ * Set bit ENABLE_UNCORE_PMI in  MSR_IA32_DEBUG_CTL.
+ * And, Uncore do not need initializing lapic.
  */
 static void nhm_uncore_pmi_init(void)
 {
@@ -446,10 +451,10 @@ static void nhm_uncore_pmi_init(void)
 // GENERAL MODULE PART
 //#################################################
 
-#define __START_COUNTING__ \
+#define __START_COUNTING__() \
 	nhm_uncore_enable_counting();
 
-#define __END_COUNTING__ \
+#define __END_COUNTING__() \
 	nhm_uncore_disable_counting();
 
 #define uncore_set_event(pid, event, pmi, pmcval) \
@@ -479,21 +484,22 @@ void uncore_pmu_main(void)
 	uncore_set_event(PMC_PID3, nhm_qhl_request_local_writes,  1, -100);
 	show();
 	
-	__START_COUNTING__
+	__START_COUNTING__();
 	
 	mdelay(1000);
 	show();
 	mdelay(1000);
 	show();
 	
-	__END_COUNTING__
+	__END_COUNTING__();
 	
 }
 
+const char *ibanner = "PMU <-------- INIT -------->";
+const char *ebanner = "PMU --------> EXIT <--------";
 int uncore_pmu_init(void)
 {
-	char *banner = "PMU <-------- INIT -------->";
-	printk(KERN_INFO "%s ON CPU %d\nPMU\n", banner, smp_processor_id());
+	printk(KERN_INFO "%s ON CPU %d\nPMU\n", ibanner, smp_processor_id());
 	printk(KERN_INFO "PMU ONLINE CPUS: %d\n", num_online_cpus());
 	
 	uncore_cpu_info();
@@ -504,15 +510,14 @@ int uncore_pmu_init(void)
 
 void uncore_pmu_exit(void)
 {
-	char *banner = "PMU --------> EXIT <--------";
-
 	/* Do some regular cleaning up */
 	clear();
 	//uncore_unregister_nmi_handler();
 
-	printk(KERN_INFO "%s ON CPU %d\n", banner, smp_processor_id());
+	printk(KERN_INFO "%s ON CPU %d\n", ebanner, smp_processor_id());
 }
 
 module_init(uncore_pmu_init);
 module_exit(uncore_pmu_exit);
 MODULE_LICENSE("GPL");
+MODULE_AUTHOR("YIZHOU SHAN");
