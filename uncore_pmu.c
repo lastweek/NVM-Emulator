@@ -94,6 +94,16 @@
 #define NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE3	(__AC(1, ULL)<<51)
 #define NHM_UNCORE_GLOBAL_CTRL_EN_FRZ		(__AC(1, ULL)<<63)
 
+/*
+ * Test result shows that the EN_PMI_COREx bit
+ * enables _one_ _physical_ core to receive a
+ * PMI, which means _two_ _logical_ cores will
+ * receive PMI.
+ *
+ * Also, if one package has more than four physical
+ * cores, like Xeon 5600 which has 6, only 4 of 6
+ * can receive PMI.
+ */
 #define NHM_UNCORE_GLOBAL_CTRL_EN_PMI		\
 	(NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE0 |	\
 	 NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE1 |	\
@@ -486,8 +496,7 @@ int nhm_uncore_nmi_handler(unsigned int type, struct pt_regs *regs)
 	
 #ifdef _UNCORE_DEBUG_
 	printk(KERN_INFO "PMU NMI CPU %2d, GLOBAL_STATUS=%llx, OVF_PMC_MASK=%llx\n",
-		get_cpu(), status, ovfpmc);
-	put_cpu();
+		smp_processor_id(), status, ovfpmc);
 #endif
 	
 	//nhm_uncore_clear_ovf(ovfpmc);
@@ -555,8 +564,8 @@ void uncore_pmu_main(void)
 	
 	clear();
 	//uncore_set_event(PMC_PID0, nhm_qhl_request_remote_writes, 1, -100);
-	uncore_set_event(PMC_PID1, nhm_qhl_request_remote_reads,  1, -100);
-	//uncore_set_event(PMC_PID2, nhm_qhl_request_local_reads,   1, -1000);
+	//uncore_set_event(PMC_PID1, nhm_qhl_request_remote_reads,  1, -100);
+	uncore_set_event(PMC_PID2, nhm_qhl_request_local_reads,   1, -1000);
 	//uncore_set_event(PMC_PID3, nhm_qhl_request_local_writes,  1, -1000);
 	show();
 	
