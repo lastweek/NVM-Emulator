@@ -23,9 +23,9 @@
  * And their control bits
  */
 
-#define __MSR_IA32_MISC_ENABLE			0x1a0
-#define __MSR_IA32_DEBUG_CTL			0x1d9
-#define __MSR_IA32_PERFMON_ENABLE		(__AC(1, ULL)<<7)
+#define __MSR_IA32_MISC_ENABLE		0x1a0
+#define __MSR_IA32_DEBUG_CTL		0x1d9
+#define __MSR_IA32_PERFMON_ENABLE	(__AC(1, ULL)<<7)
 #define __MSR_IA32_ENABLE_UNCORE_PMI	(__AC(1, ULL)<<13)
 
 /*
@@ -33,33 +33,33 @@
  * o Nehalem PMC Maximum Value Mask
  */
 
-#define NHM_UNCORE_PMC_BIT_WIDTH		48
-#define NHM_UNCORE_PMC_VALUE_MASK		((__AC(1, ULL)<<48) - 1)
+#define NHM_UNCORE_PMC_BIT_WIDTH	48
+#define NHM_UNCORE_PMC_VALUE_MASK	((__AC(1, ULL)<<48) - 1)
 
 /*
  * o Nehalem Global Control Registers
  * o Nehalem Performance Counter and Control Registers
  */
 
-#define NHM_UNCORE_GLOBAL_CTRL			0x391	/* Read/Write */
-#define NHM_UNCORE_GLOBAL_STATUS		0x392	/* Read-Only */
-#define NHM_UNCORE_GLOBAL_OVF_CTRL		0x393	/* Write-Only */
-#define NHM_UNCORE_PMCO					0x3b0	/* Read/Write */
-#define NHM_UNCORE_PMC1					0x3b1	/* Read/Write */
-#define NHM_UNCORE_PMC2					0x3b2	/* Read/Write */
-#define NHM_UNCORE_PMC3					0x3b3	/* Read/Write */
-#define NHM_UNCORE_PMC4					0x3b4	/* Read/Write */
-#define NHM_UNCORE_PMC5					0x3b5	/* Read/Write */
-#define NHM_UNCORE_PMC6					0x3b6	/* Read/Write */
-#define NHM_UNCORE_PMC7					0x3b7	/* Read/Write */
-#define NHM_UNCORE_PERFEVTSEL0			0x3c0	/* Read/Write */
-#define NHM_UNCORE_PERFEVTSEL1			0x3c1	/* Read/Write */
-#define NHM_UNCORE_PERFEVTSEL2			0x3c2	/* Read/Write */
-#define NHM_UNCORE_PERFEVTSEL3			0x3c3	/* Read/Write */
-#define NHM_UNCORE_PERFEVTSEL4			0x3c4	/* Read/Write */
-#define NHM_UNCORE_PERFEVTSEL5			0x3c5	/* Read/Write */
-#define NHM_UNCORE_PERFEVTSEL6			0x3c6	/* Read/Write */
-#define NHM_UNCORE_PERFEVTSEL7			0x3c7	/* Read/Write */
+#define NHM_UNCORE_GLOBAL_CTRL		0x391	/* Read/Write */
+#define NHM_UNCORE_GLOBAL_STATUS	0x392	/* Read-Only */
+#define NHM_UNCORE_GLOBAL_OVF_CTRL	0x393	/* Write-Only */
+#define NHM_UNCORE_PMCO			0x3b0	/* Read/Write */
+#define NHM_UNCORE_PMC1			0x3b1	/* Read/Write */
+#define NHM_UNCORE_PMC2			0x3b2	/* Read/Write */
+#define NHM_UNCORE_PMC3			0x3b3	/* Read/Write */
+#define NHM_UNCORE_PMC4			0x3b4	/* Read/Write */
+#define NHM_UNCORE_PMC5			0x3b5	/* Read/Write */
+#define NHM_UNCORE_PMC6			0x3b6	/* Read/Write */
+#define NHM_UNCORE_PMC7			0x3b7	/* Read/Write */
+#define NHM_UNCORE_PERFEVTSEL0		0x3c0	/* Read/Write */
+#define NHM_UNCORE_PERFEVTSEL1		0x3c1	/* Read/Write */
+#define NHM_UNCORE_PERFEVTSEL2		0x3c2	/* Read/Write */
+#define NHM_UNCORE_PERFEVTSEL3		0x3c3	/* Read/Write */
+#define NHM_UNCORE_PERFEVTSEL4		0x3c4	/* Read/Write */
+#define NHM_UNCORE_PERFEVTSEL5		0x3c5	/* Read/Write */
+#define NHM_UNCORE_PERFEVTSEL6		0x3c6	/* Read/Write */
+#define NHM_UNCORE_PERFEVTSEL7		0x3c7	/* Read/Write */
 
 #define NHM_UNCORE_PMC_BASE		NHM_UNCORE_PMCO
 #define NHM_UNCORE_SEL_BASE		NHM_UNCORE_PERFEVTSEL0
@@ -68,13 +68,13 @@
  * Control Bit in PERFEVTSEL
  */
 
-#define NHM_PEREVTSEL_EVENT_MASK			(__AC(0xff, ULL))
-#define NHM_PEREVTSEL_UNIT_MASK				(__AC(0xff, ULL)<<8)
-#define NHM_PEREVTSEL_OCC_CTR_RST			(__AC(1, ULL)<<17)
-#define NHM_PEREVTSEL_EDGE_DETECT			(__AC(1, ULL)<<18)
-#define NHM_PEREVTSEL_PMI_ENABLE			(__AC(1, ULL)<<20)
-#define NHM_PEREVTSEL_COUNT_ENABLE			(__AC(1, ULL)<<22)
-#define NHM_PEREVTSEL_INVERT				(__AC(1, ULL)<<23)
+#define NHM_PEREVTSEL_EVENT_MASK	(__AC(0xff, ULL))
+#define NHM_PEREVTSEL_UNIT_MASK		(__AC(0xff, ULL)<<8)
+#define NHM_PEREVTSEL_OCC_CTR_RST	(__AC(1, ULL)<<17)
+#define NHM_PEREVTSEL_EDGE_DETECT	(__AC(1, ULL)<<18)
+#define NHM_PEREVTSEL_PMI_ENABLE	(__AC(1, ULL)<<20)
+#define NHM_PEREVTSEL_COUNT_ENABLE	(__AC(1, ULL)<<22)
+#define NHM_PEREVTSEL_INVERT		(__AC(1, ULL)<<23)
 
 /*
  * Control Bit in GLOBAL_CTRL
@@ -95,7 +95,7 @@
 #define NHM_UNCORE_GLOBAL_CTRL_EN_FRZ		(__AC(1, ULL)<<63)
 
 /*
- * Test result shows that the EN_PMI_COREx bit
+ * Test result shows the EN_PMI_COREx bit
  * enables _one_ _physical_ core to receive a
  * PMI, which means _two_ _logical_ cores will
  * receive PMI.
@@ -114,9 +114,9 @@
  * Control Bit in GLOBAL_CTRL and OVF_CTRL
  */
 
-#define NHM_UNCORE_GLOBAL_OVF_FC0			(__AC(1, ULL)<<32)
-#define NHM_UNCORE_GLOBAL_OVF_PMI			(__AC(1, ULL)<<61)
-#define NHM_UNCORE_GLOBAL_OVF_CHG			(__AC(1, ULL)<<63)
+#define NHM_UNCORE_GLOBAL_OVF_FC0	(__AC(1, ULL)<<32)
+#define NHM_UNCORE_GLOBAL_OVF_PMI	(__AC(1, ULL)<<61)
+#define NHM_UNCORE_GLOBAL_OVF_CHG	(__AC(1, ULL)<<63)
 
 /*
  * Masks For Three GLOBAL MSRs
@@ -125,7 +125,7 @@
  * bit in MSR which can bring kernel panic.
  */
 
-#define NHM_UNCORE_PMC_MASK				\
+#define NHM_UNCORE_PMC_MASK			\
 	(NHM_UNCORE_GLOBAL_CTRL_EN_PMC0 |	\
 	 NHM_UNCORE_GLOBAL_CTRL_EN_PMC1 |	\
 	 NHM_UNCORE_GLOBAL_CTRL_EN_PMC2 |	\
@@ -138,19 +138,19 @@
 #define NHM_UNCORE_GLOBAL_CTRL_MASK		\
 	(NHM_UNCORE_PMC_MASK | NHM_UNCORE_GLOBAL_CTRL_EN_PMI)
 
-#define NHM_UNCORE_GLOBAL_STATUS_MASK	\
-	(NHM_UNCORE_PMC_MASK		|		\
-	 NHM_UNCORE_GLOBAL_OVF_PMI	|		\
+#define NHM_UNCORE_GLOBAL_STATUS_MASK		\
+	(NHM_UNCORE_PMC_MASK		|	\
+	 NHM_UNCORE_GLOBAL_OVF_PMI	|	\
 	 NHM_UNCORE_GLOBAL_OVF_CHG  )
 
 #define NHM_UNCORE_GLOBAL_OVF_CTRL_MASK	\
 	(NHM_UNCORE_GLOBAL_STATUS_MASK | NHM_UNCORE_GLOBAL_OVF_FC0)
 
 /*
- *	Each PMCx and PERFEVTSELx forms a pair.
- *	When we manipulate PMU, we usually handle a PMC/SEL pair.
- *	Hence, in the code below, we operate PMCx and PERFEVTSELx
- *	through their corresponding pair id.
+ * Each PMCx and PERFEVTSELx forms a pair.
+ * When we manipulate PMU, we usually handle a PMC/SEL pair.
+ * Hence, in the code below, we operate PMCx and PERFEVTSELx
+ * through their corresponding pair id.
  */
 enum NHM_UNCORE_PMC_PAIR_ID {
 	PMC_PID0, PMC_PID1, PMC_PID2, PMC_PID3,
@@ -174,29 +174,42 @@ enum NHM_UNCORE_PMC_PAIR_ID {
 //#################################################
 
 enum nhm_uncore_event_id {
-	nhm_qhl_request_ioh_reads		=	1,
-	nhm_qhl_request_ioh_writes		=	2,
+	nhm_qhl_request_ioh_reads	=	1,
+	nhm_qhl_request_ioh_writes	=	2,
 	nhm_qhl_request_remote_reads	=	3,
 	nhm_qhl_request_remote_writes	=	4,
-	nhm_qhl_request_local_reads		=	5,
+	nhm_qhl_request_local_reads	=	5,
 	nhm_qhl_request_local_writes	=	6,
-	nhm_qmc_normal_reads_any		=	7,
-	nhm_qmc_writes_full_any			=	8,
-	nhm_qmc_writes_partial_any		=	9,
+	nhm_qmc_normal_reads_any	=	7,
+	nhm_qmc_writes_full_any		=	8,
+	nhm_qmc_writes_partial_any	=	9,
 
 	NHM_UNCORE_EVENT_ID_MAX
 };
 
+char *EVENT_DESC[NHM_UNCORE_EVENT_ID_MAX] = {
+	"BLANK"
+	"Read requests from the IOH",
+	"Write requests from the IOH",
+	"Read requests from a remote socket",
+	"Write requests from a remote socket",
+	"Read requests from the local socket",
+	"Write requests from the local socket",
+	"Quickpath Memory Controller read requests",
+	"Full cache line writes to DRAM",
+	"Partial cache line writes to DRAM"
+};
+
 static u64 nhm_uncore_event_map[NHM_UNCORE_EVENT_ID_MAX] = 
 {
-	[nhm_qhl_request_ioh_reads]		=	0x0120,
+	[nhm_qhl_request_ioh_reads]	=	0x0120,
 	[nhm_qhl_request_ioh_writes]	=	0x0220,
 	[nhm_qhl_request_remote_reads]	=	0x0420,
 	[nhm_qhl_request_remote_writes]	=	0x0820,
 	[nhm_qhl_request_local_reads]	=	0x1020,
 	[nhm_qhl_request_local_writes]	=	0x2020,
-	[nhm_qmc_normal_reads_any]		=	0x072c,
-	[nhm_qmc_writes_full_any]		=	0x072f,
+	[nhm_qmc_normal_reads_any]	=	0x072c,
+	[nhm_qmc_writes_full_any]	=	0x072f,
 	[nhm_qmc_writes_partial_any]	=	0x382f,
 };
 
@@ -345,26 +358,24 @@ static void uncore_cpu_info(void)
 static void nhm_uncore_show_msrs(void)
 {
 	int id;
-	u64 pmc, sel;
-	u64 a, b;
-	
-	printk(KERN_INFO "PMU\n");
-	
-	a = uncore_rdmsr(NHM_UNCORE_GLOBAL_CTRL);
-	printk(KERN_INFO "PMU SHOW --> GLOBAL_CTRL = 0x%llx\n", a);
+	u64 pmc, sel, a, b;
+	char *banner = "<SHOW>";
 
+	printk(KERN_INFO"PMU\n");
+	a = uncore_rdmsr(NHM_UNCORE_GLOBAL_CTRL);
+	printk(KERN_INFO "PMU %s GLOBAL_CTRL = 0x%llx\n", banner, a);
 	a = uncore_rdmsr(NHM_UNCORE_GLOBAL_STATUS);
-	printk(KERN_INFO "PMU SHOW --> GLOBAL_STATUS = 0x%llx\n", a);
+	printk(KERN_INFO "PMU %s GLOBAL_STATUS = 0x%llx\n", banner, a);
 
 	for_each_pmc_pair(id, pmc, sel) {
 		a = uncore_rdmsr(pmc);
 		b = uncore_rdmsr(sel);
 		if (b) {/* active */
-			printk(KERN_INFO "PMU SHOW --> PMC%d = %-20lld SEL%d = 0x%llx\n",id,a,id,b);
+			printk(KERN_INFO "PMU %s PMC%d = %-20lld SEL%d = 0x%llx\n",
+				banner, id, a, id, b);
 		}
 	}
-
-	printk(KERN_INFO "PMU\n");
+	printk(KERN_INFO"PMU\n");
 }
 
 /**
@@ -435,13 +446,17 @@ nhm_uncore_set_event(int pmcid, int event, int pmi, long long pmcval)
 
 /**
  * nhm_uncore_enable_counting - enable counting
+ * @pmi_core: select a physical core to receive pmi
  *
- * o Enable all pmc pairs to start counting
- * o Set all cores to receive PMI
+ * One has to specify which core can receive PMI when
+ * counter overflows. Doing so because enable all
+ * cores to receive PMI is too annoying and noisy.
+ * On the controry, this routine enables all PMC pairs
+ * to start counting by default.
  */
-static inline void nhm_uncore_enable_counting(void)
+static inline void nhm_uncore_enable_counting(u64 pmi_core_mask)
 {
-	uncore_wrmsr(NHM_UNCORE_GLOBAL_CTRL, NHM_UNCORE_GLOBAL_CTRL_MASK);
+	uncore_wrmsr(NHM_UNCORE_GLOBAL_CTRL, NHM_UNCORE_PMC_MASK | pmi_core_mask);
 }
 
 static inline void nhm_uncore_disable_counting(void)
@@ -491,15 +506,17 @@ int nhm_uncore_nmi_handler(unsigned int type, struct pt_regs *regs)
 
 	status = uncore_rdmsr(NHM_UNCORE_GLOBAL_STATUS);
 	ovfpmc = status & NHM_UNCORE_PMC_MASK;
+	
 	if (!ovfpmc) /* No PMC Overflows */
 		return NMI_DONE;
 	
 #ifdef _UNCORE_DEBUG_
-	printk(KERN_INFO "PMU NMI CPU %2d, GLOBAL_STATUS=%llx, OVF_PMC_MASK=%llx\n",
+	printk(KERN_INFO "PMU < NMI > CPU %2d, GLOBAL_STATUS=%llx, OVF_PMC_MASK=%llx\n",
 		smp_processor_id(), status, ovfpmc);
 #endif
 	
-	//nhm_uncore_clear_ovf(ovfpmc);
+	nhm_uncore_clear_ovf(ovfpmc);
+	nhm_uncore_set_event(PMC_PID0, nhm_qhl_request_remote_writes, 1, -100);
 
 	return NMI_HANDLED;
 }
@@ -512,7 +529,7 @@ static void nhm_uncore_register_nmi_handler(void)
 	if (!ret) {
 		is_nmi_registed = 1;
 #ifdef _UNCORE_DEBUG_
-		printk(KERN_INFO "PMU NMI Handler Installed\n");
+		printk(KERN_INFO "PMU <NMI> Handler Installed\n");
 #endif
 	}
 }
@@ -522,11 +539,11 @@ static void nhm_uncore_unregister_nmi_handler(void)
 	if (is_nmi_registed) {
 		unregister_nmi_handler(NMI_LOCAL, "__UNCORE_NMI_HANDLER");
 #ifdef _UNCORE_DEBUG_
-		printk(KERN_INFO "PMU NMI Handler Removed\n");
+		printk(KERN_INFO "PMU <NMI> Handler Removed\n");
 #endif
 	} else {
 #ifdef _UNCORE_DEBUG_
-		printk(KERN_INFO "PMU NMI Try to remove a unregisted handler\n");
+		printk(KERN_INFO "PMU <NMI> No handler has registed.\n");
 #endif
 	}
 }
@@ -536,8 +553,9 @@ static void nhm_uncore_unregister_nmi_handler(void)
 // GENERAL MODULE PART
 //#################################################
 
-#define __START_COUNTING() \
-	nhm_uncore_enable_counting();
+// Enable one core to receive PMI
+#define __START_COUNTING(pmi_mask) \
+	nhm_uncore_enable_counting(pmi_mask);
 
 #define __END_COUNTING() \
 	nhm_uncore_disable_counting();
@@ -559,25 +577,32 @@ static void nhm_uncore_unregister_nmi_handler(void)
 
 void uncore_pmu_main(void)
 {
+	u64 pmi_mask;
+
 	uncore_pmi_init();
 	uncore_nmi_register();
 	
 	clear();
-	//uncore_set_event(PMC_PID0, nhm_qhl_request_remote_writes, 1, -100);
+	uncore_set_event(PMC_PID0, nhm_qhl_request_remote_writes, 1, -100);
 	//uncore_set_event(PMC_PID1, nhm_qhl_request_remote_reads,  1, -100);
-	uncore_set_event(PMC_PID2, nhm_qhl_request_local_reads,   1, -1000);
+	//uncore_set_event(PMC_PID2, nhm_qhl_request_local_reads,   1, -1000);
 	//uncore_set_event(PMC_PID3, nhm_qhl_request_local_writes,  1, -1000);
 	show();
 	
-	__START_COUNTING();
+	/* Enable one core to receive PMI is enough */
+	pmi_mask = NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE0;
 	
+	__START_COUNTING(pmi_mask);
+	
+	/*
 	mdelay(1000);
 	show();
 	mdelay(1000);
+	mdelay(1000);
+	mdelay(1000);
 	show();
-	
-	__END_COUNTING();
-	show();
+	*/
+	//__END_COUNTING();
 }
 
 const char *beybanner = "PMU --------> EXIT <--------";
@@ -589,14 +614,15 @@ int uncore_pmu_init(void)
 	printk(KERN_INFO "PMU ONLINE CPUS: %d\n", num_online_cpus());
 	
 	uncore_cpu_info();
-	uncore_pmu_main();
-	
+	//uncore_pmu_main();
+	printk(KERN_INFO "%s\n", EVENT_DESC[0]);
 	return 0;
 }
 
 void uncore_pmu_exit(void)
 {
 	/* Clean up, avoid endless counting */
+	show();
 	clear();
 	uncore_nmi_unregister();
 
