@@ -1,0 +1,76 @@
+#include <linux/cpu.h>
+#include <linux/delay.h>
+#include <linux/init.h>
+#include <linux/sched.h>
+#include <linux/module.h>
+#include <linux/cpumask.h>
+
+void _disable_node(void)
+{
+	int i, j;
+	/* Take Node0 down. CPU 6-11, 18-23 */
+	for (i = 6, j = 18; i < 12; ) {
+		cpu_down(i++);
+		cpu_down(j++);
+	}
+}
+
+void _no_affinity(void)
+{
+	struct task_struct *p;
+	printk(KERN_INFO"NO_SET_AFFINITY TASKS\N");
+	for_each_process(p) {
+		if (p->flags && PF_NO_SETAFFINITY)
+			printk(KERN_INFO"\tPID: %d\n", p->pid);
+	}
+}
+
+void __main(void)
+{
+	struct task_struct *task;
+	struct cpumask new_mask;
+	int i, cpu = 0;
+	
+	for_each_process(task) {
+		//do_set_cpus_allowed(task, &new_mask);
+		if (task->nr_cpus_allowed != 24) {
+			printk(KERN_INFO"\nPID: %d CPU_ALLOWED: %d MASK: %llx %lld",
+				task->pid, task->nr_cpus_allowed,
+				task->cpus_allowed.bits[0], task->cpus_allowed.bits[0]);
+			for_each_cpu(cpu, &(task->cpus_allowed)) {
+				printk(KERN_INFO" %d ", cpu);
+			}
+			i++;
+		}
+	}
+	printk(KERN_INFO"TOTAL: %d\n", i);
+}
+
+void print_mask(void)
+{
+	printk(KERN_INFO"%llx  %llx\n", cpu_online_mask->bits[0], cpu_online_mask->bits[1]);
+	printk(KERN_INFO"%llx  %llx\n", cpu_possible_mask->bits[0], cpu_possible_mask->bits[1]);
+	printk(KERN_INFO"%llx  %llx\n", cpu_active_mask->bits[0], cpu_active_mask->bits[1]);
+	printk(KERN_INFO"%llx  %llx\n", cpu_present_mask->bits[0], cpu_present_mask->bits[1]);
+}
+
+int affinity_init(void)
+{
+	printk(KERN_INFO "affinity init\n");
+
+	//_no_affinity();
+	//__main();
+	_disable_node();
+	cpu_up(6);
+
+	return 0;
+}
+
+void affinity_exit(void)
+{
+	printk(KERN_INFO "affinity exit\n\n");
+}
+
+module_init(affinity_init);
+module_exit(affinity_exit);
+MODULE_LICENSE("GPL");
