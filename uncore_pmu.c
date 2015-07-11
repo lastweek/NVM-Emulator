@@ -3,6 +3,9 @@
  * The scope of the UNCORE PMU is: Package. 
  * Therefore, everything only needs to be done once in a package
  * by a logical core in that package.
+ *
+ * NOTE:
+ * The affinity of NMI is unchangeable.
  */
 #include <linux/init.h>
 #include <linux/kernel.h>
