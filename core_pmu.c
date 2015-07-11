@@ -29,16 +29,14 @@
 #include <asm/nmi.h>
 #include <asm/msr.h>
 
-#define MSR_IA32_PMC0					0x0C1
-#define MSR_IA32_PERFEVTSEL0			0x186
-
-#define MSR_CORE_PERF_GLOBAL_STATUS		0x38E
-#define MSR_CORE_PERF_GLOBAL_CTRL		0x38F
+#define MSR_IA32_PMC0			0x0C1
+#define MSR_IA32_PERFEVTSEL0		0x186
+#define MSR_CORE_PERF_GLOBAL_STATUS	0x38E
+#define MSR_CORE_PERF_GLOBAL_CTRL	0x38F
 
 #define MSR_IA32_MISC_PERFMON_ENABLE 	((1ULL)<<7)
 #define MSR_CORE_PERF_GLOBAL_OVF_CTRL	0x390
-
-#define MSR_IA32_MISC_ENABLE			0x1A0
+#define MSR_IA32_MISC_ENABLE		0x1A0
 
 typedef unsigned char		u8;
 typedef unsigned short		u16;
@@ -51,37 +49,37 @@ typedef unsigned long long	u64;
 #define USR_MODE	1ULL<<16
 #define OS_MODE 	1ULL<<17
 #define EDGE_DETECT	1ULL<<18
-#define PIN_CONTROL 1ULL<<19
+#define PIN_CONTROL	1ULL<<19
 #define INT_ENABLE	1ULL<<20
 #define ANY_THREAD	1ULL<<21
 #define ENABLE		1ULL<<22
 #define INVERT		1ULL<<23
-#define CMASK(val)  (u64)(val<<24)
+#define CMASK(val)	(u64)(val<<24)
 
 /**
  * INTEL PREDEFINED EVENTS
  **/
 enum perf_hw_id {
-	UNHALTED_CYCLES				=	0,
-	INSTRUCTIONS_RETIRED		=	1,
-	UNHALTED_REF_CYCLES			=	2,
-	LLC_REFERENCES				=	3,
-	LLC_MISSES					=	4,
-	BRANCH_INSTRUCTIONS_RETIRED	=	5,
-	BRANCH_MISSES_RETIRED		=	6,
+	UNHALTED_CYCLES			= 0,
+	INSTRUCTIONS_RETIRED		= 1,
+	UNHALTED_REF_CYCLES		= 2,
+	LLC_REFERENCES			= 3,
+	LLC_MISSES			= 4,
+	BRANCH_INSTRUCTIONS_RETIRED	= 5,
+	BRANCH_MISSES_RETIRED		= 6,
 
 	EVENT_COUNT_MAX,
 };
 
 static u64 intel_predefined_eventmap[EVENT_COUNT_MAX] =
 {
-	[UNHALTED_CYCLES]				= 0x003c,
-	[INSTRUCTIONS_RETIRED]			= 0x00c0,
-	[UNHALTED_REF_CYCLES]			= 0x013c,
-	[LLC_REFERENCES]				= 0x4f2e,
-	[LLC_MISSES]					= 0x412e,
+	[UNHALTED_CYCLES]		= 0x003c,
+	[INSTRUCTIONS_RETIRED]		= 0x00c0,
+	[UNHALTED_REF_CYCLES]		= 0x013c,
+	[LLC_REFERENCES]		= 0x4f2e,
+	[LLC_MISSES]			= 0x412e,
 	[BRANCH_INSTRUCTIONS_RETIRED]	= 0x00c4,
-	[BRANCH_MISSES_RETIRED]			= 0x00c5,
+	[BRANCH_MISSES_RETIRED]		= 0x00c5,
 };
 
 struct pre_event {
@@ -236,11 +234,11 @@ cpu_perf_info(void)
 	eax = 0x0A;
 	pmu_cpuid(&eax, &ebx, &ecx, &edx);
 	
-	PERF_VERSION	=  eax & 0xFFU;
-	PC_PER_CPU		= (eax & 0xFF00U)>>8;
+	PERF_VERSION	= (eax & 0xFFU);
+	PC_PER_CPU	= (eax & 0xFF00U)>>8;
 	PC_BIT_WIDTH	= (eax & 0xFF0000U)>>16;
 	LEN_EBX_TOENUM	= (eax & 0xFF000000U)>>24;
-	PRE_EVENT_MASK	=  ebx & 0xFFU;
+	PRE_EVENT_MASK	= (ebx & 0xFFU);
 }
 
 static void
@@ -471,27 +469,33 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	u64 i;
 	u64 tmsr;
 	
-	/**
-	 * GET TIMESTAMP FIRST 
-	 **/
+	/*
+	 * GET TIMESTAMP FIRST.
+	 */
 	this_cpu_write(TSC2, pmu_rdtsc());
 	
+	/*
+	 * Fine, linux kernel do this ...
+	 */
 	apic_write(APIC_LVTPC, APIC_DM_NMI);
 	
+	/*
+	 * None of our business.
+	 */
 	tmsr = pmu_rdmsr(MSR_CORE_PERF_GLOBAL_STATUS);
 	if (!(tmsr & 0x1))
 		return NMI_DONE;
 	
 	printk(KERN_INFO"PMU NMI CPU %d Event End Counting TSC2=%lld\n",
 			smp_processor_id(), this_cpu_read(TSC2));
-	/**
+	/*
 	 * Simulate Lantency
-	 **/
+	 */
 	udelay(1);
 
-	/**
+	/*
 	 * Restart counting on THIS cpu.
-	 **/
+	 */
 	__pmu_clear_msrs(NULL);
 	__pmu_enable_predefined_event(&pre_event_info);
 	__pmu_enable_counting(NULL);
@@ -506,7 +510,7 @@ pmu_main(void)
 	u64 tsc1;
 
 	PMU_EVENT_COUNT		=	0;
-	PMU_LATENCY			=	CPU_BASE_FREQUENCY*10;
+	PMU_LATENCY		=	CPU_BASE_FREQUENCY*10;
 	PMU_PMC0_INIT_VALUE	=	-32;
 
 	/**
