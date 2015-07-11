@@ -355,13 +355,13 @@ static void uncore_cpu_info(void)
 // NHM UNCORE PMU PART
 //#################################################
 
-static void nhm_uncore_show_msrs(void)
+static void nhm_uncore_show_msrs(void *info)
 {
 	int id;
 	u64 pmc, sel, a, b;
 	char *banner = "<SHOW>";
 
-	printk(KERN_INFO"PMU\n");
+	printk(KERN_INFO"PMU %s in CPU %2d\n", banner, smp_processor_id());
 	a = uncore_rdmsr(NHM_UNCORE_GLOBAL_CTRL);
 	printk(KERN_INFO "PMU %s GLOBAL_CTRL = 0x%llx\n", banner, a);
 	a = uncore_rdmsr(NHM_UNCORE_GLOBAL_STATUS);
@@ -403,7 +403,7 @@ static inline void nhm_uncore_clear_ctrl(void)
 	uncore_wrmsr(NHM_UNCORE_GLOBAL_CTRL, 0);
 }
 
-static inline void nhm_uncore_clear_msrs(void)
+static inline void nhm_uncore_clear_msrs(void *info)
 {
 	int id;
 	u64 pmc, sel;
@@ -454,9 +454,17 @@ nhm_uncore_set_event(int pmcid, int event, int pmi, long long pmcval)
  * On the controry, this routine enables all PMC pairs
  * to start counting by default.
  */
-static inline void nhm_uncore_enable_counting(u64 pmi_core_mask)
+static inline void nhm_uncore_enable_counting(u64 pmi_core_mask, int frz)
 {
-	uncore_wrmsr(NHM_UNCORE_GLOBAL_CTRL, NHM_UNCORE_PMC_MASK | pmi_core_mask);
+	u64 mask = NHM_UNCORE_GLOBAL_CTRL_EN_PMI;
+	
+	if (pmi_core_mask) /* nonzero? user-specified cpu */
+		mask = pmi_core_mask;
+
+	if (frz)
+		mask |= NHM_UNCORE_GLOBAL_CTRL_EN_FRZ;
+	
+	uncore_wrmsr(NHM_UNCORE_GLOBAL_CTRL, NHM_UNCORE_PMC_MASK | mask);
 }
 
 static inline void nhm_uncore_disable_counting(void)
@@ -475,9 +483,7 @@ static void __enable_pmi(void *info)
 	
 	m = uncore_rdmsr(__MSR_IA32_DEBUG_CTL);
 	if (!(m & __MSR_IA32_ENABLE_UNCORE_PMI)) {
-#ifdef _UNCORE_DEBUG_
-		printk(KERN_INFO "PMU CPU%d Set ENABLE_UNCORE_PMI to 1\n", smp_processor_id());
-#endif
+		printk(KERN_INFO"PMU CPU%2d SET ENABLE_UNCORE_PMI to 1\n", smp_processor_id());
 		m |= __MSR_IA32_ENABLE_UNCORE_PMI;
 		uncore_wrmsr(__MSR_IA32_DEBUG_CTL, m);
 	}
@@ -498,25 +504,74 @@ static void nhm_uncore_pmi_init(void)
 	}
 }
 
-static int is_nmi_registed = 0;
+/*
+ * For remote read msr operation.
+ */
+struct __msr {
+	u32 addr;
+	u64 value;
+}__attribute__((packed));
+
+void __remote_rdmsr(void *info)
+{
+	u32 edx, eax;
+	struct __msr *m;
+
+	if (!info)
+		return;
+
+	m = (struct __msr *)info;
+	asm volatile(
+		"rdmsr"
+		:"=a"(eax), "=d"(edx)
+		:"c"(m->addr)
+	);
+	m->value = (u64)edx << 32 | (u64)eax;
+}
+
+
+
+/*
+ * Some useful variables.
+ */
+#define XYZ 0
+struct __msr m = {.addr = 0x0, .value=0x0};
+int IS_NMI_REGISTED = 0;
+const static int PMI_MASK = NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE1;
+const static int FRZ = 1;
+DEFINE_PER_CPU(int, OVF_COUNT);
 
 int nhm_uncore_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
-	u64 status, ovfpmc;
+	u64 status = 0, ovfpmc = 0;
+	int this_cpu = smp_processor_id();
 
-	status = uncore_rdmsr(NHM_UNCORE_GLOBAL_STATUS);
+	if (!IS_NMI_REGISTED)
+		return NMI_DONE;
+
+	if (this_cpu == 6) {
+		m.addr = NHM_UNCORE_GLOBAL_STATUS;
+		smp_call_function_single(XYZ, __remote_rdmsr, &m, 1);
+		status = m.value;
+	}
+	else {
+		status = uncore_rdmsr(NHM_UNCORE_GLOBAL_STATUS);
+	}
+
 	ovfpmc = status & NHM_UNCORE_PMC_MASK;
-	
 	if (!ovfpmc) /* No PMC Overflows */
 		return NMI_DONE;
-	
+
 #ifdef _UNCORE_DEBUG_
-	printk(KERN_INFO "PMU < NMI > CPU %2d, GLOBAL_STATUS=%llx, OVF_PMC_MASK=%llx\n",
-		smp_processor_id(), status, ovfpmc);
+	printk(KERN_INFO "PMU <---NMI CATCHED---> CPU %2d, STATUS=%llx\n",
+		this_cpu, status);
 #endif
-	
+
+	/* Restart Counting */
+	this_cpu_inc(OVF_COUNT);
 	nhm_uncore_clear_ovf(ovfpmc);
 	nhm_uncore_set_event(PMC_PID0, nhm_qhl_request_remote_writes, 1, -100);
+	nhm_uncore_enable_counting(PMI_MASK, FRZ);
 
 	return NMI_HANDLED;
 }
@@ -527,24 +582,22 @@ static void nhm_uncore_register_nmi_handler(void)
 	ret = register_nmi_handler(NMI_LOCAL, nhm_uncore_nmi_handler,
 			NMI_FLAG_FIRST, "__UNCORE_NMI_HANDLER");
 	if (!ret) {
-		is_nmi_registed = 1;
-#ifdef _UNCORE_DEBUG_
+		IS_NMI_REGISTED = 1;
 		printk(KERN_INFO "PMU <NMI> Handler Installed\n");
-#endif
+	}
+	else {
+		IS_NMI_REGISTED = 0;
+		printk(KERN_INFO "PMU <NMI> Failed to register NMI handler\n");
 	}
 }
 
 static void nhm_uncore_unregister_nmi_handler(void)
 {
-	if (is_nmi_registed) {
+	if (IS_NMI_REGISTED) {
 		unregister_nmi_handler(NMI_LOCAL, "__UNCORE_NMI_HANDLER");
-#ifdef _UNCORE_DEBUG_
 		printk(KERN_INFO "PMU <NMI> Handler Removed\n");
-#endif
 	} else {
-#ifdef _UNCORE_DEBUG_
 		printk(KERN_INFO "PMU <NMI> No handler has registed.\n");
-#endif
 	}
 }
 
@@ -553,11 +606,10 @@ static void nhm_uncore_unregister_nmi_handler(void)
 // GENERAL MODULE PART
 //#################################################
 
-// Enable one core to receive PMI
-#define __START_COUNTING(pmi_mask) \
-	nhm_uncore_enable_counting(pmi_mask);
+#define START_COUNTING(PMI_MASK, FRZ) \
+	nhm_uncore_enable_counting(PMI_MASK, FRZ);
 
-#define __END_COUNTING() \
+#define END_COUNTING() \
 	nhm_uncore_disable_counting();
 
 #define uncore_set_event(pmcid, event, pmi, pmcval) \
@@ -572,36 +624,24 @@ static void nhm_uncore_unregister_nmi_handler(void)
 #define uncore_nmi_unregister() \
 	nhm_uncore_unregister_nmi_handler()
 
-#define show() 	nhm_uncore_show_msrs()
-#define clear()	nhm_uncore_clear_msrs()
+#define show() 	nhm_uncore_show_msrs(NULL)
+#define clear()	nhm_uncore_clear_msrs(NULL)
 
-void uncore_pmu_main(void)
+void uncore_pmu_main(void *info)
 {
-	u64 pmi_mask;
-
 	uncore_pmi_init();
 	uncore_nmi_register();
+	
 	
 	clear();
 	uncore_set_event(PMC_PID0, nhm_qhl_request_remote_writes, 1, -100);
 	//uncore_set_event(PMC_PID1, nhm_qhl_request_remote_reads,  1, -100);
 	//uncore_set_event(PMC_PID2, nhm_qhl_request_local_reads,   1, -1000);
 	//uncore_set_event(PMC_PID3, nhm_qhl_request_local_writes,  1, -1000);
+	
+	START_COUNTING(PMI_MASK, FRZ);
 	show();
 	
-	/* Enable one core to receive PMI is enough */
-	pmi_mask = NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE0;
-	
-	__START_COUNTING(pmi_mask);
-	
-	/*
-	mdelay(1000);
-	show();
-	mdelay(1000);
-	mdelay(1000);
-	mdelay(1000);
-	show();
-	*/
 	//__END_COUNTING();
 }
 
@@ -610,23 +650,48 @@ const char *welbanner = "PMU <-------- INIT -------->";
 
 int uncore_pmu_init(void)
 {
-	printk(KERN_INFO "%s ON CPU %d\nPMU\n", welbanner, smp_processor_id());
+	int this_cpu;
+
+	this_cpu = get_cpu();	/* Disable preempt */
+	printk(KERN_INFO "%s ON CPU %d\nPMU\n", welbanner, this_cpu);
 	printk(KERN_INFO "PMU ONLINE CPUS: %d\n", num_online_cpus());
 	
-	uncore_cpu_info();
-	//uncore_pmu_main();
-	printk(KERN_INFO "%s\n", EVENT_DESC[0]);
+	//uncore_cpu_info();
+	
+	if (this_cpu == 6) {
+		printk(KERN_INFO "PMU Call main on ANOTHER socket\n");
+		smp_call_function_single(XYZ, uncore_pmu_main, NULL, 1);
+	}
+	else {
+		printk(KERN_INFO "PMU Call main on CURRENT socket\n");
+		uncore_pmu_main(NULL);
+	}
+
+	put_cpu();		/* Enable preempt */
 	return 0;
 }
 
 void uncore_pmu_exit(void)
 {
-	/* Clean up, avoid endless counting */
-	show();
-	clear();
-	uncore_nmi_unregister();
+	int cpu, this_cpu = get_cpu();
 
-	printk(KERN_INFO "%s ON CPU %d\n", beybanner, smp_processor_id());
+	/* Clean up, avoid endless counting */
+	if (this_cpu == 6) {
+		smp_call_function_single(XYZ, nhm_uncore_show_msrs, NULL, 1);
+		smp_call_function_single(XYZ, nhm_uncore_clear_msrs, NULL, 1);
+	}
+	else {
+		show();
+		clear();
+	}
+
+	uncore_nmi_unregister();
+	for_each_online_cpu(cpu) {
+		printk(KERN_INFO "PMU CPU %2d, OVF_COUNT = %4d\n",
+			cpu, per_cpu(OVF_COUNT, cpu));
+	}
+	printk(KERN_INFO "%s ON CPU %2d\n", beybanner, this_cpu);
+	put_cpu();
 }
 
 module_init(uncore_pmu_init);
