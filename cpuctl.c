@@ -5,6 +5,16 @@
 #include <linux/module.h>
 #include <linux/cpumask.h>
 
+void _enable_node(void)
+{
+	int i, j;
+	/* Take Node0 down. CPU 6-11, 18-23 */
+	for (i = 6, j = 18; i < 12; ) {
+		cpu_up(i++);
+		cpu_up(j++);
+	}
+}
+
 void _disable_node(void)
 {
 	int i, j;
