@@ -1,3 +1,3 @@
-# NVM
-Current develop status:
-	Simulate NVM's latency via Intel PMU system.
+# Non-Volatile Memory System
+Current development status:
+	Simulate the latency of NVM through Intel uncore PMU.
