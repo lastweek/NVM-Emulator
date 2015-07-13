@@ -1,12 +1,16 @@
 /*
- * NOTE:
- * The scope of the UNCORE PMU is: Package. 
- * Therefore, everything only needs to be done once in a package
- * by a logical core in that package.
+ * NOTE 0:
+ * The scope of the uncore PMU is: package. 
+ * Therefore, everything only needs to be done once
+ * in a package by a logical core in that package.
  *
- * NOTE:
- * The affinity of NMI is unchangeable.
+ * NOTE 1:
+ * The affinity of NMI in Linux is unchangeable.
+ * numactl is very helpful in changing the default
+ * NUMA memory policy, so you do not need to call
+ * kernel numa system API.
  */
+
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -17,7 +21,6 @@
 #include <linux/percpu.h>
 #include <linux/delay.h>
 #include <asm/nmi.h>
-
 
 #define __AC(X,Y)	(X##Y)
 
@@ -230,8 +233,7 @@ static void
 uncore_cpuid(u32 *eax, u32 *ebx, u32 *ecx, u32 *edx)
 {
 	unsigned int op = *eax;
-	asm volatile(
-		"cpuid"
+	asm volatile("cpuid"
 		: "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx)
 		: "a"(op)
 	);
@@ -242,8 +244,7 @@ static u64 uncore_rdtsc(void)
 	u32 edx, eax;
 	u64 retval = 0;
 
-	asm volatile(
-		"rdtsc"
+	asm volatile("rdtsc"
 		:"=a"(eax), "=d"(edx)
 	);
 	retval = (u64)edx << 32 | (u64)eax;
@@ -265,8 +266,7 @@ static u64 uncore_rdmsr(u32 addr)
 
 static void uncore_wrmsr(u32 addr, u64 value)
 {
-	asm volatile(
-		"wrmsr"
+	asm volatile("wrmsr"
 		: :"c"(addr), "d"((u32)(value>>32)), "a"((u32)value)
 	);
 }
@@ -359,7 +359,7 @@ static void uncore_cpu_info(void)
 }
 
 //#################################################
-// NHM UNCORE PMU PART
+//	NHM_UNCORE_PMU PART
 //#################################################
 
 static void nhm_uncore_show_msrs(void *info)
@@ -497,7 +497,7 @@ static inline void nhm_uncore_disable_counting(void)
 
 
 //#################################################
-//	CORE PART
+//	NMI_HANDLER PART
 //#################################################
 
 /*
@@ -521,13 +521,13 @@ struct __msr {
 #define XYZ		0		/* Node 0, CPU 0 */
 #define INITVAL		-1000000	/* PMC initial value */
 #define DELAY		0		/* mdelay in handler */
-#define PMC		PMC_PID0	/* Used counter */
+#define PMC		PMC_PID3	/* Used counter */
 
 DEFINE_PER_CPU(int, OVF_COUNT);
 
 static struct __msr m;
 static int IS_NMI_REGISTED	=	0;
-static int FRZ			=	1;
+static int FRZ			=	0;
 static u64 PMI_MASK = NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE1;
 
 static void __enable_pmi(void *info)
@@ -538,24 +538,24 @@ static void __enable_pmi(void *info)
 	this_cpu = get_cpu();
 	val = uncore_rdmsr(__MSR_IA32_DEBUG_CTL);
 	
-	/*
 	if (this_cpu == SURVIVOR) {
-		val &= (~__MSR_IA32_ENABLE_UNCORE_PMI);
-		uncore_wrmsr(__MSR_IA32_DEBUG_CTL, val);
-		put_cpu();
-		return;
-	}*/
-
+		uncore_wrmsr(__MSR_IA32_DEBUG_CTL, 0);
+		goto done;
+	}
+	
+	/*TODO */
 	if(this_cpu == 13) {
 		uncore_wrmsr(__MSR_IA32_DEBUG_CTL, 0);
-		return;
+		goto done;
 	}
-
+	
 	if (!(val & __MSR_IA32_ENABLE_UNCORE_PMI)) {
 		val |= __MSR_IA32_ENABLE_UNCORE_PMI;
 		uncore_wrmsr(__MSR_IA32_DEBUG_CTL, val);
-		put_cpu();
 	}
+
+done:
+	put_cpu();
 }
 
 static void __disable_pmi(void *info)
@@ -613,16 +613,11 @@ static void __remote_rdmsr(void *info)
 
 static void __remote_restart(void *info)
 {
-	//u64 ovfpmc = *(u64 *)info;
-	//nhm_uncore_clear_ovf(ovfpmc);
-	//nhm_uncore_set_event(PMC, nhm_qhl_request_remote_writes, 1, INITVAL);
-	//nhm_uncore_set_event(PMC, nhm_qhl_request_local_reads, 1, INITVAL);
-	//nhm_uncore_enable_counting(PMI_MASK, FRZ);
+	u64 ovfpmc = *(u64 *)info;
+	nhm_uncore_clear_ovf(ovfpmc);
+	nhm_uncore_set_event(PMC, nhm_qhl_request_remote_writes, 1, INITVAL);
+	nhm_uncore_enable_counting(PMI_MASK, FRZ);
 	
-	uncore_wrmsr(NHM_UNCORE_PMCO, INITVAL & NHM_UNCORE_PMC_VALUE_MASK);
-	uncore_wrmsr(NHM_UNCORE_PERFEVTSEL0, 0x501020ULL);
-	uncore_wrmsr(NHM_UNCORE_GLOBAL_OVF_CTRL, 0x2000000000000001);
-	uncore_wrmsr(NHM_UNCORE_GLOBAL_CTRL, 0x0002000000000000ULL);
 }
 
 static void __remote_delay(void *info)
@@ -634,23 +629,18 @@ static void __remote_delay(void *info)
 
 int nhm_uncore_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
-	u64 status = 0, ovfpmc = 0;
 	int this_cpu;
+	u64 status, ovfpmc;
 
-	printk(KERN_INFO"-----------NMI\n");
-
-	/*this_cpu = get_cpu();
+	this_cpu = get_cpu();
 	if (this_cpu == SURVIVOR) {
 		m.addr = NHM_UNCORE_GLOBAL_STATUS;
 		smp_call_function_single(XYZ, __remote_rdmsr, &m, 1);
 		status = m.value;
-	}
-	else {
+	} else {
 		status = uncore_rdmsr(NHM_UNCORE_GLOBAL_STATUS);
 	}
-	*/
 
-	status = uncore_rdmsr(NHM_UNCORE_GLOBAL_STATUS);
 	ovfpmc = status & NHM_UNCORE_PMC_MASK;
 	if (!ovfpmc)
 		return NMI_DONE;
@@ -660,28 +650,16 @@ int nhm_uncore_nmi_handler(unsigned int type, struct pt_regs *regs)
 		this_cpu, status);
 #endif
 	
-	/*
 	if (this_cpu == SURVIVOR) {
 		smp_call_function_single(XYZ, __remote_restart, &ovfpmc, 1);
+		goto done;
 	}
-	else {
-		//uncore_wrmsr(NHM_UNCORE_PMCO, INITVAL & NHM_UNCORE_PMC_VALUE_MASK);
-		//uncore_wrmsr(NHM_UNCORE_PERFEVTSEL0, 0x501020ULL);
-		//uncore_wrmsr(NHM_UNCORE_GLOBAL_OVF_CTRL, 0x2000000000000001);
-		//uncore_wrmsr(NHM_UNCORE_GLOBAL_CTRL, 0x0002000000000001ULL);
-
-		//nhm_uncore_clear_ovf(ovfpmc);
-		//nhm_uncore_set_event(PMC, nhm_qhl_request_remote_writes, 1, INITVAL);
-		//nhm_uncore_set_event(PMC, nhm_qhl_request_local_reads, 1, INITVAL);
-		//nhm_uncore_enable_counting(PMI_MASK, FRZ);
-	}
-	*/
 	
-	uncore_wrmsr(NHM_UNCORE_PMCO, INITVAL & NHM_UNCORE_PMC_VALUE_MASK);
-	uncore_wrmsr(NHM_UNCORE_PERFEVTSEL0, 0x501020ULL);
-	uncore_wrmsr(NHM_UNCORE_GLOBAL_OVF_CTRL, 0x2000000000000001);
-	uncore_wrmsr(NHM_UNCORE_GLOBAL_CTRL, 0x0002000000000000ULL);
+	//nhm_uncore_clear_ovf(ovfpmc);
+	nhm_uncore_set_event(PMC, nhm_qhl_request_remote_writes, 1, INITVAL);
+	nhm_uncore_enable_counting(PMI_MASK, FRZ);
 	
+done:
 	this_cpu_inc(OVF_COUNT);
 	put_cpu();
 	return NMI_HANDLED;
@@ -740,43 +718,38 @@ void uncore_pmu_main(void *info)
 {
 	uncore_pmi_enable();
 	uncore_nmi_register();
-	barrier();
-	clear_all();
 
-	//uncore_set_event(PMC, nhm_qhl_request_remote_writes, 1, INITVAL);
-	uncore_set_event(PMC, nhm_qhl_request_local_reads, 1, INITVAL);
+	uncore_set_event(PMC, nhm_qhl_request_remote_writes, 1, INITVAL);
+	//uncore_set_event(PMC, nhm_qhl_request_local_reads, 1, INITVAL);
 	START_COUNTING(PMI_MASK, FRZ);
-	
 	show();
-	//END_COUNTING();
 }
 
-const char *beybanner = "PMU --------> EXIT <--------";
-const char *welbanner = "PMU <-------- INIT -------->";
+const char beybanner[] = "PMU --------> EXIT <--------";
+const char welbanner[] = "PMU <-------- INIT -------->";
 
 int uncore_pmu_init(void)
 {
 	int this_cpu;
 
 	this_cpu = get_cpu();
-	printk(KERN_INFO "%s ON CPU %d\nPMU\n", welbanner, this_cpu);
+	printk(KERN_INFO "%s ON CPU %d\n", welbanner, this_cpu);
 	printk(KERN_INFO "PMU ONLINE CPUS: %d\n", num_online_cpus());
-	//uncore_cpu_info();
 	
-	if (this_cpu == SURVIVOR) {
-		printk(KERN_INFO "PMU MAIN TO __ANOTHER__ NODE\n");
-		smp_call_function_single(XYZ, uncore_pmu_main, NULL, 1);
-	}
-	else {
-		printk(KERN_INFO "PMU MAIN IN __CURRENT__ NODE\n");
-		uncore_pmu_main(NULL);
-	}
+	/*
+	 * CAVEAT:
+	 * use:	numactl --physcpubind=0 /bin/bash
+	 * before insmod.
+	 */
+	uncore_cpu_info();
+	clear_all();
+	uncore_pmu_main(NULL);
 	
 	put_cpu();
 	return 0;
 }
 
-static void show_ovf_statistic(void)
+static void show_ovf_cnt(void)
 {
 	int cpu, cnt;
 	for_each_online_cpu(cpu) {
@@ -791,12 +764,17 @@ void uncore_pmu_exit(void)
 	int this_cpu;
 
 	this_cpu = get_cpu();
-	
 	show_all();
-	show_ovf_statistic();
+	show_ovf_cnt();
 	
+	/*
+	 * CAVEAT:
+	 * One _must_ do this before exit, for safety.
+	 * Leave the uncore_nmi_handler unregisted will make
+	 * kernel panic... ;(
+	 */
 	clear_all();
-	//uncore_nmi_unregister();
+	uncore_nmi_unregister();
 	
 	printk(KERN_INFO "%s ON CPU %2d\n", beybanner, this_cpu);
 	put_cpu();
