@@ -1,25 +1,23 @@
 /*
- * NOTE 0:
- * The scope of the uncore PMU is: package. 
- * Therefore, everything only needs to be done once
- * in a package by a logical core in that package.
+ * NOTE:
+ * The scope of the UNCORE PMU is: Package. 
+ * Therefore, everything only needs to be done once in a package
+ * by a logical core in that package.
  *
- * NOTE 1:
- * The affinity of NMI in Linux is unchangeable.
- * numactl is very helpful in changing the default
- * NUMA memory policy, so you do not need to call
- * kernel numa system API.
+ * NOTE:
+ * The affinity of NMI is unchangeable.
  */
-
+#include <linux/delay.h>
+#include <linux/hrtimer.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
-#include <linux/module.h>
-#include <linux/string.h>
+#include <linux/ktime.h>
 #include <linux/list.h>
+#include <linux/module.h>
+#include <linux/percpu.h>
+#include <linux/string.h>
 #include <linux/smp.h>
 #include <linux/sched.h>
-#include <linux/percpu.h>
-#include <linux/delay.h>
 #include <asm/nmi.h>
 
 #define __AC(X,Y)	(X##Y)
@@ -198,7 +196,7 @@ enum nhm_uncore_event_id {
 	NHM_UNCORE_EVENT_ID_MAX
 };
 
-char *EVENT_DESC[NHM_UNCORE_EVENT_ID_MAX] = {
+const char *EVENT_DESC[NHM_UNCORE_EVENT_ID_MAX] = {
 	"BLANK"
 	"Read requests from the IOH",
 	"Write requests from the IOH",
@@ -232,7 +230,7 @@ static u64 nhm_uncore_event_map[NHM_UNCORE_EVENT_ID_MAX] =
 static void
 uncore_cpuid(u32 *eax, u32 *ebx, u32 *ecx, u32 *edx)
 {
-	unsigned int op = *eax;
+	u32 op = *eax;
 	asm volatile("cpuid"
 		: "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx)
 		: "a"(op)
@@ -371,7 +369,7 @@ static void nhm_uncore_show_msrs(void *info)
 	this_cpu = get_cpu();
 	a = uncore_rdmsr(NHM_UNCORE_GLOBAL_CTRL);
 	b = uncore_rdmsr(NHM_UNCORE_GLOBAL_STATUS);
-	printk(KERN_INFO"PMU\nPMU %s in CPU %2d\n", banner, this_cpu);
+	printk(KERN_INFO "PMU %s in CPU %2d\n", banner, this_cpu);
 	printk(KERN_INFO "PMU %s GLOBAL_CTRL = 0x%llx\n", banner, a);
 	printk(KERN_INFO "PMU %s GLOBAL_STATUS = 0x%llx\n", banner, b);
 
@@ -389,8 +387,10 @@ static void nhm_uncore_show_msrs(void *info)
 
 static void nhm_uncore_show_all(void)
 {
+	printk(KERN_INFO "PMU SHOW NODE 0");
 	smp_call_function_single(0, nhm_uncore_show_msrs, NULL, 1);
-	smp_call_function_single(7, nhm_uncore_show_msrs, NULL, 1);
+	printk(KERN_INFO "PMU SHOW NODE 1");
+	smp_call_function_single(6, nhm_uncore_show_msrs, NULL, 1);
 }
 
 /**
@@ -435,7 +435,7 @@ static inline void nhm_uncore_clear_msrs(void *info)
 static inline void nhm_uncore_clear_all(void)
 {
 	smp_call_function_single(0, nhm_uncore_clear_msrs, NULL, 1);
-	smp_call_function_single(7, nhm_uncore_clear_msrs, NULL, 1);
+	smp_call_function_single(6, nhm_uncore_clear_msrs, NULL, 1);
 }
 
 /**
@@ -516,19 +516,15 @@ struct __msr {
  * in Node 1. And XYZ cpu is the receiver in
  * Node 0 of remote call to read or set pmu.
  */
-
-#define SURVIVOR	7		/* Node 1, CPU 7 */
-#define XYZ		0		/* Node 0, CPU 0 */
-#define INITVAL		-1000000	/* PMC initial value */
-#define DELAY		0		/* mdelay in handler */
-#define PMC		PMC_PID3	/* Used counter */
-
 DEFINE_PER_CPU(int, OVF_COUNT);
-
 static struct __msr m;
-static int IS_NMI_REGISTED	=	0;
-static int FRZ			=	0;
-static u64 PMI_MASK = NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE1;
+static int IS_NMI_REGISTED;
+static int FRZ;
+static int PMC;
+static int SURVIVOR;
+static int XYZ;
+static u64 INITVAL;
+static u64 PMI_MASK;
 
 static void __enable_pmi(void *info)
 {
@@ -538,16 +534,12 @@ static void __enable_pmi(void *info)
 	this_cpu = get_cpu();
 	val = uncore_rdmsr(__MSR_IA32_DEBUG_CTL);
 	
+	/*
 	if (this_cpu == SURVIVOR) {
 		uncore_wrmsr(__MSR_IA32_DEBUG_CTL, 0);
 		goto done;
 	}
-	
-	/*TODO */
-	if(this_cpu == 13) {
-		uncore_wrmsr(__MSR_IA32_DEBUG_CTL, 0);
-		goto done;
-	}
+	*/
 	
 	if (!(val & __MSR_IA32_ENABLE_UNCORE_PMI)) {
 		val |= __MSR_IA32_ENABLE_UNCORE_PMI;
@@ -620,11 +612,6 @@ static void __remote_restart(void *info)
 	
 }
 
-static void __remote_delay(void *info)
-{
-	mdelay(DELAY);
-}
-
 #define _UNCORE_DEBUG_
 
 int nhm_uncore_nmi_handler(unsigned int type, struct pt_regs *regs)
@@ -655,8 +642,9 @@ int nhm_uncore_nmi_handler(unsigned int type, struct pt_regs *regs)
 		goto done;
 	}
 	
-	//nhm_uncore_clear_ovf(ovfpmc);
-	nhm_uncore_set_event(PMC, nhm_qhl_request_remote_writes, 1, INITVAL);
+	nhm_uncore_clear_ovf(ovfpmc);
+	//nhm_uncore_set_event(PMC, nhm_qhl_request_local_writes, 1, INITVAL);
+	nhm_uncore_set_event(PMC, nhm_qhl_request_local_reads, 1, INITVAL);
 	nhm_uncore_enable_counting(PMI_MASK, FRZ);
 	
 done:
@@ -685,13 +673,71 @@ static void nhm_uncore_unregister_nmi_handler(void)
 }
 
 //#################################################
+// HRTIMER PART
+//#################################################
+
+/* 0.5s interval */
+static struct hrtimer UNCORE_PMU_TIMER;
+static u64 DELAY_JIFFIES;
+static const u64 DURATION_NS = 500*1000000;
+static const u64 WRITE_LATENCY_DELTA = 150;
+
+static void uncore_pmu_delay(void *ns)
+{
+	ndelay(*(unsigned long *)ns);
+}
+
+static inline void uncore_pmu_delay_cpu(int cpu, unsigned long ns)
+{
+	/* Do not have to wait remote finish excution */
+	smp_call_function_single(cpu, uncore_pmu_delay, &ns, 0);
+}
+
+static inline u64 WRITES_TO_DELAY(u64 nr_writes)
+{
+	return remote_writes * WRITE_LATENCY_DELTA;
+}
+
+static enum hrtimer_restart
+uncore_pmu_hrtimer_cb(struct hrtimer *hrtimer)
+{
+	u64 remote_writes, delay_ns;
+	
+	DELAY_JIFFIES++;
+	remote_writes = uncore_rdmsr(NHM_UNCORE_PMCO);
+	delay_ns = WRITES_TO_DELAY(remote_writes);
+	uncore_pmu_delay_cpu(6, delay_ns);
+	//printk(KERN_INFO "val=%20llu tsc=%20llu\n", val, uncore_rdtsc());
+	
+	hrtimer_forward_now(hrtimer, ns_to_ktime(DURATION_NS));
+	return HRTIMER_RESTART;
+}
+
+static void uncore_pmu_hrtimer_init(void)
+{
+	hrtimer_init(&UNCORE_PMU_TIMER, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	UNCORE_PMU_TIMER.function = uncore_pmu_hrtimer_cb;
+}
+
+static void uncore_pmu_hrtimer_start(ktime_t tim)
+{
+	hrtimer_start(&UNCORE_PMU_TIMER, tim, HRTIMER_MODE_REL);
+}
+
+static void uncore_pmu_hrtimer_cancel(void)
+{
+	hrtimer_cancel(&UNCORE_PMU_TIMER);
+}
+
+
+//#################################################
 // GENERAL MODULE PART
 //#################################################
 
-#define START_COUNTING(PMI_MASK, FRZ) \
+#define start_counting(PMI_MASK, FRZ) \
 	nhm_uncore_enable_counting(PMI_MASK, FRZ);
 
-#define END_COUNTING() \
+#define end_counting() \
 	nhm_uncore_disable_counting();
 
 #define uncore_set_event(pmcid, event, pmi, pmcval) \
@@ -714,49 +760,49 @@ static void nhm_uncore_unregister_nmi_handler(void)
 #define show_all()	nhm_uncore_show_all()
 #define clear_all()	nhm_uncore_clear_all()
 
-void uncore_pmu_main(void *info)
+static void UNCORE_PMU_MAIN(void)
 {
-	uncore_pmi_enable();
-	uncore_nmi_register();
+	IS_NMI_REGISTED = 0;
+	FRZ = 0;		/* Freeze after overflow */
+	PMC = NHM_UNCORE_PMCO;	/* Used Counter */
+	SURVIVOR = 6;		/* Node0, CPU 6. Sender.*/
+	XYZ = 0;		/* Node1, CPU 0. Receiver. */
+	INITVAL = 0;		/* Samping iniatial value */
+	PMI_MASK = NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE0;
+	
+	//uncore_pmi_enable();
+	//uncore_nmi_register();
 
+	uncore_pmu_hrtimer_init();
 	uncore_set_event(PMC, nhm_qhl_request_remote_writes, 1, INITVAL);
-	//uncore_set_event(PMC, nhm_qhl_request_local_reads, 1, INITVAL);
-	START_COUNTING(PMI_MASK, FRZ);
-	show();
+	show_all();
+	start_counting(PMI_MASK, FRZ);
+	uncore_pmu_hrtimer_start(ktime_set(0, 1));
 }
 
 const char beybanner[] = "PMU --------> EXIT <--------";
 const char welbanner[] = "PMU <-------- INIT -------->";
 
-int uncore_pmu_init(void)
+/*
+ * CAVEAT:
+ * use:	numactl --physcpubind=0 /bin/bash
+ * before insmod. Then we do not need to call
+ * uncore_pmu_main on another node.
+ *
+ * We put Benchmark on CPU6 and the memory allocation
+ * is only from Node0.
+ */
+int __init uncore_pmu_init(void)
 {
 	int this_cpu;
 
 	this_cpu = get_cpu();
 	printk(KERN_INFO "%s ON CPU %d\n", welbanner, this_cpu);
-	printk(KERN_INFO "PMU ONLINE CPUS: %d\n", num_online_cpus());
-	
-	/*
-	 * CAVEAT:
-	 * use:	numactl --physcpubind=0 /bin/bash
-	 * before insmod.
-	 */
 	uncore_cpu_info();
 	clear_all();
-	uncore_pmu_main(NULL);
-	
+	UNCORE_PMU_MAIN();
 	put_cpu();
 	return 0;
-}
-
-static void show_ovf_cnt(void)
-{
-	int cpu, cnt;
-	for_each_online_cpu(cpu) {
-		if ((cnt = per_cpu(OVF_COUNT, cpu)) != 0)
-			printk(KERN_INFO "PMU CPU %2d, OVF_COUNT = %4d\n",
-				cpu, cnt);
-	}
 }
 
 void uncore_pmu_exit(void)
@@ -765,17 +811,8 @@ void uncore_pmu_exit(void)
 
 	this_cpu = get_cpu();
 	show_all();
-	show_ovf_cnt();
-	
-	/*
-	 * CAVEAT:
-	 * One _must_ do this before exit, for safety.
-	 * Leave the uncore_nmi_handler unregisted will make
-	 * kernel panic... ;(
-	 */
 	clear_all();
-	uncore_nmi_unregister();
-	
+	uncore_pmu_hrtimer_cancel();
 	printk(KERN_INFO "%s ON CPU %2d\n", beybanner, this_cpu);
 	put_cpu();
 }
