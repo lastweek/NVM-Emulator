@@ -27,6 +27,10 @@
  * And their control bits
  */
 
+#define __MSR_IA32_PMC0			0x0C1
+#define __MSR_IA32_PERFEVTSEL0		0x186
+#define __MSR_CORE_PERF_GLOBAL_STATUS	0x38E
+#define __MSR_CORE_PERF_GLOBAL_CTRL	0x38F
 #define __MSR_IA32_MISC_ENABLE		0x1a0
 #define __MSR_IA32_DEBUG_CTL		0x1d9
 #define __MSR_IA32_PERFMON_ENABLE	(__AC(1, ULL)<<7)
@@ -162,8 +166,15 @@
  * through their corresponding pair id.
  */
 enum NHM_UNCORE_PMC_PAIR_ID {
-	PMC_PID0, PMC_PID1, PMC_PID2, PMC_PID3,
-	PMC_PID4, PMC_PID5, PMC_PID6, PMC_PID7,
+	PMC_PID0,
+	PMC_PID1,
+	PMC_PID2,
+	PMC_PID3,
+	PMC_PID4,
+	PMC_PID5,
+	PMC_PID6,
+	PMC_PID7,
+	
 	PMC_PID_MAX
 };
 
@@ -442,24 +453,20 @@ static inline void nhm_uncore_clear_all(void)
  * nhm_uncore_set_event - Set event in pmc.
  * @pmcid: 	The id of the pmc pair
  * @event:	pre-defined event id
- * @pmi:	No-zero to enable pmi
  * @pmcval:	the initial value in pmc
  */
 static inline void
-nhm_uncore_set_event(int pmcid, int event, int pmi, u64 pmcval)
+nhm_uncore_set_event(int pmcid, int event, u64 pmcval)
 {
 	u64 selval;
-	
-	selval = nhm_uncore_event_map[event] |
-		 NHM_PEREVTSEL_COUNT_ENABLE  ;
-
-	if (pmi)
-		selval |= NHM_PEREVTSEL_PMI_ENABLE;
 	
 	/* ok ok ok, this is a very very very safty mask!
 	   Writing to reserved bits in MSR cause CPU to
 	   generate #GP fault. #GP handler will make you die. */
 	pmcval &= NHM_UNCORE_PMC_VALUE_MASK;
+	selval = nhm_uncore_event_map[event] |
+		 NHM_PEREVTSEL_COUNT_ENABLE  |
+		 NHM_PEREVTSEL_PMI_ENABLE    ;
 
 	uncore_wrmsr(pmcid + NHM_UNCORE_PMC_BASE, pmcval);
 	uncore_wrmsr(pmcid + NHM_UNCORE_SEL_BASE, selval);
@@ -467,26 +474,18 @@ nhm_uncore_set_event(int pmcid, int event, int pmi, u64 pmcval)
 
 /**
  * nhm_uncore_enable_counting - enable counting
- * @pmi_core:	select a physical core to receive pmi
  * @frz:	stop counting when pmc overflows
- *
- * One has to specify which core can receive PMI when
- * counter overflows. Doing so because enable all
- * cores to receive PMI is too annoying and noisy.
- * On the controry, this routine enables all PMC pairs
- * to start counting by default.
  */
-static inline void nhm_uncore_enable_counting(u64 pmi_core_mask, int frz)
+static inline void nhm_uncore_enable_counting(int frz)
 {
-	u64 mask = NHM_UNCORE_GLOBAL_CTRL_EN_PMI;
+	u64 mask;
 	
-	if (pmi_core_mask) /* nonzero? user-specified cpu! */
-		mask = pmi_core_mask;
-
-	if (frz)
+	if (frz) {
 		mask |= NHM_UNCORE_GLOBAL_CTRL_EN_FRZ;
+	}
 	
 	mask |= NHM_UNCORE_PMC_MASK;
+	mask |= NHM_UNCORE_GLOBAL_CTRL_EN_PMI;
 	uncore_wrmsr(NHM_UNCORE_GLOBAL_CTRL, mask);
 }
 
@@ -518,44 +517,21 @@ struct __msr {
  */
 DEFINE_PER_CPU(int, OVF_COUNT);
 static struct __msr m;
-static int IS_NMI_REGISTED;
-static int FRZ;
+static int NMI_REGISTED;
+static int FREEZE;
 static int PMC;
 static int SURVIVOR;
 static int XYZ;
 static u64 INITVAL;
-static u64 PMI_MASK;
 
 static void __enable_pmi(void *info)
 {
-	u64 val;
-	int this_cpu;
-	
-	this_cpu = get_cpu();
-	val = uncore_rdmsr(__MSR_IA32_DEBUG_CTL);
-	
-	/*
-	if (this_cpu == SURVIVOR) {
-		uncore_wrmsr(__MSR_IA32_DEBUG_CTL, 0);
-		goto done;
+	u64 msr;
+	msr = uncore_rdmsr(__MSR_IA32_DEBUG_CTL);
+	if (!(msr & __MSR_IA32_ENABLE_UNCORE_PMI)) {
+		msr |= __MSR_IA32_ENABLE_UNCORE_PMI;
+		uncore_wrmsr(__MSR_IA32_DEBUG_CTL, msr);
 	}
-	*/
-	
-	if (!(val & __MSR_IA32_ENABLE_UNCORE_PMI)) {
-		val |= __MSR_IA32_ENABLE_UNCORE_PMI;
-		uncore_wrmsr(__MSR_IA32_DEBUG_CTL, val);
-	}
-
-done:
-	put_cpu();
-}
-
-static void __disable_pmi(void *info)
-{
-	u64 val;
-	val = uncore_rdmsr(__MSR_IA32_DEBUG_CTL);
-	val &= (~__MSR_IA32_ENABLE_UNCORE_PMI);
-	uncore_wrmsr(__MSR_IA32_DEBUG_CTL, val);
 }
 
 static void __lapic_init(void *info)
@@ -564,11 +540,8 @@ static void __lapic_init(void *info)
 }
 
 /**
- * nmh_uncore_pmi_init - enable uncore pmi
- *
- * Enable every core to receive the uncore
- * pmi generated when pmc overflow. Every
- * core in system should do this.
+ * Enable every online cpus to receive the
+ * uncore pmi generated when pmc overflow.
  */
 static void nhm_uncore_pmi_enable(void)
 {
@@ -576,14 +549,6 @@ static void nhm_uncore_pmi_enable(void)
 	for_each_online_cpu(cpu) {
 		smp_call_function_single(cpu, __enable_pmi, NULL, 1);
 		smp_call_function_single(cpu, __lapic_init, NULL, 1);
-	}
-}
-
-static void nhm_uncore_pmi_disable(void)
-{
-	int cpu;
-	for_each_online_cpu(cpu) {
-		smp_call_function_single(cpu, __disable_pmi, NULL, 1);
 	}
 }
 
@@ -607,8 +572,8 @@ static void __remote_restart(void *info)
 {
 	u64 ovfpmc = *(u64 *)info;
 	nhm_uncore_clear_ovf(ovfpmc);
-	nhm_uncore_set_event(PMC, nhm_qhl_request_remote_writes, 1, INITVAL);
-	nhm_uncore_enable_counting(PMI_MASK, FRZ);
+	nhm_uncore_set_event(PMC, nhm_qhl_request_remote_writes, INITVAL);
+	nhm_uncore_enable_counting(FREEZE);
 	
 }
 
@@ -620,6 +585,7 @@ int nhm_uncore_nmi_handler(unsigned int type, struct pt_regs *regs)
 	u64 status, ovfpmc;
 
 	this_cpu = get_cpu();
+	printk(KERN_INFO "PMU NMI catched on CPU%d", this_cpu);
 	if (this_cpu == SURVIVOR) {
 		m.addr = NHM_UNCORE_GLOBAL_STATUS;
 		smp_call_function_single(XYZ, __remote_rdmsr, &m, 1);
@@ -636,16 +602,16 @@ int nhm_uncore_nmi_handler(unsigned int type, struct pt_regs *regs)
 	printk(KERN_INFO "PMU <---NMI CATCHED---> CPU %2d, STATUS=%llx\n",
 		this_cpu, status);
 #endif
-	
+	/*
 	if (this_cpu == SURVIVOR) {
 		smp_call_function_single(XYZ, __remote_restart, &ovfpmc, 1);
 		goto done;
 	}
-	
-	nhm_uncore_clear_ovf(ovfpmc);
-	//nhm_uncore_set_event(PMC, nhm_qhl_request_local_writes, 1, INITVAL);
-	nhm_uncore_set_event(PMC, nhm_qhl_request_local_reads, 1, INITVAL);
-	nhm_uncore_enable_counting(PMI_MASK, FRZ);
+	*/
+	//nhm_uncore_clear_ovf(ovfpmc);
+	//nhm_uncore_set_event(PMC, nhm_qhl_request_local_writes, INITVAL);
+	//nhm_uncore_set_event(PMC, nhm_qhl_request_local_reads, INITVAL);
+	//nhm_uncore_enable_counting(FREEZE);
 	
 done:
 	this_cpu_inc(OVF_COUNT);
@@ -653,22 +619,16 @@ done:
 	return NMI_HANDLED;
 }
 
-static void nhm_uncore_register_nmi_handler(void)
+static void uncore_nmi_register(void)
 {
-	int err;
-	err = register_nmi_handler(NMI_LOCAL, nhm_uncore_nmi_handler,
-			NMI_FLAG_FIRST, "NHM_UNCORE_HANLDER");
-	if (!err) {
-		IS_NMI_REGISTED = 1;
-		printk(KERN_INFO "PMU <NMI> Handler Installed\n");
-	}
+	register_nmi_handler(NMI_LOCAL, nhm_uncore_nmi_handler, NMI_FLAG_FIRST, "NHM_UNCORE_HANLDER");
+	NMI_REGISTED = 1;
 }
 
-static void nhm_uncore_unregister_nmi_handler(void)
+static void uncore_nmi_unregister(void)
 {
-	if (IS_NMI_REGISTED) {
+	if (NMI_REGISTED) {
 		unregister_nmi_handler(NMI_LOCAL, "NHM_UNCORE_HANLDER");
-		printk(KERN_INFO "PMU <NMI> Handler Removed\n");
 	}
 }
 
@@ -676,40 +636,45 @@ static void nhm_uncore_unregister_nmi_handler(void)
 // HRTIMER PART
 //#################################################
 
-/* 0.5s interval */
 static struct hrtimer UNCORE_PMU_TIMER;
+static int TIMER_INITED;
 static u64 DELAY_JIFFIES;
-static const u64 DURATION_NS = 500*1000000;
-static const u64 WRITE_LATENCY_DELTA = 150;
+static u64 INTERVAL_NS;
+static u64 WRITE_LATENCY_DELTA;
 
 static void uncore_pmu_delay(void *ns)
 {
-	ndelay(*(unsigned long *)ns);
+	unsigned long usec;
+	usec = (*(unsigned long *)ns)/1000;
+	udelay(usec);
 }
 
 static inline void uncore_pmu_delay_cpu(int cpu, unsigned long ns)
 {
-	/* Do not have to wait remote finish excution */
 	smp_call_function_single(cpu, uncore_pmu_delay, &ns, 0);
 }
 
-static inline u64 WRITES_TO_DELAY(u64 nr_writes)
+static inline u64 writes_to_delay(u64 nr_writes)
 {
-	return remote_writes * WRITE_LATENCY_DELTA;
+	return nr_writes * WRITE_LATENCY_DELTA;
 }
 
-static enum hrtimer_restart
-uncore_pmu_hrtimer_cb(struct hrtimer *hrtimer)
+/**
+ * Poll and add latency.
+ */
+static enum hrtimer_restart uncore_pmu_hrtimer_cb(struct hrtimer *hrtimer)
 {
 	u64 remote_writes, delay_ns;
 	
 	DELAY_JIFFIES++;
 	remote_writes = uncore_rdmsr(NHM_UNCORE_PMCO);
-	delay_ns = WRITES_TO_DELAY(remote_writes);
-	uncore_pmu_delay_cpu(6, delay_ns);
-	//printk(KERN_INFO "val=%20llu tsc=%20llu\n", val, uncore_rdtsc());
+	delay_ns = writes_to_delay(remote_writes);
+	//delay_ns=0;
+	uncore_pmu_delay_cpu(SURVIVOR, delay_ns);
+	uncore_wrmsr(NHM_UNCORE_PMCO, 0);
+	//printk(KERN_INFO "val=%20llu tsc=%20llu\n", remote_writes, uncore_rdtsc());
 	
-	hrtimer_forward_now(hrtimer, ns_to_ktime(DURATION_NS));
+	hrtimer_forward_now(hrtimer, ns_to_ktime(INTERVAL_NS));
 	return HRTIMER_RESTART;
 }
 
@@ -717,16 +682,19 @@ static void uncore_pmu_hrtimer_init(void)
 {
 	hrtimer_init(&UNCORE_PMU_TIMER, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	UNCORE_PMU_TIMER.function = uncore_pmu_hrtimer_cb;
+	TIMER_INITED = 1;
 }
 
-static void uncore_pmu_hrtimer_start(ktime_t tim)
+static void uncore_pmu_hrtimer_start(ktime_t time)
 {
-	hrtimer_start(&UNCORE_PMU_TIMER, tim, HRTIMER_MODE_REL);
+	if (TIMER_INITED)
+		hrtimer_start(&UNCORE_PMU_TIMER, time, HRTIMER_MODE_REL);
 }
 
 static void uncore_pmu_hrtimer_cancel(void)
 {
-	hrtimer_cancel(&UNCORE_PMU_TIMER);
+	if (TIMER_INITED)
+		hrtimer_cancel(&UNCORE_PMU_TIMER);
 }
 
 
@@ -734,73 +702,93 @@ static void uncore_pmu_hrtimer_cancel(void)
 // GENERAL MODULE PART
 //#################################################
 
-#define start_counting(PMI_MASK, FRZ) \
-	nhm_uncore_enable_counting(PMI_MASK, FRZ);
+#define uncore_start(frz) \
+	nhm_uncore_enable_counting(frz);
 
-#define end_counting() \
+#define uncore_end() \
 	nhm_uncore_disable_counting();
 
-#define uncore_set_event(pmcid, event, pmi, pmcval) \
-	nhm_uncore_set_event(pmcid, event, pmi, pmcval)
+#define uncore_set_event(pmcid, event, pmcval) \
+	nhm_uncore_set_event(pmcid, event, pmcval)
 
 #define uncore_pmi_enable() \
 	nhm_uncore_pmi_enable()
-
-#define uncore_pmi_disable() \
-	nhm_uncore_pmi_disable()
-
-#define uncore_nmi_register() \
-	nhm_uncore_register_nmi_handler()
-
-#define uncore_nmi_unregister() \
-	nhm_uncore_unregister_nmi_handler()
 
 #define show()		nhm_uncore_show_msrs(NULL)
 #define clear()		nhm_uncore_clear_msrs(NULL)
 #define show_all()	nhm_uncore_show_all()
 #define clear_all()	nhm_uncore_clear_all()
 
-static void UNCORE_PMU_MAIN(void)
+/*
+ * Some test result:
+ * interval 500ms:	about 10^6 writes/500ms
+ * interval 1ms:	about 10^3 writes/1ms
+ */
+static void uncore_pmu_main(void)
 {
-	IS_NMI_REGISTED = 0;
-	FRZ = 0;		/* Freeze after overflow */
-	PMC = NHM_UNCORE_PMCO;	/* Used Counter */
-	SURVIVOR = 6;		/* Node0, CPU 6. Sender.*/
-	XYZ = 0;		/* Node1, CPU 0. Receiver. */
-	INITVAL = 0;		/* Samping iniatial value */
-	PMI_MASK = NHM_UNCORE_GLOBAL_CTRL_EN_PMI_CORE0;
+	TIMER_INITED	= 0;			/* Hrtimer */
+	NMI_REGISTED	= 0;			/* NMI Handler */
 	
-	//uncore_pmi_enable();
-	//uncore_nmi_register();
+	SURVIVOR	= 6;			/* Node1, CPU 6. Sender.*/
+	XYZ		= 0;			/* Node0, CPU 0. Receiver. */
+	
+	INITVAL		= -100;			/* Samping initial value */
+	FREEZE		= 0;			/* Freeze after overflow */
+	PMC		= PMC_PID0;		/* Used Counter */
+	
+	INTERVAL_NS	= 1*1000000;		/* Poll interval */
+	WRITE_LATENCY_DELTA = 150;		/* PCM_WRITE - DRAM_WRITE */
 
-	uncore_pmu_hrtimer_init();
-	uncore_set_event(PMC, nhm_qhl_request_remote_writes, 1, INITVAL);
+	uncore_pmi_enable();
+	uncore_nmi_register();
+	
+	//uncore_pmu_hrtimer_init();
+
+	clear_all();
+	uncore_set_event(PMC, nhm_qhl_request_remote_writes, INITVAL);
+	uncore_start(FREEZE);
 	show_all();
-	start_counting(PMI_MASK, FRZ);
 	uncore_pmu_hrtimer_start(ktime_set(0, 1));
 }
 
-const char beybanner[] = "PMU --------> EXIT <--------";
-const char welbanner[] = "PMU <-------- INIT -------->";
+const char BEYBANNER[] = "PMU --------> EXIT <--------";
+const char WELBANNER[] = "PMU <-------- INIT -------->";
+
+
+void _read(void *info)
+{
+	u64 val1 = uncore_rdmsr(__MSR_CORE_PERF_GLOBAL_CTRL);
+	u64 val2 = uncore_rdmsr(__MSR_IA32_PERFEVTSEL0);
+	printk(KERN_INFO"CPU%2d, ctrl=%llx sel=%llx\n",
+		smp_processor_id(), val1, val2);
+}
+
+void read(void)
+{
+	int cpu;
+	for_each_online_cpu(cpu) {
+		smp_call_function_single(cpu, _read, NULL, 1);
+	}
+}
 
 /*
  * CAVEAT:
  * use:	numactl --physcpubind=0 /bin/bash
- * before insmod. Then we do not need to call
- * uncore_pmu_main on another node.
+ * before insmod, to make sure that, everything
+ * runs on CPU0. Nothing will impact benchmark.
  *
- * We put Benchmark on CPU6 and the memory allocation
- * is only from Node0.
+ * We put benchmark on CPU6 and the memory allocation
+ * policy is only from Node0.
  */
 int __init uncore_pmu_init(void)
 {
 	int this_cpu;
 
 	this_cpu = get_cpu();
-	printk(KERN_INFO "%s ON CPU %d\n", welbanner, this_cpu);
+	printk(KERN_INFO "%s ON CPU %d\n", WELBANNER, this_cpu);
+	read();
 	uncore_cpu_info();
-	clear_all();
-	UNCORE_PMU_MAIN();
+	uncore_pmu_main();
 	put_cpu();
 	return 0;
 }
@@ -810,10 +798,11 @@ void uncore_pmu_exit(void)
 	int this_cpu;
 
 	this_cpu = get_cpu();
-	show_all();
-	clear_all();
+	show_all(); clear_all();
+	uncore_nmi_unregister();
 	uncore_pmu_hrtimer_cancel();
-	printk(KERN_INFO "%s ON CPU %2d\n", beybanner, this_cpu);
+	printk(KERN_INFO "PMU DELAY_JIFFIES = %10lld\n", DELAY_JIFFIES);
+	printk(KERN_INFO "%s ON CPU %2d\n", BEYBANNER, this_cpu);
 	put_cpu();
 }
 
