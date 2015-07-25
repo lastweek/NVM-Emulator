@@ -14,6 +14,7 @@
 #include <linux/ktime.h>
 #include <linux/list.h>
 #include <linux/module.h>
+#include <linux/pci.h>
 #include <linux/percpu.h>
 #include <linux/string.h>
 #include <linux/smp.h>
