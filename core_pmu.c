@@ -1,20 +1,34 @@
-/**
- *	Desciption:
- *	
+/*
+ *
+ *	Copyright (C) 2015 Yizhou Shan
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License along
+ *	with this program; if not, write to the Free Software Foundation, Inc.,
+ *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ *	<DESCRIPTION>
  *	Intel PMU can interrupt CPU in NMI manner when it overflows.
  *	This module inserts a pmu_nmi_handler to the NMI ISR list,
  *	in which we can do something everytime PMU overflows.
  *
- *	Performance monitoring events are architectural when they
- *	behave consistently across microarchitectures. There are 7
- *	pre-defined architectural events in Intel cpus, including
- *	LLC_MISSES.
+ *	Performance monitoring events are architectural when they behave
+ *	consistently across microarchitectures. There are 7 pre-defined
+ *	architectural events in Intel cpus, including LLC_MISSES.
  *
  *	Each logical processor has its own set of __MSR_IA32_PEREVTSELx
- *	and __MSR_IA32_PMCx MSRs. Configuration facilities and counters
- *	are not shared between logical processors that sharing a
- *	processor core.
- **/
+ *	and __MSR_IA32_PMCx MSRs. Configuration facilities and counters are
+ *	not shared between logical processors that sharing a processor core.
+ */
 
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -22,21 +36,20 @@
 #include <linux/string.h>
 #include <linux/smp.h>
 #include <linux/sched.h>
-#include <linux/percpu-defs.h>
 #include <linux/percpu.h>
 #include <linux/cpumask.h>
 #include <linux/delay.h>
 #include <asm/nmi.h>
 #include <asm/msr.h>
 
-#define __MSR_IA32_PMC0			0x0C1
-#define __MSR_IA32_PERFEVTSEL0		0x186
-#define __MSR_CORE_PERF_GLOBAL_STATUS	0x38E
-#define __MSR_CORE_PERF_GLOBAL_CTRL	0x38F
+#define __MSR_IA32_PMC0				0x0C1
+#define __MSR_IA32_PERFEVTSEL0			0x186
+#define __MSR_CORE_PERF_GLOBAL_STATUS		0x38E
+#define __MSR_CORE_PERF_GLOBAL_CTRL		0x38F
 
-#define __MSR_IA32_MISC_PERFMON_ENABLE 	((1ULL)<<7)
-#define __MSR_CORE_PERF_GLOBAL_OVF_CTRL	0x390
-#define __MSR_IA32_MISC_ENABLE		0x1A0
+#define __MSR_IA32_MISC_PERFMON_ENABLE		((1ULL)<<7)
+#define __MSR_CORE_PERF_GLOBAL_OVF_CTRL		0x390
+#define __MSR_IA32_MISC_ENABLE			0x1A0
 
 /**
  * BIT FIELD OF __MSR_IA32_PERFEVTSEL0
@@ -113,7 +126,7 @@ DEFINE_PER_CPU(u64, TSC2);
 
 
 //#################################################
-// ASSEMBLER PART
+// ASSEMBLY PART
 //#################################################
 
 static void
@@ -333,14 +346,14 @@ __pmu_clear_msrs(void *info)
 }
 
 /*
- *  Each enable bit in __MSR_CORE_PERF_GLOBAL_CTRL is
- *	AND'ed with the enable bits for all privilege levels
- *	in the __MSR_IA32_PEREVTSELx to start/stop the counting
- *	counters. Counting is enabled if the AND'ed results is
- *	true; counting is disabled when the result is false.
+ * Each enable bit in __MSR_CORE_PERF_GLOBAL_CTRL is
+ * AND'ed with the enable bits for all privilege levels
+ * in the __MSR_IA32_PEREVTSELx to start/stop the counting
+ * counters. Counting is enabled if the AND'ed results is
+ * true; counting is disabled when the result is false.
  *
- *	Bit 0 in __MSR_CORE_PERF_GLOBAL_CTRL is responsiable
- *	for enable/disable __MSR_IA32_PMC0
+ * Bit 0 in __MSR_CORE_PERF_GLOBAL_CTRL is responsiable
+ * for enable/disable __MSR_IA32_PMC0
  */
 static void
 __pmu_enable_counting(void *info)
@@ -388,8 +401,7 @@ __pmu_lapic_init(void *info)
 
 
 /*
- * These set of functions are intended
- * to walk through all online cpus.
+ * These set of functions are intended to walk through all online cpus.
  */
 static void
 pmu_show_msrs(void)

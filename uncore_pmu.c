@@ -1,12 +1,26 @@
 /*
- * NOTE:
- * The scope of the UNCORE PMU is: Package. 
- * Therefore, everything only needs to be done once in a package
- * by a logical core in that package.
+ *	Copyright (C) 2015 Yizhou Shan
  *
- * NOTE:
- * The affinity of NMI is unchangeable.
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License along
+ *	with this program; if not, write to the Free Software Foundation, Inc.,
+ *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ *	<DESCRIPTION>
+ *	The scope of the UNCORE PMU is package. Therefore, everything only needs
+ *	to be done once in a package by a logical core in that package.
+ *
  */
+
 #include <linux/delay.h>
 #include <linux/hrtimer.h>
 #include <linux/init.h>
@@ -133,10 +147,9 @@
 #define NHM_UNCORE_GLOBAL_OVF_CHG	(__AC(1, ULL)<<63)
 
 /*
- * Masks For Three GLOBAL MSRs
- * Used when we wanna read from or write to these
- * three MSRs. Masks help to avoid writing reserved
- * bit in MSR which can bring kernel panic.
+ * Masks For Three GLOBAL MSRs.
+ * Used when we wanna read from or write to these three MSRs. Masks help to
+ * avoid writing reserved bit in MSR which can bring kernel panic.
  */
 
 #define NHM_UNCORE_PMC_MASK			\
@@ -512,9 +525,8 @@ struct __msr {
 
 /*
  * SOME USEFUL VARIABLES.
- * The survivor cpu is the only _online_ cpu
- * in Node 1. And XYZ cpu is the receiver in
- * Node 0 of remote call to read or set pmu.
+ * The survivor cpu is the only _online_ cpu in Node 1. And XYZ cpu is the
+ * receiver in Node 0 of remote call to read or set pmu.
  */
 DEFINE_PER_CPU(int, OVF_COUNT);
 static struct __msr m;
@@ -660,9 +672,6 @@ static inline u64 writes_to_delay(u64 nr_writes)
 	return nr_writes * WRITE_LATENCY_DELTA;
 }
 
-/**
- * Poll and add latency.
- */
 static enum hrtimer_restart uncore_pmu_hrtimer_cb(struct hrtimer *hrtimer)
 {
 	u64 remote_writes, delay_ns;
@@ -720,19 +729,12 @@ static void uncore_pmu_hrtimer_cancel(void)
 #define show_all()	nhm_uncore_show_all()
 #define clear_all()	nhm_uncore_clear_all()
 
-/*
- * Some test result:
- * interval 500ms:	about 10^6 writes/500ms
- * interval 1ms:	about 10^3 writes/1ms
- */
 static void uncore_pmu_main(void)
 {
 	TIMER_INITED	= 0;			/* Hrtimer */
 	NMI_REGISTED	= 0;			/* NMI Handler */
-	
 	SURVIVOR	= 6;			/* Node1, CPU 6. Sender.*/
 	XYZ		= 0;			/* Node0, CPU 0. Receiver. */
-	
 	INITVAL		= -100;			/* Samping initial value */
 	FREEZE		= 0;			/* Freeze after overflow */
 	PMC		= PMC_PID0;		/* Used Counter */
@@ -754,7 +756,6 @@ static void uncore_pmu_main(void)
 
 const char BEYBANNER[] = "PMU --------> EXIT <--------";
 const char WELBANNER[] = "PMU <-------- INIT -------->";
-
 
 void _read(void *info)
 {
@@ -781,7 +782,7 @@ void read(void)
  * We put benchmark on CPU6 and the memory allocation
  * policy is only from Node0.
  */
-int __init uncore_pmu_init(void)
+static int __init uncore_pmu_init(void)
 {
 	int this_cpu;
 
@@ -794,7 +795,7 @@ int __init uncore_pmu_init(void)
 	return 0;
 }
 
-void uncore_pmu_exit(void)
+static void uncore_pmu_exit(void)
 {
 	int this_cpu;
 
