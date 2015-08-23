@@ -1,1 +1,4 @@
-# Non-Volatile Memory System
+Non-Volatile Memory Related System
+
+For now, it is just a NVM emulator. Why emulator? Coz no real hardware is present in market.
+This emulator emulates the write and read latency of NVM, about 105ns and 65ns, repectively.
