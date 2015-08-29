@@ -1,6 +1,7 @@
 /*
+ *	core_pmu.c - Using LLC_MISS to emulate NVM latency
  *
- *	Copyright (C) 2015 Yizhou Shan
+ *	Copyright (C) 2015 Yizhou Shan <shanyizhou@ict.ac.cn>
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
@@ -54,15 +55,15 @@
 /**
  * BIT FIELD OF __MSR_IA32_PERFEVTSEL0
  **/
-#define USR_MODE	1ULL<<16
-#define OS_MODE 	1ULL<<17
-#define EDGE_DETECT	1ULL<<18
-#define PIN_CONTROL	1ULL<<19
-#define INT_ENABLE	1ULL<<20
-#define ANY_THREAD	1ULL<<21
-#define ENABLE		1ULL<<22
-#define INVERT		1ULL<<23
-#define CMASK(val)	(u64)(val<<24)
+#define USR_MODE				(1ULL<<16)
+#define OS_MODE 				(1ULL<<17)
+#define EDGE_DETECT				(1ULL<<18)
+#define PIN_CONTROL				(1ULL<<19)
+#define INT_ENABLE				(1ULL<<20)
+#define ANY_THREAD				(1ULL<<21)
+#define ENABLE					(1ULL<<22)
+#define INVERT					(1ULL<<23)
+#define CMASK(val)				(u64)(val<<24)
 
 /**
  * INTEL PREDEFINED EVENTS

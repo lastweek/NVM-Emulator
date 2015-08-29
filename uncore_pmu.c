@@ -1,4 +1,6 @@
 /*
+ *	uncore_pmu.c - Using REMOTE_WRITE_REQUEST to emulate NVM latency
+ *
  *	Copyright (C) 2015 Yizhou Shan
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -14,11 +16,6 @@
  *	You should have received a copy of the GNU General Public License along
  *	with this program; if not, write to the Free Software Foundation, Inc.,
  *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
- *
- *	<DESCRIPTION>
- *	The scope of the UNCORE PMU is package. Therefore, everything only needs
- *	to be done once in a package by a logical core in that package.
- *
  */
 
 #include <linux/delay.h>
@@ -93,13 +90,13 @@
  * are used when manipulating PEREVTSELx.
  */
 
-#define NHM_PEREVTSEL_EVENT_MASK	(__AC(0xff, ULL))
-#define NHM_PEREVTSEL_UNIT_MASK		(__AC(0xff, ULL)<<8)
-#define NHM_PEREVTSEL_OCC_CTR_RST	(__AC(1, ULL)<<17)
-#define NHM_PEREVTSEL_EDGE_DETECT	(__AC(1, ULL)<<18)
-#define NHM_PEREVTSEL_PMI_ENABLE	(__AC(1, ULL)<<20)
-#define NHM_PEREVTSEL_COUNT_ENABLE	(__AC(1, ULL)<<22)
-#define NHM_PEREVTSEL_INVERT		(__AC(1, ULL)<<23)
+#define NHM_PEREVTSEL_EVENT_MASK		(__AC(0xff, ULL))
+#define NHM_PEREVTSEL_UNIT_MASK			(__AC(0xff, ULL)<<8)
+#define NHM_PEREVTSEL_OCC_CTR_RST		(__AC(1, ULL)<<17)
+#define NHM_PEREVTSEL_EDGE_DETECT		(__AC(1, ULL)<<18)
+#define NHM_PEREVTSEL_PMI_ENABLE		(__AC(1, ULL)<<20)
+#define NHM_PEREVTSEL_COUNT_ENABLE		(__AC(1, ULL)<<22)
+#define NHM_PEREVTSEL_INVERT			(__AC(1, ULL)<<23)
 
 /*
  * Control Bit in GLOBAL_CTRL
@@ -742,10 +739,10 @@ static void uncore_pmu_main(void)
 	INTERVAL_NS	= 1*1000000;		/* Poll interval */
 	WRITE_LATENCY_DELTA = 150;		/* PCM_WRITE - DRAM_WRITE */
 
-	uncore_pmi_enable();
-	uncore_nmi_register();
-	
-	//uncore_pmu_hrtimer_init();
+	//uncore_pmi_enable();
+	//uncore_nmi_register();
+
+	uncore_pmu_hrtimer_init();
 
 	clear_all();
 	uncore_set_event(PMC, nhm_qhl_request_remote_writes, INITVAL);
