@@ -331,10 +331,14 @@ static void __pmu_enable_predefined_event(void *info)
 
 	if (!info)
 		return;
+
 	evt = ((struct pre_event *)info)->event;
-	val = ((struct pre_event *)info)->threshold;
 	if (evt >= EVENT_COUNT_MAX || evt < 0)
 		return;
+	
+	/* 48-bit */
+	val = ((struct pre_event *)info)->threshold;
+	val &= 0xffffffffffff;
 	
 	pmu_wrmsr(__MSR_IA32_PMC0, val);
 	pmu_wrmsr(__MSR_IA32_PERFEVTSEL0,
@@ -415,17 +419,19 @@ static void pmu_lapic_init(void)
 //	PMU NMI Handler
 //#################################################
 
-#define PMU_DEBUG
+//#define PMU_DEBUG
 
 int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
 	u64 tmsr;
 	
 	this_cpu_write(TSC2, pmu_rdtsc());
+	
+	/* Why? Actually, i not sure why too. */
 	apic_write(APIC_LVTPC, APIC_DM_NMI);
 	
 	tmsr = pmu_rdmsr(__MSR_CORE_PERF_GLOBAL_STATUS);
-	if (!(tmsr & 0x1)) /* No PMC Overflows */
+	if (!(tmsr & 0x1)) /* No overflow on *this* CPU */
 		return NMI_DONE;
 	
 #ifdef PMU_DEBUG
@@ -433,10 +439,7 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 			smp_processor_id(), this_cpu_read(TSC2));
 #endif
 	
-	/* Add additional delay */
-	udelay(1);
-
-	/* Restart counting on _this_ cpu. */
+	/* Restart counting on *this* cpu. */
 	__pmu_clear_msrs(NULL);
 	__pmu_enable_predefined_event(&pre_event_info);
 	__pmu_enable_counting(NULL);
@@ -462,8 +465,8 @@ static void pmu_main(void)
 {
 	u64 tsc1;
 
-	PMU_LATENCY		= CPU_BASE_FREQUENCY*10;
 	PMU_PMC0_INIT_VALUE	= -32;
+	PMU_LATENCY		= CPU_BASE_FREQUENCY*10;
 
 	/*
 	 * We must *avoid* walking kernel code path as much as possiable.
@@ -486,12 +489,14 @@ static void pmu_main(void)
 	printk(KERN_INFO "PMU Event Start Counting TSC: %llu\n", tsc1);
 }
 
-/*
- * /proc/pmu_info
- */
+const char pmu_proc_format[] = "CPU %2d, PMU_EVENT_COUNT = %d\n";
 static int pmu_proc_show(struct seq_file *m, void *v)
 {
-	seq_printf(m, "PMU_INFO");
+	int cpu;
+	for_each_online_cpu(cpu) {
+		seq_printf(m, pmu_proc_format, cpu,
+			per_cpu(PMU_EVENT_COUNT, cpu));
+	}
 	return 0;
 }
 
@@ -522,9 +527,10 @@ static int pmu_init(void)
 	cpu_print_info();
 	
 	/* Create /proc/pmu_info file */
+	remove_proc_entry("pmu_info", NULL);
 	proc_create("pmu_info", 0, NULL, &pmu_proc_fops);
 
-	//pmu_main();
+	pmu_main();
 
 	put_cpu();
 	return 0;
