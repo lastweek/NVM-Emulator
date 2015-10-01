@@ -19,7 +19,6 @@
 /*
  *	core_pmu.c - Using LLC_MISS to emulate NVM latency
  *
- *	<DESCRIPTION>
  *	Intel PMU can interrupt CPU in NMI manner when it overflows.
  *	This module inserts a pmu_nmi_handler to the NMI ISR list,
  *	in which we can do something everytime PMU overflows.
@@ -53,11 +52,11 @@
 #define __MSR_CORE_PERF_GLOBAL_STATUS		0x38E
 #define __MSR_CORE_PERF_GLOBAL_CTRL		0x38F
 
-#define __MSR_IA32_MISC_PERFMON_ENABLE		((1ULL)<<7)
+#define __MSR_IA32_MISC_PERFMON_ENABLE		(1ULL<<7)
 #define __MSR_CORE_PERF_GLOBAL_OVF_CTRL		0x390
 #define __MSR_IA32_MISC_ENABLE			0x1A0
 
-/* Bit field of MSR_IA32_PERFEVTSEL0 */
+/* Bit layout of MSR_IA32_PERFEVTSEL */
 #define USR_MODE				(1ULL<<16)
 #define OS_MODE 				(1ULL<<17)
 #define EDGE_DETECT				(1ULL<<18)
@@ -68,8 +67,16 @@
 #define INVERT					(1ULL<<23)
 #define CMASK(val)				(u64)(val<<24)
 
-/* Intel predefined events */
-enum perf_hw_id {
+/* 
+ * Intel predefined events
+ * 
+ * LLC_MISSES: This event count each cache miss condition for
+ * references to the last level cache. The event count may
+ * include speculation and cache line fills due to the first
+ * level cache hardware prefetcher, but may exclude cache
+ * line fills due to other hardware-prefetchers
+ */
+enum PERF_EVENT_ID {
 	UNHALTED_CYCLES			= 0,
 	INSTRUCTIONS_RETIRED		= 1,
 	UNHALTED_REF_CYCLES		= 2,
@@ -81,7 +88,8 @@ enum perf_hw_id {
 	EVENT_COUNT_MAX,
 };
 
-const static u64 predefined_eventmap[EVENT_COUNT_MAX] =
+/* UMASK and Event Select */
+const static u64 predefined_event_map[EVENT_COUNT_MAX] =
 {
 	[UNHALTED_CYCLES]		= 0x003c,
 	[INSTRUCTIONS_RETIRED]		= 0x00c0,
@@ -342,7 +350,7 @@ static void __pmu_enable_predefined_event(void *info)
 	
 	pmu_wrmsr(__MSR_IA32_PMC0, val);
 	pmu_wrmsr(__MSR_IA32_PERFEVTSEL0,
-				predefined_eventmap[evt]
+				predefined_event_map[evt]
 				| USR_MODE
 				| INT_ENABLE
 				| ENABLE );
@@ -520,9 +528,10 @@ static int pmu_init(void)
 	printk(KERN_INFO "PMU ONLINE CPUS: %2d\n", num_online_cpus());
 	
 	/*
-	 * Pay attention to the status of predefined performance events.
-	 * Not all Intel CPUs support all 7 events. The non-zero bits in
-	 * CPUID.0AH:EBX indicate that the events are not available.
+	 * A processor that supports architectural performance
+	 * monitoring may not support all the predefined architectural
+	 * performance events. The non-zero bits in CPUID.0AH:EBX
+	 * indicate that the events are not available.
 	 */
 	cpu_print_info();
 	
