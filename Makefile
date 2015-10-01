@@ -2,7 +2,7 @@
 #	Makefile for NVM Emulator System
 #
 
-obj-m += imc.o
+obj-m += core_pmu.o
 
 KERNEL_VERSION = /lib/modules/$(shell uname -r)/build/
 
