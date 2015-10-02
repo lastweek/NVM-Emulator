@@ -123,10 +123,8 @@ static u64  PMU_PMC0_INIT_VALUE;
 static u64  CPU_BASE_FREQUENCY;
 static char CPU_BRAND[48];
 
+/* Show in /proc/pmu_info */
 DEFINE_PER_CPU(int, PMU_EVENT_COUNT);
-DEFINE_PER_CPU(u64, TSC1);
-DEFINE_PER_CPU(u64, TSC2);
-
 
 //#################################################
 //	Assembly Helper Functions
@@ -340,12 +338,10 @@ static void __pmu_enable_predefined_event(void *info)
 	if (!info)
 		return;
 
+	val = ((struct pre_event *)info)->threshold;
 	evt = ((struct pre_event *)info)->event;
-	if (evt >= EVENT_COUNT_MAX || evt < 0)
-		return;
 	
 	/* 48-bit */
-	val = ((struct pre_event *)info)->threshold;
 	val &= 0xffffffffffff;
 	
 	pmu_wrmsr(__MSR_IA32_PMC0, val);
@@ -433,18 +429,12 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
 	u64 tmsr;
 	
-	this_cpu_write(TSC2, pmu_rdtsc());
-	
-	/* Why? Actually, i not sure why too. */
-	apic_write(APIC_LVTPC, APIC_DM_NMI);
-	
 	tmsr = pmu_rdmsr(__MSR_CORE_PERF_GLOBAL_STATUS);
 	if (!(tmsr & 0x1)) /* No overflow on *this* CPU */
 		return NMI_DONE;
 	
 #ifdef PMU_DEBUG
-	printk(KERN_INFO"PMU NMI CPU %d Event End Counting TSC2=%lld\n",
-			smp_processor_id(), this_cpu_read(TSC2));
+	printk(KERN_INFO"PMU NMI CPU %d", smp_processor_id());
 #endif
 	
 	/* Restart counting on *this* cpu. */
@@ -456,22 +446,25 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	return NMI_HANDLED;
 }
 
-void pmu_regitser_nmi_handler(void)
+static void pmu_regitser_nmi_handler(void)
 {
 	register_nmi_handler(NMI_LOCAL, pmu_nmi_handler,
 		NMI_FLAG_FIRST, "PMU_NMI_HANDLER");
-	printk(KERN_INFO "PMU NMI HANDLER REGISTED...");
+	printk(KERN_INFO "PMU NMI handler registed...");
 }
 
-void pmu_unregister_nmi_handler(void)
+static void pmu_unregister_nmi_handler(void)
 {
 	unregister_nmi_handler(NMI_LOCAL, "PMU_NMI_HANDLER");
-	printk(KERN_INFO "PMU NMI HANDLER UNREGISTED...");
+	printk(KERN_INFO "PMU NMI handler unregisted...");
 }
 
 static void pmu_main(void)
 {
-	u64 tsc1;
+	/*
+	 * FIXME
+	 * It seems that we do NOT need pmu_latency
+	 */
 
 	PMU_PMC0_INIT_VALUE	= -32;
 	PMU_LATENCY		= CPU_BASE_FREQUENCY*10;
@@ -483,18 +476,17 @@ static void pmu_main(void)
 	 * NMI interrupts, our pmu_nmi_handler will be called first!
 	 * Please see arch/x86/kernel/nmi.c for more information.
 	 */
+
 	pmu_lapic_init();
 	pmu_regitser_nmi_handler();
 
 	/*
 	 * Enable every cpus PMU
 	 */
+	
 	pmu_clear_msrs();
 	pmu_enable_predefined_event(LLC_MISSES, PMU_PMC0_INIT_VALUE);
 	pmu_enable_counting();
-	
-	tsc1 = pmu_rdtsc();
-	printk(KERN_INFO "PMU Event Start Counting TSC: %llu\n", tsc1);
 }
 
 const char pmu_proc_format[] = "CPU %2d, PMU_EVENT_COUNT = %d\n";
@@ -524,8 +516,7 @@ static int pmu_init(void)
 {
 	int this_cpu = get_cpu();
 
-	printk(KERN_INFO "PMU INIT ON CPU %2d\n", this_cpu);
-	printk(KERN_INFO "PMU ONLINE CPUS: %2d\n", num_online_cpus());
+	printk(KERN_INFO "PMU init on CPU %2d\n", this_cpu);
 	
 	/*
 	 * A processor that supports architectural performance
@@ -535,28 +526,28 @@ static int pmu_init(void)
 	 */
 	cpu_print_info();
 	
-	/* Create /proc/pmu_info file */
-	remove_proc_entry("pmu_info", NULL);
+	/*
+	 * Create /proc/pmu_info file
+	 * User-Kernel space interface
+	 */
 	proc_create("pmu_info", 0, NULL, &pmu_proc_fops);
 
 	pmu_main();
-
 	put_cpu();
+	
 	return 0;
 }
 
 static void pmu_exit(void)
 {
-	int cpu, this_cpu;
-
-	this_cpu = get_cpu();
-	pmu_clear_msrs();
-	pmu_unregister_nmi_handler();
-	printk(KERN_INFO "PMU MODULE EXIT ON CPU %2d\n", this_cpu);
-	put_cpu();
+	printk(KERN_INFO "PMU exit on CPU %2d\n", smp_processor_id());
 	
 	/* Remove proc/pmu_info file */
 	remove_proc_entry("pmu_info", NULL);
+	
+	/* Clear all cores */
+	pmu_clear_msrs();
+	pmu_unregister_nmi_handler();
 }
 
 module_init(pmu_init);

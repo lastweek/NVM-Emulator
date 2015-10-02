@@ -1,7 +1,9 @@
 /*
  *	uncore_pmu.c - Using REMOTE_WRITE_REQUEST to emulate NVM latency
+ *	
+ *	Xeon 5600 serials
  *
- *	Copyright (C) 2015 Yizhou Shan
+ *	Copyright (C) 2015 Yizhou Shan <shanyizhou@ict.ac.cn>
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
