@@ -1,13 +1,9 @@
 /*
-<<<<<<< HEAD
  *	uncore_pmu.c - Using REMOTE_WRITE_REQUEST to emulate NVM latency
  *	
- *	Xeon 5600 serials
-=======
- *	uncore_pmu.c - Using REMOTE_WRITE_REQUEST to simulate NVM latency
- *	Runnable on Xeon 5600 serials ONLY.
- *	(Sign. Bad code - It is not portable to other Xeon CPUs.)
->>>>>>> f0c0b687a39801a1f514deb28ef53a5c80697c75
+ *	Xeon 5600 serials	Westmere-EP
+ *	Xeon 5500 serials	Nehalem
+ * 	Hence we say that Xeon 5000-serials are based on Nehalem.
  *
  *	Copyright (C) 2015 Yizhou Shan <shanyizhou@ict.ac.cn>
  *
