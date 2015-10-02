@@ -124,7 +124,7 @@ static u64  CPU_BASE_FREQUENCY;
 static char CPU_BRAND[48];
 
 /* Show in /proc/pmu_info */
-DEFINE_PER_CPU(int, PMU_EVENT_COUNT);
+DEFINE_PER_CPU(unsigned long long, PMU_EVENT_COUNT);
 
 //#################################################
 //	Assembly Helper Functions
@@ -465,8 +465,7 @@ static void pmu_main(void)
 	 * FIXME
 	 * It seems that we do NOT need pmu_latency
 	 */
-
-	PMU_PMC0_INIT_VALUE	= -32;
+	PMU_PMC0_INIT_VALUE	= -128;
 	PMU_LATENCY		= CPU_BASE_FREQUENCY*10;
 
 	/*
@@ -476,20 +475,18 @@ static void pmu_main(void)
 	 * NMI interrupts, our pmu_nmi_handler will be called first!
 	 * Please see arch/x86/kernel/nmi.c for more information.
 	 */
-
 	pmu_lapic_init();
 	pmu_regitser_nmi_handler();
 
 	/*
 	 * Enable every cpus PMU
 	 */
-	
 	pmu_clear_msrs();
 	pmu_enable_predefined_event(LLC_MISSES, PMU_PMC0_INIT_VALUE);
 	pmu_enable_counting();
 }
 
-const char pmu_proc_format[] = "CPU %2d, PMU_EVENT_COUNT = %d\n";
+const char pmu_proc_format[] = "CPU %2d, PMU_EVENT_COUNT = %lld\n";
 static int pmu_proc_show(struct seq_file *m, void *v)
 {
 	int cpu;
@@ -497,6 +494,16 @@ static int pmu_proc_show(struct seq_file *m, void *v)
 		seq_printf(m, pmu_proc_format, cpu,
 			per_cpu(PMU_EVENT_COUNT, cpu));
 	}
+	
+	/* Reset each counter.
+	 * So it will be easy to use: cat /proc/pmu_info 
+	 * to store count numbers */
+	get_cpu();
+	for_each_online_cpu(cpu) {
+		*per_cpu_ptr(&PMU_EVENT_COUNT, cpu) = 0;
+	}
+	put_cpu();
+	
 	return 0;
 }
 
@@ -540,14 +547,13 @@ static int pmu_init(void)
 
 static void pmu_exit(void)
 {
-	printk(KERN_INFO "PMU exit on CPU %2d\n", smp_processor_id());
-	
-	/* Remove proc/pmu_info file */
+	/* Remove proc/pmu_info */
 	remove_proc_entry("pmu_info", NULL);
 	
-	/* Clear all cores */
+	/* Clear PMU of all CPUs */
 	pmu_clear_msrs();
 	pmu_unregister_nmi_handler();
+	printk(KERN_INFO "PMU exit on CPU %2d\n", smp_processor_id());
 }
 
 module_init(pmu_init);
