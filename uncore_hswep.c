@@ -1,3 +1,21 @@
+/*
+ *	Copyright (C) 2015 Yizhou Shan <shanyizhou@ict.ac.cn>
+ *
+ *	This program is free software; you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation; either version 2 of the License, or
+ *	(at your option) any later version.
+ *
+ *	This program is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License along
+ *	with this program; if not, write to the Free Software Foundation, Inc.,
+ *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
 /***
  * Support Xeon:
  * O	Platform:		Xeon® E5 v3 and Xeon® E7 v3
@@ -11,6 +29,8 @@
  * O	Platform:		Xeon® E5 v1 and Xeon® E7 v1
  *	Microarchitecture:	Sandy Bridge-EP, Westmere-EX
  */
+
+#include "uncore_pmu.h"
 
 /* HSWEP Uncore Per-Socket MSRs */
 #define HSWEP_MSR_PMON_GLOBAL_CTL		0x700
@@ -47,48 +67,7 @@
 #define HSWEP_MSR_C_PMON_CTR0			0xE08
 #define HSWEP_MSR_C_MSR_OFFSET			0x10
 
-/**
- * struct uncore_event_desc
- * Describe an uncore monitoring event
- */
-struct uncore_event_desc {
-
-};
-
-/**
- * struct uncore_box_ops
- * Describe methods for a uncore pmu box
- */
-struct uncore_box_ops {
-	void (*init_box)(void);
-	void (*disable_box)(void);
-	void (*enable_event)(void);
-};
-
-/**
- * struct uncore_pmu_type
- * Describe a specific uncore pmu box type
- */
-struct uncore_pmu_type {
-	const char	*name;
-	unsigned int	num_counters;
-	unsigned int	num_boxes;
-	unsigned int	perf_ctr_bits;
-	unsigned int	perf_ctr;
-	unsigned int	perf_ctl;
-	unsigned int	event_mask;
-	unsigned int	fixed_ctr_bits;
-	unsigned int	fixed_ctr;
-	unsigned int	fixed_ctl;
-	unsigned int	box_ctl;
-	unsigned int	box_status;
-	unsigned int	msr_offset;
-	
-	struct uncore_box_ops *ops;
-	struct uncore_event_desc *desc;
-};
-
-struct uncore_pmu_type HSWEP_UNCORE_UBOX = {
+struct uncore_box_type HSWEP_UNCORE_UBOX = {
 	.name		= "U-BOX";
 	.num_counters	= 2,
 	.num_boxes	= 1,
@@ -102,7 +81,7 @@ struct uncore_pmu_type HSWEP_UNCORE_UBOX = {
 	.ops		= NULL
 };
 
-struct uncore_pmu_type HSWEP_UNCORE_PCUBOX = {
+struct uncore_box_type HSWEP_UNCORE_PCUBOX = {
 	.name		= "PCU-BOX",
 	.num_counters	= 4,
 	.num_boxes	= 1,
@@ -115,7 +94,7 @@ struct uncore_pmu_type HSWEP_UNCORE_PCUBOX = {
 	.ops		= NULL
 };
 
-struct uncore_pmu_type HSWEP_UNCORE_SBOX = {
+struct uncore_box_type HSWEP_UNCORE_SBOX = {
 	.name		= "S-BOX",
 	.num_counters	= 4,
 	.num_boxes	= 4,
@@ -128,7 +107,7 @@ struct uncore_pmu_type HSWEP_UNCORE_SBOX = {
 	.ops		= NULL
 };
 
-struct uncore_pmu_type HSWEP_UNCORE_CBOX = {
+struct uncore_box_type HSWEP_UNCORE_CBOX = {
 	.name		= "C-BOX",
 	.num_counters	= 4,
 	.num_boxes,	= 18,
@@ -142,7 +121,7 @@ struct uncore_pmu_type HSWEP_UNCORE_CBOX = {
 	.ops		= NULL,
 };
 
-struct uncore_pmu_type *HSWEP_MSR_BOXES[] = {
+struct uncore_box_type *HSWEP_UNCORE_MSR_BOXES[] = {
 	&HSWEP_UNCORE_UBOX,
 	&HSWEP_UNCORE_PCUBOX,
 	&HSWEP_UNCORE_SBOX,
