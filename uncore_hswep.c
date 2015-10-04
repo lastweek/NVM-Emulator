@@ -16,12 +16,12 @@
  *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-/***
+/*
  * Support Xeon:
  * O	Platform:		Xeon® E5 v3 and Xeon® E7 v3
  *	Microarchitecture:	Haswell-EP, Haswell-EX
  *
- ***
+ *
  * Precious Xeon:
  * O	Platform:		Xeon® E5 v2 and Xeon® E7 v2
  *	Microarchitecture:	Ivy Bridge-EP, Ivy Bridge-EX
@@ -67,18 +67,42 @@
 #define HSWEP_MSR_C_PMON_CTR0			0xE08
 #define HSWEP_MSR_C_MSR_OFFSET			0x10
 
+const struct uncore_box_ops HSWEP_UNCORE_UBOX_OPS = {
+	.init_box	= hswep_uncore_msr_init_box,
+	.enable_box	= hswep_uncore_msr_enable_box,
+	.disable_box	= hswep_uncore_msr_disable_box,
+	.enable_box	= hswep_uncore_msr_enable_event,
+	.disable_box	= hswep_uncore_msr_disable_event
+};
+
+const struct uncore_box_ops HSWEP_UNCORE_PCUBOX_OPS = {
+	.init_box	= hswep_uncore_msr_init_box,
+	.enable_box	= hswep_uncore_msr_enable_box,
+	.disable_box	= hswep_uncore_msr_disable_box,
+	.enable_box	= hswep_uncore_msr_enable_event,
+	.disable_box	= hswep_uncore_msr_disable_event
+};
+
+const struct uncore_box_ops HSWEP_UNCORE_SBOX_OPS = {
+
+};
+
+const struct uncore_box_ops HSWEP_UNCORE_CBOX_OPS = {
+
+};
+
 struct uncore_box_type HSWEP_UNCORE_UBOX = {
 	.name		= "U-BOX";
 	.num_counters	= 2,
 	.num_boxes	= 1,
-	.perf_ctr_bits	= 44,
+	.perf_ctr_bits	= 48,
 	.perf_ctr	= HSWEP_MSR_U_PMON_CTR0,
 	.perf_ctl	= HSWEP_MSR_U_PMON_EVNTSEL0,
 	.event_mask	= 0,
 	.fixed_ctr_bits	= 48,
 	.fixed_ctr	= HSWEP_MSR_U_PMON_UCLK_FIXED_CTR,
 	.fixed_ctl	= HSWEP_MSR_U_PMON_UCLK_FIXED_CTL,
-	.ops		= NULL
+	.ops		= HSWEP_UNCORE_UBOX_OPS
 };
 
 struct uncore_box_type HSWEP_UNCORE_PCUBOX = {
@@ -91,20 +115,20 @@ struct uncore_box_type HSWEP_UNCORE_PCUBOX = {
 	.event_mask	= 0,
 	.box_ctl	= HSWEP_MSR_PCU_PMON_BOX_CTL,
 	.box_status	= HSWEP_MSR_PCU_PMON_BOX_STATUS,
-	.ops		= NULL
+	.ops		= HSWEP_UNCORE_PCUBOX_OPS
 };
 
 struct uncore_box_type HSWEP_UNCORE_SBOX = {
 	.name		= "S-BOX",
 	.num_counters	= 4,
 	.num_boxes	= 4,
-	.perf_ctr_bits	= 44,
+	.perf_ctr_bits	= 48,
 	.perf_ctr	= HSWEP_MSR_S_PMON_CTR0,
 	.perf_ctl	= HSWEP_MSR_S_PMON_EVNTSEL0,
 	.event_mask	= 0,
 	.box_ctl	= HSWEP_MSR_S_PMON_BOX_CTL,
 	.msr_offset	= HSWEP_MSR_S_MSR_OFFSET,
-	.ops		= NULL
+	.ops		= HSWEP_UNCORE_SBOX_OPS
 };
 
 struct uncore_box_type HSWEP_UNCORE_CBOX = {
@@ -118,12 +142,19 @@ struct uncore_box_type HSWEP_UNCORE_CBOX = {
 	.box_ctl	= HSWEP_MSR_C_PMON_BOX_CTL,
 	.box_status	= HSWEP_MSR_C_PMON_BOX_STATUS,
 	.msr_offset	= HSWEP_MSR_C_MSR_OFFSET,
-	.ops		= NULL,
+	.ops		= HSWEP_UNCORE_CBOX_OPS
 };
 
+/* Boxes manipulated via MSR registers */
 struct uncore_box_type *HSWEP_UNCORE_MSR_BOXES[] = {
 	&HSWEP_UNCORE_UBOX,
 	&HSWEP_UNCORE_PCUBOX,
 	&HSWEP_UNCORE_SBOX,
-	&HSWEP_UNCORE_CBOX
+	&HSWEP_UNCORE_CBOX,
+	NULL
+};
+
+/* Boxes manipulated via PCI config area */
+struct uncore_box_type *HSWEP_UNCORE_PCI_BOXES[] = {
+	
 };

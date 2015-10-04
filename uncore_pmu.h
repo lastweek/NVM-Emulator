@@ -30,10 +30,10 @@ struct uncore_event_desc {
  */
 struct uncore_box_ops {
 	void (*init_box)(struct uncore_box *box);
-	void (*start_box)(struct uncore_box *box);
+	void (*enable_box)(struct uncore_box *box);
 	void (*disable_box)(struct uncore_box *box);
 	void (*enable_event)(struct uncore_box *box);
-	void (*disabe_event)(struct uncore_box *box);
+	void (*disable_event)(struct uncore_box *box);
 };
 
 /**
