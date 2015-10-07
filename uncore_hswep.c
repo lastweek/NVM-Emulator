@@ -88,7 +88,7 @@
 #define HSWEP_MSR_S_PMON_BOX_FILTER		0x725
 #define HSWEP_MSR_S_PMON_EVNTSEL0		0x721
 #define HSWEP_MSR_S_PMON_CTR0			0x726
-#define HSWEP_MSR_S_MSR_OFFSET			0xa
+#define HSWEP_MSR_S_MSR_OFFSET			0xA
 
 /* HSWEP Uncore C-box */
 #define HSWEP_MSR_C_PMON_BOX_CTL		0xE00
@@ -119,6 +119,30 @@
 #define HSWEP_PCI_IMC_PMON_FIXED_CTR		0xD0
 
 /* HSWEP Uncore IRP-box */
+#define HSWEP_PCI_IRP_PMON_BOX_STATUS		0xF8
+#define HSWEP_PCI_IRP_PMON_BOX_CTL		0xF4
+
+/* HSWEP Uncore QPI-box */
+#define HSWEP_PCI_QPI_PMON_BOX_STATUS		0xF8
+#define HSWEP_PCI_QPI_PMON_BOX_CTL		0xF4
+#define HSWEP_PCI_QPI_PMON_CTL0			0xD8
+#define HSWEP_PCI_QPI_PMON_CTR0			0xA0
+
+/* HSWEP Uncore R2PCIE-box */
+#define HSWEP_PCI_R2PCIE_PMON_BOX_STATUS	0xF8
+#define HSWEP_PCI_R2PCIE_PMON_BOX_CTL		0xF4
+#define HSWEP_PCI_R2PCIE_PMON_CTL0		0xD8
+#define HSWEP_PCI_R2PCIE_PMON_CTR0		0xA0
+
+/* HSWEP Uncore R3QPI-box */
+#define HSWEP_PCI_R3QPI_PMON_BOX_STATUS		0xF8
+#define HSWEP_PCI_R3QPI_PMON_BOX_CTL		0xF4
+#define HSWEP_PCI_R3QPI_PMON_CTL0		0xD8
+#define HSWEP_PCI_R3QPI_PMON_CTR0		0xA0
+
+/*
+ * MSR Part
+ */
 
 static void hswep_uncore_msr_init_box(struct uncore_box *box)
 {
@@ -167,7 +191,7 @@ static void hswep_uncore_msr_disable_event(struct uncore_box *box,
 	wrmsrl(event->ctl, event->enable | HSWEP_MSR_EVNTSEL_EN);
 }
 
-#define HSWEP_UNCORE_BOX_OPS()					\
+#define HSWEP_UNCORE_MSR_BOX_OPS()				\
 	.init_box	= hswep_uncore_msr_init_box,		\
 	.enable_box	= hswep_uncore_msr_enable_box,		\
 	.disable_box	= hswep_uncore_msr_disable_box,		\
@@ -175,23 +199,22 @@ static void hswep_uncore_msr_disable_event(struct uncore_box *box,
 	.disable_event	= hswep_uncore_msr_disable_event	\
 
 const struct uncore_box_ops HSWEP_UNCORE_UBOX_OPS = {
-	HSWEP_UNCORE_BOX_OPS()
+	HSWEP_UNCORE_MSR_BOX_OPS()
 };
 
 const struct uncore_box_ops HSWEP_UNCORE_PCUBOX_OPS = {
-	HSWEP_UNCORE_BOX_OPS()
+	HSWEP_UNCORE_MSR_BOX_OPS()
 };
 
 const struct uncore_box_ops HSWEP_UNCORE_SBOX_OPS = {
-	HSWEP_UNCORE_BOX_OPS()
+	HSWEP_UNCORE_MSR_BOX_OPS()
 };
 
 const struct uncore_box_ops HSWEP_UNCORE_CBOX_OPS = {
-	HSWEP_UNCORE_BOX_OPS()
+	HSWEP_UNCORE_MSR_BOX_OPS()
 };
 
 const struct uncore_box_type HSWEP_UNCORE_UBOX = {
-	HSWEP_UNCORE_BOX_OPS()
 	.name		= "U-BOX MSR Type",
 	.num_counters	= 2,
 	.num_boxes	= 1,
@@ -254,12 +277,56 @@ struct uncore_box_type *HSWEP_UNCORE_MSR_BOXES[] = {
 	NULL
 };
 
-const struct uncore_box_ops HSWEP_UNCORE_HABOX_OPS = {
+/*
+ * PCI Part
+ */
 
+static void hswep_uncore_pci_init_box(struct uncore_box *box)
+{}
+
+static void hswep_uncore_pci_enable_box(struct uncore_box *box)
+{}
+
+static void hswep_uncore_pci_disable_box(struct uncore_box *box)
+{}
+
+static void hswep_uncore_pci_disable_event(struct uncore_box *box,
+					   struct uncore_event *event)
+{}
+
+static void hswep_uncore_pci_enable_event(struct uncore_box *box,
+					  struct uncore_event *event)
+{}
+
+#define HSWEP_UNCORE_PCI_BOX_OPS()				\
+	.init_box	= hswep_uncore_pci_init_box,		\
+	.enable_box	= hswep_uncore_pci_enable_box,		\
+	.disable_box	= hswep_uncore_pci_disable_box,		\
+	.enable_event	= hswep_uncore_pci_enable_event,	\
+	.disable_event	= hswep_uncore_pci_disable_event	\
+
+const struct uncore_box_ops HSWEP_UNCORE_HABOX_OPS = {
+	HSWEP_UNCORE_PCUBOX_OPS()
 };
 
 const struct uncore_box_ops HSWEP_UNCORE_IMCBOX_OPS = {
+	HSWEP_UNCORE_PCUBOX_OPS()
+};
 
+const struct uncore_box_ops HSWEP_UNCORE_IRPBOX_OPS = {
+	HSWEP_UNCORE_PCUBOX_OPS()
+};
+
+const struct uncore_box_ops HSWEP_UNCORE_QPIBOX_OPS = {
+	HSWEP_UNCORE_PCUBOX_OPS()
+};
+
+const struct uncore_box_ops HSWEP_UNCORE_R2PCIEBOX_OPS = {
+	HSWEP_UNCORE_PCUBOX_OPS()
+};
+
+const struct uncore_box_ops HSWEP_UNCORE_R3QPIBOX_OPS = {
+	HSWEP_UNCORE_PCUBOX_OPS()
 };
 
 struct uncore_box_type HSWEP_UNCORE_HA = {
@@ -295,19 +362,48 @@ struct uncore_box_type HSWEP_UNCORE_IRP = {
 	.name		= "IRP-Box PCI Type",
 	.num_counters	= 4,
 	.num_boxes	= 1,
-	
+	.box_ctl	= HSWEP_PCI_IRP_PMON_BOX_CTL,
+	.box_status	= HSWEP_PCI_IRP_PMON_BOX_STATUS,
+	.ops		= &HSWEP_UNCORE_IRPBOX_OPS
 };
 
 struct uncore_box_type HSWEP_UNCORE_QPI = {
-
+	.name		= "QPI-Box PCI Type",
+	.num_counters	= 4,
+	.num_boxes	= 2,
+	.perf_ctr_bits	= 48,
+	.perf_ctr	= HSWEP_PCI_QPI_PMON_CTR0,
+	.perf_ctl	= HSWEP_PCI_QPI_PMON_CTL0,
+	.event_mask	= 0,
+	.box_ctl	= HSWEP_PCI_QPI_PMON_BOX_CTL,
+	.box_status	= HSWEP_PCI_QPI_PMON_BOX_STATUS,
+	.ops		= &HSWEP_UNCORE_QPIBOX_OPS
 };
 
 struct uncore_box_type HSWEP_UNCORE_R2PCIE = {
-
+	.name		= "R2PCIE-Box PCI Type",
+	.num_counters	= 4,
+	.num_boxes	= 1,
+	.perf_ctr_bits	= 48,
+	.perf_ctr	= HSWEP_PCI_R2PCIE_PMON_CTR0,
+	.perf_ctl	= HSWEP_PCI_R2PCIE_PMON_CTL0,
+	.event_mask	= 0,
+	.box_ctl	= HSWEP_PCI_R2PCIE_PMON_BOX_CTL,
+	.box_status	= HSWEP_PCI_R2PCIE_PMON_BOX_STATUS,
+	.ops		= &HSWEP_UNCORE_R2PCIEBOX_OPS
 };
 
 struct uncore_box_type HSWEP_UNCORE_R3QPI = {
-
+	.name		= "R2PCIE-Box PCI Type",
+	.num_counters	= 3,
+	.num_boxes	= 2,
+	.perf_ctr_bits	= 48,
+	.perf_ctr	= HSWEP_PCI_R3QPI_PMON_CTR0,
+	.perf_ctl	= HSWEP_PCI_R3QPI_PMON_CTL0,
+	.event_mask	= 0,
+	.box_ctl	= HSWEP_PCI_R3QPI_PMON_BOX_CTL,
+	.box_status	= HSWEP_PCI_R3QPI_PMON_BOX_STATUS,
+	.ops		= &HSWEP_UNCORE_R3QPIBOX_OPS
 };
 
 /* PCI Boxes */
