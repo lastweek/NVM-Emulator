@@ -217,7 +217,7 @@ struct uncore_box_type HSWEP_UNCORE_SBOX = {
 	.event_mask	= 0,
 	.box_ctl	= HSWEP_MSR_S_PMON_BOX_CTL,
 	.msr_offset	= HSWEP_MSR_S_MSR_OFFSET,
-	.ops		= NULL
+	.ops		= &HSWEP_UNCORE_SBOX_OPS
 };
 
 struct uncore_box_type HSWEP_UNCORE_CBOX = {
@@ -231,7 +231,7 @@ struct uncore_box_type HSWEP_UNCORE_CBOX = {
 	.box_ctl	= HSWEP_MSR_C_PMON_BOX_CTL,
 	.box_status	= HSWEP_MSR_C_PMON_BOX_STATUS,
 	.msr_offset	= HSWEP_MSR_C_MSR_OFFSET,
-	.ops		= NULL
+	.ops		= &HSWEP_UNCORE_CBOX_OPS
 };
 
 /* MSR Boxes */
@@ -281,7 +281,7 @@ static int hswep_init(void)
 	struct uncore_event event = {
 		.ctl = 0xe01,
 		.ctr = 0xe08,
-		.enable = (1<<22) | 0x34 | 0x0300,
+		.enable = (1<<22) | 0x0000 | 0x0000,
 		.disable = 0
 	};
 	
@@ -301,7 +301,7 @@ static int hswep_init(void)
 
 static void hswep_exit(void)
 {
-
+	pr_info("exit");
 }
 
 module_init(hswep_init);
