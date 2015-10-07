@@ -17,30 +17,25 @@
  */
 
 /*
- * Support Xeon:
- * O	Platform:		Xeon® E5 v3 and Xeon® E7 v3
+ * Support:
+ * O	Platform:		Xeon® E5 v3, Xeon® E7 v3
  *	Microarchitecture:	Haswell-EP, Haswell-EX
  *
- *
- * Precious Xeon:
- * O	Platform:		Xeon® E5 v2 and Xeon® E7 v2
+ * Ancient:
+ * O	Platform:		Xeon® E5 v2, Xeon® E7 v2
  *	Microarchitecture:	Ivy Bridge-EP, Ivy Bridge-EX
  *
- * O	Platform:		Xeon® E5 v1 and Xeon® E7 v1
+ * O	Platform:		Xeon® E5, Xeon® E7
  *	Microarchitecture:	Sandy Bridge-EP, Westmere-EX
  */
+
+#include "uncore_pmu.h"
 
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
-#include <linux/ktime.h>
 #include <linux/list.h>
 #include <linux/module.h>
-#include <linux/pci.h>
-#include <linux/percpu.h>
-#include <linux/string.h>
-#include <linux/sched.h>
-#include "uncore_pmu.h"
 
 /* HSWEP Box-Level Control MSR Bit Layout */
 #define HSWEP_MSR_BOX_CTL_RST_CTRL		(1 << 0)
@@ -48,6 +43,10 @@
 #define HSWEP_MSR_BOX_CTL_FRZ			(1 << 8)
 #define HSWEP_MSR_BOX_CTL_INIT			(HSWEP_MSR_BOX_CTL_RST_CTRL | \
 						 HSWEP_MSR_BOX_CTL_RST_CTRS )
+
+/* HSWEP Box-Level Control PCI Bit Layout */
+#define HSWEP_PCI_BOX_CTL_FRZ			HSWEP_MSR_BOX_CTL_FRZ
+#define HSWEP_PCI_BOX_CTL_INIT			HSWEP_MSR_BOX_CTL_INIT
 
 /* HSWEP Event Select MSR Bit Layout */
 #define HSWEP_MSR_EVNTSEL_EVENT			0x000000FF
@@ -188,7 +187,7 @@ static void hswep_uncore_msr_enable_event(struct uncore_box *box,
 static void hswep_uncore_msr_disable_event(struct uncore_box *box,
 					struct uncore_event *event)
 {
-	wrmsrl(event->ctl, event->enable | HSWEP_MSR_EVNTSEL_EN);
+	wrmsrl(event->ctl, event->enable);
 }
 
 #define HSWEP_UNCORE_MSR_BOX_OPS()				\
@@ -282,21 +281,51 @@ struct uncore_box_type *HSWEP_UNCORE_MSR_BOXES[] = {
  */
 
 static void hswep_uncore_pci_init_box(struct uncore_box *box)
-{}
+{
+	pci_write_config_dword(box->pci_dev,
+			       box->box_ctl,
+			       HSWEP_PCI_BOX_CTL_INIT);
+}
 
 static void hswep_uncore_pci_enable_box(struct uncore_box *box)
-{}
+{
+	int ctl = box->box_ctl;
+	unsigned int config = 0; 
+	struct pci_dev *dev = box->pci_dev;
+	
+	if (!pci_read_config_dword(dev, ctl, &config)) {
+		config &= ~HSWEP_PCI_BOX_CTL_FRZ;
+		pci_write_config_dword(dev, ctl, config);
+	}
+}
 
 static void hswep_uncore_pci_disable_box(struct uncore_box *box)
-{}
-
-static void hswep_uncore_pci_disable_event(struct uncore_box *box,
-					   struct uncore_event *event)
-{}
+{
+	int ctl = box->box_ctl;
+	unsigned int config = 0; 
+	struct pci_dev *dev = box->pci_dev;
+	
+	if (!pci_read_config_dword(dev, ctl, &config)) {
+		config |= HSWEP_PCI_BOX_CTL_FRZ;
+		pci_write_config_dword(dev, ctl, config);
+	}
+}
 
 static void hswep_uncore_pci_enable_event(struct uncore_box *box,
 					  struct uncore_event *event)
-{}
+{
+	pci_write_config_dword(box->pci_dev,
+			       event->ctl,
+			       event->enable);
+}
+
+static void hswep_uncore_pci_disable_event(struct uncore_box *box,
+					   struct uncore_event *event)
+{
+	pci_write_config_dword(box->pci_dev,
+			       event->ctl,
+			       event->disable);
+}
 
 #define HSWEP_UNCORE_PCI_BOX_OPS()				\
 	.init_box	= hswep_uncore_pci_init_box,		\
