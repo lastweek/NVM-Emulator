@@ -30,6 +30,7 @@
  *	Microarchitecture:	Sandy Bridge-EP, Westmere-EX
  */
 
+#include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/ktime.h>
@@ -57,9 +58,11 @@
 #define HSWEP_MSR_EVNTSEL_EN			(1 << 22)
 #define HSWEP_MSR_EVNTSEL_INVERT		(1 << 23)
 #define HSWEP_MSR_EVNTSEL_THRESHOLD		0xFF000000
-#define HSWEP_MSR_EVNTSEL_MASK			(HSWEP_MSR_EVNTSEL_EVENT | \
-						 HSWEP_MSR_EVNTSEL_UMASK | \
-						 HSWEP_MSR_EVNTSEL_EN)
+#define HSWEP_MSR_RAW_EVNTSEL_MASK		(HSWEP_MSR_EVNTSEL_EVENT	| \
+						 HSWEP_MSR_EVNTSEL_UMASK	| \
+						 HSWEP_MSR_EVNTSEL_EDGE_DET	| \
+						 HSWEP_MSR_EVNTSEL_INVERT	| \
+						 HSWEP_MSR_EVNTSEL_THRESHOLD)
 
 /* HSWEP Uncore Global Per-Socket MSRs */
 #define HSWEP_MSR_PMON_GLOBAL_CTL		0x700
@@ -95,6 +98,8 @@
 #define HSWEP_MSR_C_PMON_EVNTSEL0		0xE01
 #define HSWEP_MSR_C_PMON_CTR0			0xE08
 #define HSWEP_MSR_C_MSR_OFFSET			0x10
+#define HSWEP_MSR_C_EVENTSEL_MASK		(HSWEP_MSR_RAW_EVNTSEL_MASK | \
+						 HSWEP_MSR_EVNTSEL_TID_EN)
 
 static void hswep_uncore_msr_init_box(struct uncore_box *box)
 {
@@ -134,13 +139,13 @@ static void hswep_uncore_msr_disable_box(struct uncore_box *box)
 static void hswep_uncore_msr_enable_event(struct uncore_box *box,
 					struct uncore_event *event)
 {
-	wrmsrl(event->msr, event->disable);
+	wrmsrl(event->ctl, event->disable);
 }
 
 static void hswep_uncore_msr_disable_event(struct uncore_box *box,
 					struct uncore_event *event)
 {
-	wrmsrl(event->msr, event->enable);
+	wrmsrl(event->ctl, event->enable | HSWEP_MSR_EVNTSEL_EN);
 }
 
 const struct uncore_box_ops HSWEP_UNCORE_UBOX_OPS = {
@@ -160,11 +165,19 @@ const struct uncore_box_ops HSWEP_UNCORE_PCUBOX_OPS = {
 };
 
 struct uncore_box_ops HSWEP_UNCORE_SBOX_OPS = {
-
+	.init_box	= hswep_uncore_msr_init_box,
+	.enable_box	= hswep_uncore_msr_enable_box,
+	.disable_box	= hswep_uncore_msr_disable_box,
+	.enable_event	= hswep_uncore_msr_enable_event,
+	.disable_event	= hswep_uncore_msr_disable_event
 };
 
 struct uncore_box_ops HSWEP_UNCORE_CBOX_OPS = {
-
+	.init_box	= hswep_uncore_msr_init_box,
+	.enable_box	= hswep_uncore_msr_enable_box,
+	.disable_box	= hswep_uncore_msr_disable_box,
+	.enable_event	= hswep_uncore_msr_enable_event,
+	.disable_event	= hswep_uncore_msr_disable_event
 };
 
 struct uncore_box_type HSWEP_UNCORE_UBOX = {
@@ -214,7 +227,7 @@ struct uncore_box_type HSWEP_UNCORE_CBOX = {
 	.perf_ctr_bits	= 48,
 	.perf_ctr	= HSWEP_MSR_C_PMON_CTR0,
 	.perf_ctl	= HSWEP_MSR_C_PMON_EVNTSEL0,
-	.event_mask	= 0,
+	.event_mask	= HSWEP_MSR_C_EVENTSEL_MASK,
 	.box_ctl	= HSWEP_MSR_C_PMON_BOX_CTL,
 	.box_status	= HSWEP_MSR_C_PMON_BOX_STATUS,
 	.msr_offset	= HSWEP_MSR_C_MSR_OFFSET,
@@ -245,6 +258,18 @@ static void hswep_pci_init(void)
 
 }
 
+static void uncore_event_show(struct uncore_event *event)
+{
+	unsigned long long v1, v2;
+
+	if (!event | !event->ctl | !event->ctr)
+		return;
+	
+	rdmsrl(event->ctl, v1);
+	rdmsrl(event->ctr, v2);
+	printk(KERN_INFO "SEL=%llx CNT=%llx", v1, v2);
+}
+
 static int hswep_init(void)
 {
 	struct uncore_box cbox = {
@@ -253,6 +278,24 @@ static int hswep_init(void)
 		.box_type = &HSWEP_UNCORE_CBOX
 	};
 
+	struct uncore_event event = {
+		.ctl = 0xe01,
+		.ctr = 0xe08,
+		.enable = (1<<22) | 0x34 | 0x0300,
+		.disable = 0
+	};
+	
+	uncore_event_show(&event);
+
+	uncore_init_box(&cbox);
+	uncore_enable_box(&cbox);
+	uncore_enable_event(&cbox, &event);
+	udelay(100);
+	uncore_disable_event(&cbox, &event);
+	uncore_disable_box(&cbox);
+
+	uncore_event_show(&event);
+	
 	return 0;
 }
 

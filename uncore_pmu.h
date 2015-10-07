@@ -28,9 +28,8 @@ struct uncore_event_desc {
 
 
 struct uncore_event {
-	unsigned int msr;
-	unsigned long long enable;
-	unsigned long long disable;
+	unsigned int ctl, ctr;
+	unsigned long long enable, disable;
 	struct uncore_event_desc *desc;
 };
 
@@ -72,7 +71,7 @@ struct uncore_box_ops {
  * @perf_ctr_bits:	Bit width of PMC
  * @perf_ctr:		PMC MSR address
  * @perf_ctl:		EventSel MSR address
- * @event_mask:		perf_ctl event mask
+ * @event_mask:		perf_ctl writable bits mask
  * @fixed_ctr_bits:	Bit width of fixed counter
  * @fixed_ctr:		Fixed counter MSR address
  * @fixed_ctl:		Fixed EventSel MSR address
@@ -113,7 +112,8 @@ struct uncore_box_type {
  *
  * Return the control MSR's address offset of this box
  */
-static inline unsigned int uncore_msr_box_offset(struct uncore_box *box)
+static __always_inline unsigned int
+uncore_msr_box_offset(struct uncore_box *box)
 {
 	return box->idx * box->box_type->msr_offset;
 }
@@ -124,7 +124,67 @@ static inline unsigned int uncore_msr_box_offset(struct uncore_box *box)
  *
  * Return the control MSR's address of this box
  */
-static inline unsigned int uncore_msr_box_ctl(struct uncore_box *box)
+static __always_inline unsigned int
+uncore_msr_box_ctl(struct uncore_box *box)
 {
 	return box->box_type->box_ctl + uncore_msr_box_offset(box);
+}
+
+/**
+ * uncore_init_box
+ * @box:	the box to init
+ *
+ * Initialize a uncore box
+ */
+static inline void uncore_init_box(struct uncore_box *box)
+{
+	box->box_type->ops->init_box(box);
+}
+
+/**
+ * uncore_enable_box
+ * @box:	the box to enable
+ *
+ * Enable counting at box-level
+ */
+static inline void uncore_enable_box(struct uncore_box *box)
+{
+	box->box_type->ops->enable_box(box);
+}
+
+/**
+ * uncore_disable_box
+ * @box:	the box to disable
+ *
+ * Disable counting at box-level
+ */
+static inline void uncore_disable_box(struct uncore_box *box)
+{
+	box->box_type->ops->disable_box(box);
+}
+
+/**
+ * uncore_enable_event
+ * @box:	the box to enable
+ * @event:	the event to count
+ *
+ * Enable counting at a specific counter of a box
+ */
+static inline void uncore_enable_event(struct uncore_box *box,
+				       struct uncore_event *event)
+{
+	box->box_type->ops->enable_event(box, event);
+}
+
+/**
+ * uncore_disable_event
+ * @box:	the box to disable
+ * @event:	the event to disable
+ *
+ * Disable counting at a specific counter of a box
+ */
+static inline void uncore_disable_event(struct uncore_box *box,
+					struct uncore_event *event)
+{
+	box->box_type->ops->disable_event(box, event);
 }
