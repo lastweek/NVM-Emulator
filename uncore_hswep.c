@@ -213,7 +213,7 @@ const struct uncore_box_ops HSWEP_UNCORE_CBOX_OPS = {
 	HSWEP_UNCORE_MSR_BOX_OPS()
 };
 
-const struct uncore_box_type HSWEP_UNCORE_UBOX = {
+struct uncore_box_type HSWEP_UNCORE_UBOX = {
 	.name		= "U-BOX MSR Type",
 	.num_counters	= 2,
 	.num_boxes	= 1,
@@ -283,13 +283,13 @@ struct uncore_box_type *HSWEP_UNCORE_MSR_BOXES[] = {
 static void hswep_uncore_pci_init_box(struct uncore_box *box)
 {
 	pci_write_config_dword(box->pci_dev,
-			       box->box_ctl,
+			       box->box_type->box_ctl,
 			       HSWEP_PCI_BOX_CTL_INIT);
 }
 
 static void hswep_uncore_pci_enable_box(struct uncore_box *box)
 {
-	int ctl = box->box_ctl;
+	int ctl = box->box_type->box_ctl;
 	unsigned int config = 0; 
 	struct pci_dev *dev = box->pci_dev;
 	
@@ -301,7 +301,7 @@ static void hswep_uncore_pci_enable_box(struct uncore_box *box)
 
 static void hswep_uncore_pci_disable_box(struct uncore_box *box)
 {
-	int ctl = box->box_ctl;
+	int ctl = box->box_type->box_ctl;
 	unsigned int config = 0; 
 	struct pci_dev *dev = box->pci_dev;
 	
@@ -335,27 +335,27 @@ static void hswep_uncore_pci_disable_event(struct uncore_box *box,
 	.disable_event	= hswep_uncore_pci_disable_event	\
 
 const struct uncore_box_ops HSWEP_UNCORE_HABOX_OPS = {
-	HSWEP_UNCORE_PCUBOX_OPS()
+	HSWEP_UNCORE_PCI_BOX_OPS()
 };
 
 const struct uncore_box_ops HSWEP_UNCORE_IMCBOX_OPS = {
-	HSWEP_UNCORE_PCUBOX_OPS()
+	HSWEP_UNCORE_PCI_BOX_OPS()
 };
 
 const struct uncore_box_ops HSWEP_UNCORE_IRPBOX_OPS = {
-	HSWEP_UNCORE_PCUBOX_OPS()
+	HSWEP_UNCORE_PCI_BOX_OPS()
 };
 
 const struct uncore_box_ops HSWEP_UNCORE_QPIBOX_OPS = {
-	HSWEP_UNCORE_PCUBOX_OPS()
+	HSWEP_UNCORE_PCI_BOX_OPS()
 };
 
 const struct uncore_box_ops HSWEP_UNCORE_R2PCIEBOX_OPS = {
-	HSWEP_UNCORE_PCUBOX_OPS()
+	HSWEP_UNCORE_PCI_BOX_OPS()
 };
 
 const struct uncore_box_ops HSWEP_UNCORE_R3QPIBOX_OPS = {
-	HSWEP_UNCORE_PCUBOX_OPS()
+	HSWEP_UNCORE_PCI_BOX_OPS()
 };
 
 struct uncore_box_type HSWEP_UNCORE_HA = {
@@ -446,8 +446,8 @@ struct uncore_box_type *HSWEP_UNCORE_PCI_BOXES[] = {
 	NULL
 };
 
-struct **uncore_msr_boxes;
-struct **uncore_pci_boxes;
+struct uncore_box_type **uncore_msr_boxes;
+struct uncore_box_type **uncore_pci_boxes;
 
 static void hswep_cpu_init(void)
 {
