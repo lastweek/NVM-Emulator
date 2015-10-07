@@ -30,15 +30,36 @@
  *	Microarchitecture:	Sandy Bridge-EP, Westmere-EX
  */
 
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/ktime.h>
+#include <linux/list.h>
+#include <linux/module.h>
+#include <linux/pci.h>
+#include <linux/percpu.h>
+#include <linux/string.h>
+#include <linux/sched.h>
 #include "uncore_pmu.h"
 
-/* HSWEP Box-Level Control MSR */
+/* HSWEP Box-Level Control MSR Bit Layout */
 #define HSWEP_MSR_BOX_CTL_RST_CTRL		(1 << 0)
 #define HSWEP_MSR_BOX_CTL_RST_CTRS		(1 << 1)
 #define HSWEP_MSR_BOX_CTL_FRZ			(1 << 8)
 #define HSWEP_MSR_BOX_CTL_INIT			(HSWEP_MSR_BOX_CTL_RST_CTRL | \
 						 HSWEP_MSR_BOX_CTL_RST_CTRS )
 
+/* HSWEP Event Select MSR Bit Layout */
+#define HSWEP_MSR_EVNTSEL_EVENT			0x000000FF
+#define HSWEP_MSR_EVNTSEL_UMASK			0x0000FF00
+#define HSWEP_MSR_EVNTSEL_RST			(1 << 17)
+#define HSWEP_MSR_EVNTSEL_EDGE_DET		(1 << 18)
+#define HSWEP_MSR_EVNTSEL_TID_EN		(1 << 19)
+#define HSWEP_MSR_EVNTSEL_EN			(1 << 22)
+#define HSWEP_MSR_EVNTSEL_INVERT		(1 << 23)
+#define HSWEP_MSR_EVNTSEL_THRESHOLD		0xFF000000
+#define HSWEP_MSR_EVNTSEL_MASK			(HSWEP_MSR_EVNTSEL_EVENT | \
+						 HSWEP_MSR_EVNTSEL_UMASK | \
+						 HSWEP_MSR_EVNTSEL_EN)
 
 /* HSWEP Uncore Global Per-Socket MSRs */
 #define HSWEP_MSR_PMON_GLOBAL_CTL		0x700
@@ -113,41 +134,41 @@ static void hswep_uncore_msr_disable_box(struct uncore_box *box)
 static void hswep_uncore_msr_enable_event(struct uncore_box *box,
 					struct uncore_event *event)
 {
-
+	wrmsrl(event->msr, event->disable);
 }
 
 static void hswep_uncore_msr_disable_event(struct uncore_box *box,
 					struct uncore_event *event)
 {
-
+	wrmsrl(event->msr, event->enable);
 }
 
 const struct uncore_box_ops HSWEP_UNCORE_UBOX_OPS = {
 	.init_box	= hswep_uncore_msr_init_box,
 	.enable_box	= hswep_uncore_msr_enable_box,
 	.disable_box	= hswep_uncore_msr_disable_box,
-	.enable_box	= hswep_uncore_msr_enable_event,
-	.disable_box	= hswep_uncore_msr_disable_event
+	.enable_event	= hswep_uncore_msr_enable_event,
+	.disable_event	= hswep_uncore_msr_disable_event
 };
 
 const struct uncore_box_ops HSWEP_UNCORE_PCUBOX_OPS = {
 	.init_box	= hswep_uncore_msr_init_box,
 	.enable_box	= hswep_uncore_msr_enable_box,
 	.disable_box	= hswep_uncore_msr_disable_box,
-	.enable_box	= hswep_uncore_msr_enable_event,
-	.disable_box	= hswep_uncore_msr_disable_event
+	.enable_event	= hswep_uncore_msr_enable_event,
+	.disable_event	= hswep_uncore_msr_disable_event
 };
 
-const struct uncore_box_ops HSWEP_UNCORE_SBOX_OPS = {
+struct uncore_box_ops HSWEP_UNCORE_SBOX_OPS = {
 
 };
 
-const struct uncore_box_ops HSWEP_UNCORE_CBOX_OPS = {
+struct uncore_box_ops HSWEP_UNCORE_CBOX_OPS = {
 
 };
 
 struct uncore_box_type HSWEP_UNCORE_UBOX = {
-	.name		= "U-BOX";
+	.name		= "U-BOX",
 	.num_counters	= 2,
 	.num_boxes	= 1,
 	.perf_ctr_bits	= 48,
@@ -157,7 +178,7 @@ struct uncore_box_type HSWEP_UNCORE_UBOX = {
 	.fixed_ctr_bits	= 48,
 	.fixed_ctr	= HSWEP_MSR_U_PMON_UCLK_FIXED_CTR,
 	.fixed_ctl	= HSWEP_MSR_U_PMON_UCLK_FIXED_CTL,
-	.ops		= HSWEP_UNCORE_UBOX_OPS
+	.ops		= &HSWEP_UNCORE_UBOX_OPS
 };
 
 struct uncore_box_type HSWEP_UNCORE_PCUBOX = {
@@ -170,7 +191,7 @@ struct uncore_box_type HSWEP_UNCORE_PCUBOX = {
 	.event_mask	= 0,
 	.box_ctl	= HSWEP_MSR_PCU_PMON_BOX_CTL,
 	.box_status	= HSWEP_MSR_PCU_PMON_BOX_STATUS,
-	.ops		= HSWEP_UNCORE_PCUBOX_OPS
+	.ops		= &HSWEP_UNCORE_PCUBOX_OPS
 };
 
 struct uncore_box_type HSWEP_UNCORE_SBOX = {
@@ -183,13 +204,13 @@ struct uncore_box_type HSWEP_UNCORE_SBOX = {
 	.event_mask	= 0,
 	.box_ctl	= HSWEP_MSR_S_PMON_BOX_CTL,
 	.msr_offset	= HSWEP_MSR_S_MSR_OFFSET,
-	.ops		= HSWEP_UNCORE_SBOX_OPS
+	.ops		= NULL
 };
 
 struct uncore_box_type HSWEP_UNCORE_CBOX = {
 	.name		= "C-BOX",
 	.num_counters	= 4,
-	.num_boxes,	= 18,
+	.num_boxes	= 18,
 	.perf_ctr_bits	= 48,
 	.perf_ctr	= HSWEP_MSR_C_PMON_CTR0,
 	.perf_ctl	= HSWEP_MSR_C_PMON_EVNTSEL0,
@@ -197,7 +218,7 @@ struct uncore_box_type HSWEP_UNCORE_CBOX = {
 	.box_ctl	= HSWEP_MSR_C_PMON_BOX_CTL,
 	.box_status	= HSWEP_MSR_C_PMON_BOX_STATUS,
 	.msr_offset	= HSWEP_MSR_C_MSR_OFFSET,
-	.ops		= HSWEP_UNCORE_CBOX_OPS
+	.ops		= NULL
 };
 
 /* MSR Boxes */
@@ -224,7 +245,23 @@ static void hswep_pci_init(void)
 
 }
 
-static void hswep_init(void)
+static int hswep_init(void)
+{
+	struct uncore_box cbox = {
+		.idx = 0,
+		.name = "C0",
+		.box_type = &HSWEP_UNCORE_CBOX
+	};
+
+	return 0;
+}
+
+static void hswep_exit(void)
 {
 
 }
+
+module_init(hswep_init);
+module_exit(hswep_exit);
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("shanyizhou@ict.ac.cn");

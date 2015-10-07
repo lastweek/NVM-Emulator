@@ -16,6 +16,8 @@
  *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+struct uncore_box_type;
+
 /**
  * struct uncore_event_desc
  * Describe an uncore monitoring event
@@ -24,16 +26,12 @@ struct uncore_event_desc {
 
 };
 
-/**
- * struct uncore_box_ops
- * Describe methods for a uncore pmu box
- */
-struct uncore_box_ops {
-	void (*init_box)(struct uncore_box *box);
-	void (*enable_box)(struct uncore_box *box);
-	void (*disable_box)(struct uncore_box *box);
-	void (*enable_event)(struct uncore_box *box);
-	void (*disable_event)(struct uncore_box *box);
+
+struct uncore_event {
+	unsigned int msr;
+	unsigned long long enable;
+	unsigned long long disable;
+	struct uncore_event_desc *desc;
 };
 
 /**
@@ -52,6 +50,18 @@ struct uncore_box {
 	const char		*name;
 	struct list_head	box_list;
 	struct uncore_box_type	*box_type;
+};
+
+/**
+ * struct uncore_box_ops
+ * Describe methods for a uncore pmu box
+ */
+struct uncore_box_ops {
+	void (*init_box)(struct uncore_box *box);
+	void (*enable_box)(struct uncore_box *box);
+	void (*disable_box)(struct uncore_box *box);
+	void (*enable_event)(struct uncore_box *box, struct uncore_event *event);
+	void (*disable_event)(struct uncore_box *box, struct uncore_event *event);
 };
 
 /**
@@ -93,8 +103,8 @@ struct uncore_box_type {
 	unsigned int	msr_offset;
 	
 	struct uncore_box *boxes;
-	struct uncore_box_ops *ops;
-	struct uncore_event_desc *desc;
+	const struct uncore_box_ops *ops;
+	const struct uncore_event_desc *desc;
 };
 
 /**
