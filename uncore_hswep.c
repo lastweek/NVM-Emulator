@@ -101,6 +101,25 @@
 #define HSWEP_MSR_C_EVENTSEL_MASK		(HSWEP_MSR_RAW_EVNTSEL_MASK | \
 						 HSWEP_MSR_EVNTSEL_TID_EN)
 
+/* HSWEP Uncore HA-box */
+#define HSWEP_PCI_HA_PMON_BOX_STATUS		0xF8
+#define HSWEP_PCI_HA_PMON_BOX_CTL		0xF4
+#define HSWEP_PCI_HA_PMON_CTL0			0xD8
+#define HSWEP_PCI_HA_PMON_CTR0			0xA0
+#define HSWEP_PCI_HA_PMON_BOX_OPCODEMATCH	0x48
+#define HSWEP_PCI_HA_PMON_BOX_ADDRMATCH1	0x44
+#define HSWEP_PCI_HA_PMON_BOX_ADDRMATCH0	0x40
+
+/* HSWEP Uncore IMC-box */
+#define HSWEP_PCI_IMC_PMON_BOX_STATUS		0xF8
+#define HSWEP_PCI_IMC_PMON_BOX_CTL		0xF4
+#define HSWEP_PCI_IMC_PMON_CTL0			0xD8
+#define HSWEP_PCI_IMC_PMON_CTR0			0xA0
+#define HSWEP_PCI_IMC_PMON_FIXED_CTL		0xF0
+#define HSWEP_PCI_IMC_PMON_FIXED_CTR		0xD0
+
+/* HSWEP Uncore IRP-box */
+
 static void hswep_uncore_msr_init_box(struct uncore_box *box)
 {
 	unsigned int msr;
@@ -148,40 +167,32 @@ static void hswep_uncore_msr_disable_event(struct uncore_box *box,
 	wrmsrl(event->ctl, event->enable | HSWEP_MSR_EVNTSEL_EN);
 }
 
+#define HSWEP_UNCORE_BOX_OPS()					\
+	.init_box	= hswep_uncore_msr_init_box,		\
+	.enable_box	= hswep_uncore_msr_enable_box,		\
+	.disable_box	= hswep_uncore_msr_disable_box,		\
+	.enable_event	= hswep_uncore_msr_enable_event,	\
+	.disable_event	= hswep_uncore_msr_disable_event	\
+
 const struct uncore_box_ops HSWEP_UNCORE_UBOX_OPS = {
-	.init_box	= hswep_uncore_msr_init_box,
-	.enable_box	= hswep_uncore_msr_enable_box,
-	.disable_box	= hswep_uncore_msr_disable_box,
-	.enable_event	= hswep_uncore_msr_enable_event,
-	.disable_event	= hswep_uncore_msr_disable_event
+	HSWEP_UNCORE_BOX_OPS()
 };
 
 const struct uncore_box_ops HSWEP_UNCORE_PCUBOX_OPS = {
-	.init_box	= hswep_uncore_msr_init_box,
-	.enable_box	= hswep_uncore_msr_enable_box,
-	.disable_box	= hswep_uncore_msr_disable_box,
-	.enable_event	= hswep_uncore_msr_enable_event,
-	.disable_event	= hswep_uncore_msr_disable_event
+	HSWEP_UNCORE_BOX_OPS()
 };
 
-struct uncore_box_ops HSWEP_UNCORE_SBOX_OPS = {
-	.init_box	= hswep_uncore_msr_init_box,
-	.enable_box	= hswep_uncore_msr_enable_box,
-	.disable_box	= hswep_uncore_msr_disable_box,
-	.enable_event	= hswep_uncore_msr_enable_event,
-	.disable_event	= hswep_uncore_msr_disable_event
+const struct uncore_box_ops HSWEP_UNCORE_SBOX_OPS = {
+	HSWEP_UNCORE_BOX_OPS()
 };
 
-struct uncore_box_ops HSWEP_UNCORE_CBOX_OPS = {
-	.init_box	= hswep_uncore_msr_init_box,
-	.enable_box	= hswep_uncore_msr_enable_box,
-	.disable_box	= hswep_uncore_msr_disable_box,
-	.enable_event	= hswep_uncore_msr_enable_event,
-	.disable_event	= hswep_uncore_msr_disable_event
+const struct uncore_box_ops HSWEP_UNCORE_CBOX_OPS = {
+	HSWEP_UNCORE_BOX_OPS()
 };
 
-struct uncore_box_type HSWEP_UNCORE_UBOX = {
-	.name		= "U-BOX",
+const struct uncore_box_type HSWEP_UNCORE_UBOX = {
+	HSWEP_UNCORE_BOX_OPS()
+	.name		= "U-BOX MSR Type",
 	.num_counters	= 2,
 	.num_boxes	= 1,
 	.perf_ctr_bits	= 48,
@@ -195,7 +206,7 @@ struct uncore_box_type HSWEP_UNCORE_UBOX = {
 };
 
 struct uncore_box_type HSWEP_UNCORE_PCUBOX = {
-	.name		= "PCU-BOX",
+	.name		= "PCU-BOX MSR Type",
 	.num_counters	= 4,
 	.num_boxes	= 1,
 	.perf_ctr_bits	= 48,
@@ -208,7 +219,7 @@ struct uncore_box_type HSWEP_UNCORE_PCUBOX = {
 };
 
 struct uncore_box_type HSWEP_UNCORE_SBOX = {
-	.name		= "S-BOX",
+	.name		= "S-BOX MSR Type",
 	.num_counters	= 4,
 	.num_boxes	= 4,
 	.perf_ctr_bits	= 48,
@@ -221,7 +232,7 @@ struct uncore_box_type HSWEP_UNCORE_SBOX = {
 };
 
 struct uncore_box_type HSWEP_UNCORE_CBOX = {
-	.name		= "C-BOX",
+	.name		= "C-BOX MSR Type",
 	.num_counters	= 4,
 	.num_boxes	= 18,
 	.perf_ctr_bits	= 48,
@@ -243,19 +254,84 @@ struct uncore_box_type *HSWEP_UNCORE_MSR_BOXES[] = {
 	NULL
 };
 
-/* PCI Boxes */
-struct uncore_box_type *HSWEP_UNCORE_PCI_BOXES[] = {
+const struct uncore_box_ops HSWEP_UNCORE_HABOX_OPS = {
+
+};
+
+const struct uncore_box_ops HSWEP_UNCORE_IMCBOX_OPS = {
+
+};
+
+struct uncore_box_type HSWEP_UNCORE_HA = {
+	.name		= "HA-Box PCI Type",
+	.num_counters	= 5,
+	.num_boxes	= 2,
+	.perf_ctr_bits  = 48,
+	.perf_ctr	= HSWEP_PCI_HA_PMON_CTR0,
+	.perf_ctl	= HSWEP_PCI_HA_PMON_CTL0,
+	.event_mask	= 0,
+	.box_ctl	= HSWEP_PCI_HA_PMON_BOX_CTL,
+	.box_status	= HSWEP_PCI_HA_PMON_BOX_STATUS,
+	.ops		= &HSWEP_UNCORE_HABOX_OPS
+};
+
+struct uncore_box_type HSWEP_UNCORE_IMC = {
+	.name		= "IMC-Box PCI Type",
+	.num_counters	= 5,
+	.num_boxes	= 8,
+	.perf_ctr_bits	= 48,
+	.perf_ctr	= HSWEP_PCI_IMC_PMON_CTR0,
+	.perf_ctl	= HSWEP_PCI_IMC_PMON_CTL0,
+	.event_mask	= 0,
+	.fixed_ctr_bits	= 48,
+	.fixed_ctr	= HSWEP_PCI_IMC_PMON_FIXED_CTR,
+	.fixed_ctl	= HSWEP_PCI_IMC_PMON_FIXED_CTL,
+	.box_ctl	= HSWEP_PCI_IMC_PMON_BOX_CTL,
+	.box_status	= HSWEP_PCI_IMC_PMON_BOX_STATUS,
+	.ops		= &HSWEP_UNCORE_IMCBOX_OPS
+};
+
+struct uncore_box_type HSWEP_UNCORE_IRP = {
+	.name		= "IRP-Box PCI Type",
+	.num_counters	= 4,
+	.num_boxes	= 1,
 	
 };
 
+struct uncore_box_type HSWEP_UNCORE_QPI = {
+
+};
+
+struct uncore_box_type HSWEP_UNCORE_R2PCIE = {
+
+};
+
+struct uncore_box_type HSWEP_UNCORE_R3QPI = {
+
+};
+
+/* PCI Boxes */
+struct uncore_box_type *HSWEP_UNCORE_PCI_BOXES[] = {
+	&HSWEP_UNCORE_HA,
+	&HSWEP_UNCORE_IMC,
+	&HSWEP_UNCORE_IRP,
+	&HSWEP_UNCORE_QPI,
+	&HSWEP_UNCORE_R2PCIE,
+	&HSWEP_UNCORE_R3QPI,
+	NULL
+};
+
+struct **uncore_msr_boxes;
+struct **uncore_pci_boxes;
+
 static void hswep_cpu_init(void)
 {
-
+	uncore_msr_boxes = HSWEP_UNCORE_MSR_BOXES;
 }
 
 static void hswep_pci_init(void)
 {
-
+	uncore_pci_boxes = HSWEP_UNCORE_PCI_BOXES;
 }
 
 static void uncore_event_show(struct uncore_event *event)
