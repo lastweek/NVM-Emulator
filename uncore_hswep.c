@@ -31,36 +31,35 @@
 
 #include "uncore_pmu.h"
 
-#include <linux/init.h>
+#include <linux/pci.h>
 #include <linux/kernel.h>
-#include <linux/list.h>
 #include <linux/types.h>
 
 /* HSWEP Box-Level Control MSR Bit Layout */
-#define HSWEP_MSR_BOX_CTL_RST_CTRL		(1 << 0)
-#define HSWEP_MSR_BOX_CTL_RST_CTRS		(1 << 1)
-#define HSWEP_MSR_BOX_CTL_FRZ			(1 << 8)
-#define HSWEP_MSR_BOX_CTL_INIT			(HSWEP_MSR_BOX_CTL_RST_CTRL | \
-						 HSWEP_MSR_BOX_CTL_RST_CTRS )
+#define HSWEP_MSR_BOX_CTL_RST_CTRL	(1 << 0)
+#define HSWEP_MSR_BOX_CTL_RST_CTRS	(1 << 1)
+#define HSWEP_MSR_BOX_CTL_FRZ		(1 << 8)
+#define HSWEP_MSR_BOX_CTL_INIT		(HSWEP_MSR_BOX_CTL_RST_CTRL | \
+					 HSWEP_MSR_BOX_CTL_RST_CTRS )
 
 /* HSWEP Box-Level Control PCI Bit Layout */
-#define HSWEP_PCI_BOX_CTL_FRZ			HSWEP_MSR_BOX_CTL_FRZ
-#define HSWEP_PCI_BOX_CTL_INIT			HSWEP_MSR_BOX_CTL_INIT
+#define HSWEP_PCI_BOX_CTL_FRZ		HSWEP_MSR_BOX_CTL_FRZ
+#define HSWEP_PCI_BOX_CTL_INIT		HSWEP_MSR_BOX_CTL_INIT
 
 /* HSWEP Event Select MSR Bit Layout */
-#define HSWEP_MSR_EVNTSEL_EVENT			0x000000FF
-#define HSWEP_MSR_EVNTSEL_UMASK			0x0000FF00
-#define HSWEP_MSR_EVNTSEL_RST			(1 << 17)
-#define HSWEP_MSR_EVNTSEL_EDGE_DET		(1 << 18)
-#define HSWEP_MSR_EVNTSEL_TID_EN		(1 << 19)
-#define HSWEP_MSR_EVNTSEL_EN			(1 << 22)
-#define HSWEP_MSR_EVNTSEL_INVERT		(1 << 23)
-#define HSWEP_MSR_EVNTSEL_THRESHOLD		0xFF000000
-#define HSWEP_MSR_RAW_EVNTSEL_MASK		(HSWEP_MSR_EVNTSEL_EVENT	| \
-						 HSWEP_MSR_EVNTSEL_UMASK	| \
-						 HSWEP_MSR_EVNTSEL_EDGE_DET	| \
-						 HSWEP_MSR_EVNTSEL_INVERT	| \
-						 HSWEP_MSR_EVNTSEL_THRESHOLD)
+#define HSWEP_MSR_EVNTSEL_EVENT		0x000000FF
+#define HSWEP_MSR_EVNTSEL_UMASK		0x0000FF00
+#define HSWEP_MSR_EVNTSEL_RST		(1 << 17)
+#define HSWEP_MSR_EVNTSEL_EDGE_DET	(1 << 18)
+#define HSWEP_MSR_EVNTSEL_TID_EN	(1 << 19)
+#define HSWEP_MSR_EVNTSEL_EN		(1 << 22)
+#define HSWEP_MSR_EVNTSEL_INVERT	(1 << 23)
+#define HSWEP_MSR_EVNTSEL_THRESHOLD	0xFF000000
+#define HSWEP_MSR_RAW_EVNTSEL_MASK	(HSWEP_MSR_EVNTSEL_EVENT	| \
+					 HSWEP_MSR_EVNTSEL_UMASK	| \
+					 HSWEP_MSR_EVNTSEL_EDGE_DET	| \
+					 HSWEP_MSR_EVNTSEL_INVERT	| \
+					 HSWEP_MSR_EVNTSEL_THRESHOLD)
 
 /* HSWEP Uncore Global Per-Socket MSRs */
 #define HSWEP_MSR_PMON_GLOBAL_CTL		0x700
@@ -177,6 +176,7 @@ static void hswep_uncore_msr_disable_box(struct uncore_box *box)
 	}
 }
 
+/* FIXME Maybe merging two masks? */
 static void hswep_uncore_msr_enable_event(struct uncore_box *box,
 					struct uncore_event *event)
 {
@@ -266,12 +266,19 @@ struct uncore_box_type HSWEP_UNCORE_CBOX = {
 	.ops		= &HSWEP_UNCORE_CBOX_OPS
 };
 
+enum {
+	HSWEP_UNCORE_UBOX_ID,
+	HSWEP_UNCORE_PCUBOX_ID,
+	HSWEP_UNCORE_SBOX_ID,
+	HSWEP_UNCORE_CBOX_ID
+};
+
 /* MSR Boxes */
 struct uncore_box_type *HSWEP_UNCORE_MSR_BOXES[] = {
-	&HSWEP_UNCORE_UBOX,
-	&HSWEP_UNCORE_PCUBOX,
-	&HSWEP_UNCORE_SBOX,
-	&HSWEP_UNCORE_CBOX,
+	[HSWEP_UNCORE_UBOX_ID]   = &HSWEP_UNCORE_UBOX,
+	[HSWEP_UNCORE_PCUBOX_ID] = &HSWEP_UNCORE_PCUBOX,
+	[HSWEP_UNCORE_SBOX_ID]   = &HSWEP_UNCORE_SBOX,
+	[HSWEP_UNCORE_CBOX_ID]   = &HSWEP_UNCORE_CBOX,
 	NULL
 };
 
@@ -434,15 +441,99 @@ struct uncore_box_type HSWEP_UNCORE_R3QPI = {
 	.ops		= &HSWEP_UNCORE_R3QPIBOX_OPS
 };
 
+enum {
+	HSWEP_UNCORE_PCI_HA_ID,
+	HSWEP_UNCORE_PCI_IMC_ID,
+	HSWEP_UNCORE_PCI_IRP_ID,
+	HSWEP_UNCORE_PCI_QPI_ID,
+	HSWEP_UNCORE_PCI_R2PCIE_ID,
+	HSWEP_UNCORE_PCI_R3QPI_ID,
+};
+
 /* PCI Boxes */
 struct uncore_box_type *HSWEP_UNCORE_PCI_BOXES[] = {
-	&HSWEP_UNCORE_HA,
-	&HSWEP_UNCORE_IMC,
-	&HSWEP_UNCORE_IRP,
-	&HSWEP_UNCORE_QPI,
-	&HSWEP_UNCORE_R2PCIE,
-	&HSWEP_UNCORE_R3QPI,
+	[HSWEP_UNCORE_PCI_HA_ID]     = &HSWEP_UNCORE_HA,
+	[HSWEP_UNCORE_PCI_IMC_ID]    = &HSWEP_UNCORE_IMC,
+	[HSWEP_UNCORE_PCI_IRP_ID]    = &HSWEP_UNCORE_IRP,
+	[HSWEP_UNCORE_PCI_QPI_ID]    = &HSWEP_UNCORE_QPI,
+	[HSWEP_UNCORE_PCI_R2PCIE_ID] = &HSWEP_UNCORE_R2PCIE,
+	[HSWEP_UNCORE_PCI_R3QPI_ID]  = &HSWEP_UNCORE_R3QPI,
 	NULL
+};
+
+static const struct pci_device_id HSWEP_UNCORE_PCI_IDS[] = {
+	{ /* Home Agent 0 */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2F30),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_HA_ID, 0),
+	},
+	{ /* Home Agent 1 */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2F38),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_HA_ID, 1),
+	},
+	{ /* MC0 Channel 0 */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2FB0),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_IMC_ID, 0),
+	},
+	{ /* MC0 Channel 1 */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2FB1),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_IMC_ID, 1),
+	},
+	{ /* MC0 Channel 2 */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2FB4),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_IMC_ID, 2),
+	},
+	{ /* MC0 Channel 3 */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2FB5),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_IMC_ID, 3),
+	},
+	{ /* MC1 Channel 0 */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2FD0),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_IMC_ID, 4),
+	},
+	{ /* MC1 Channel 1 */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2FD1),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_IMC_ID, 5),
+	},
+	{ /* MC1 Channel 2 */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2FD4),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_IMC_ID, 6),
+	},
+	{ /* MC1 Channel 3 */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2FD5),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_IMC_ID, 7),
+	},
+	{ /* IRP */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2F39),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_IRP_ID, 0),
+	},
+	{ /* QPI0 Port 0 */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2F32),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_QPI_ID, 0),
+	},
+	{ /* QPI0 Port 1 */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2F33),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_QPI_ID, 1),
+	},
+	{ /* R2PCIe */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2F34),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_R2PCIE_ID, 0),
+	},
+	{ /* R3QPI0 Link 0 */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2F36),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_R3QPI_ID, 0),
+	},
+	{ /* R3QPI0 Link 1 */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2F37),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_R3QPI_ID, 1),
+	},
+	{
+	  /* Zero */
+	}
+};
+
+static struct pci_driver HSWEP_UNCORE_PCI_DRIVER = {
+	.name		= "HSWEP UNCORE",
+	.id_table	= HSWEP_UNCORE_PCI_IDS
 };
 
 void hswep_cpu_init(void)
@@ -453,4 +544,5 @@ void hswep_cpu_init(void)
 void hswep_pci_init(void)
 {
 	uncore_pci_boxes = HSWEP_UNCORE_PCI_BOXES;
+	uncore_pci_driver = HSWEP_UNCORE_PCI_DRIVER;
 }

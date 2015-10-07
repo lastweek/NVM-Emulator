@@ -18,6 +18,7 @@
 
 #include "uncore_pmu.h"
 
+#include <linux/pci.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
@@ -27,6 +28,7 @@
 
 struct uncore_box_type **uncore_msr_boxes;
 struct uncore_box_type **uncore_pci_boxes;
+struct pci_driver uncore_pci_driver;
 
 static void uncore_event_show(struct uncore_event *event)
 {
