@@ -31,11 +31,10 @@
 
 #include "uncore_pmu.h"
 
-#include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
-#include <linux/module.h>
+#include <linux/types.h>
 
 /* HSWEP Box-Level Control MSR Bit Layout */
 #define HSWEP_MSR_BOX_CTL_RST_CTRL		(1 << 0)
@@ -446,66 +445,12 @@ struct uncore_box_type *HSWEP_UNCORE_PCI_BOXES[] = {
 	NULL
 };
 
-struct uncore_box_type **uncore_msr_boxes;
-struct uncore_box_type **uncore_pci_boxes;
-
-static void hswep_cpu_init(void)
+void hswep_cpu_init(void)
 {
 	uncore_msr_boxes = HSWEP_UNCORE_MSR_BOXES;
 }
 
-static void hswep_pci_init(void)
+void hswep_pci_init(void)
 {
 	uncore_pci_boxes = HSWEP_UNCORE_PCI_BOXES;
 }
-
-static void uncore_event_show(struct uncore_event *event)
-{
-	unsigned long long v1, v2;
-
-	if (!event | !event->ctl | !event->ctr)
-		return;
-	
-	rdmsrl(event->ctl, v1);
-	rdmsrl(event->ctr, v2);
-	printk(KERN_INFO "SEL=%llx CNT=%llx", v1, v2);
-}
-
-static int hswep_init(void)
-{
-	struct uncore_box cbox = {
-		.idx = 0,
-		.name = "C0",
-		.box_type = &HSWEP_UNCORE_CBOX
-	};
-
-	struct uncore_event event = {
-		.ctl = 0xe01,
-		.ctr = 0xe08,
-		.enable = (1<<22) | 0x0000 | 0x0000,
-		.disable = 0
-	};
-	
-	uncore_event_show(&event);
-
-	uncore_init_box(&cbox);
-	uncore_enable_box(&cbox);
-	uncore_enable_event(&cbox, &event);
-	udelay(100);
-	uncore_disable_event(&cbox, &event);
-	uncore_disable_box(&cbox);
-
-	uncore_event_show(&event);
-	
-	return 0;
-}
-
-static void hswep_exit(void)
-{
-	pr_info("exit");
-}
-
-module_init(hswep_init);
-module_exit(hswep_exit);
-MODULE_LICENSE("GPL");
-MODULE_AUTHOR("shanyizhou@ict.ac.cn");

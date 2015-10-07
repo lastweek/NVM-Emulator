@@ -19,6 +19,9 @@
 #include <linux/compiler.h>
 #include <linux/pci.h>
 
+extern struct uncore_box_type **uncore_msr_boxes;
+extern struct uncore_box_type **uncore_pci_boxes;
+
 struct uncore_box_type;
 
 /**
@@ -205,3 +208,8 @@ static inline void uncore_disable_event(struct uncore_box *box,
 {
 	box->box_type->ops->disable_event(box, event);
 }
+
+
+/* Haswell-EP Uncore PMU */
+void hswep_cpu_init(void);
+void hswep_pci_init(void);
