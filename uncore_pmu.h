@@ -96,3 +96,25 @@ struct uncore_box_type {
 	struct uncore_box_ops *ops;
 	struct uncore_event_desc *desc;
 };
+
+/**
+ * uncore_msr_box_offset
+ * @box:	the box in question
+ *
+ * Return the control MSR's address offset of this box
+ */
+static inline unsigned int uncore_msr_box_offset(struct uncore_box *box)
+{
+	return box->idx * box->box_type->msr_offset;
+}
+
+/**
+ * uncore_msr_box_ctl
+ * @box:	the box in question
+ *
+ * Return the control MSR's address of this box
+ */
+static inline unsigned int uncore_msr_box_ctl(struct uncore_box *box)
+{
+	return box->box_type->box_ctl + uncore_msr_box_offset(box);
+}

@@ -32,7 +32,15 @@
 
 #include "uncore_pmu.h"
 
-/* HSWEP Uncore Per-Socket MSRs */
+/* HSWEP Box-Level Control MSR */
+#define HSWEP_MSR_BOX_CTL_RST_CTRL		(1 << 0)
+#define HSWEP_MSR_BOX_CTL_RST_CTRS		(1 << 1)
+#define HSWEP_MSR_BOX_CTL_FRZ			(1 << 8)
+#define HSWEP_MSR_BOX_CTL_INIT			(HSWEP_MSR_BOX_CTL_RST_CTRL | \
+						 HSWEP_MSR_BOX_CTL_RST_CTRS )
+
+
+/* HSWEP Uncore Global Per-Socket MSRs */
 #define HSWEP_MSR_PMON_GLOBAL_CTL		0x700
 #define HSWEP_MSR_PMON_GLOBAL_STATUS		0x701
 #define HSWEP_MSR_PMON_GLOBAL_CONFIG		0x702
@@ -66,6 +74,53 @@
 #define HSWEP_MSR_C_PMON_EVNTSEL0		0xE01
 #define HSWEP_MSR_C_PMON_CTR0			0xE08
 #define HSWEP_MSR_C_MSR_OFFSET			0x10
+
+static void hswep_uncore_msr_init_box(struct uncore_box *box)
+{
+	unsigned int msr;
+
+	msr = uncore_msr_box_ctl(box);
+	if (msr)
+		wrmsrl(msr, HSWEP_MSR_BOX_CTL_INIT);
+}
+
+static void hswep_uncore_msr_enable_box(struct uncore_box *box)
+{
+	unsigned long long config;
+	unsigned int msr;
+
+	msr = uncore_msr_box_ctl(box);
+	if (msr) {
+		rdmsrl(msr, config);
+		config &= ~HSWEP_MSR_BOX_CTL_FRZ;
+		wrmsrl(msr, config);
+	}
+}
+
+static void hswep_uncore_msr_disable_box(struct uncore_box *box)
+{
+	unsigned long long config;
+	unsigned int msr;
+
+	msr = uncore_msr_box_ctl(box);
+	if (msr) {
+		rdmsrl(msr, config);
+		config |= HSWEP_MSR_BOX_CTL_FRZ;
+		wrmsrl(msr, config);
+	}
+}
+
+static void hswep_uncore_msr_enable_event(struct uncore_box *box,
+					struct uncore_event *event)
+{
+
+}
+
+static void hswep_uncore_msr_disable_event(struct uncore_box *box,
+					struct uncore_event *event)
+{
+
+}
 
 const struct uncore_box_ops HSWEP_UNCORE_UBOX_OPS = {
 	.init_box	= hswep_uncore_msr_init_box,
@@ -145,7 +200,7 @@ struct uncore_box_type HSWEP_UNCORE_CBOX = {
 	.ops		= HSWEP_UNCORE_CBOX_OPS
 };
 
-/* Boxes manipulated via MSR registers */
+/* MSR Boxes */
 struct uncore_box_type *HSWEP_UNCORE_MSR_BOXES[] = {
 	&HSWEP_UNCORE_UBOX,
 	&HSWEP_UNCORE_PCUBOX,
@@ -154,7 +209,22 @@ struct uncore_box_type *HSWEP_UNCORE_MSR_BOXES[] = {
 	NULL
 };
 
-/* Boxes manipulated via PCI config area */
+/* PCI Boxes */
 struct uncore_box_type *HSWEP_UNCORE_PCI_BOXES[] = {
 	
 };
+
+static void hswep_cpu_init(void)
+{
+
+}
+
+static void hswep_pci_init(void)
+{
+
+}
+
+static void hswep_init(void)
+{
+
+}
