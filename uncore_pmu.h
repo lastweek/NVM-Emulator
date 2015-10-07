@@ -16,6 +16,9 @@
  *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <linux/compiler.h>
+#include <linux/pci.h>
+
 struct uncore_box_type;
 
 /**
@@ -26,7 +29,14 @@ struct uncore_event_desc {
 
 };
 
-
+/**
+ * struct uncore_event
+ * @ctl:	Address of Control MSR
+ * @ctr:	Address of Counter MSR
+ * @enable:	Bit mask to enable this event
+ * @disable:	Bis mask to disable this event
+ * @desc:	Description about this event
+ */
 struct uncore_event {
 	unsigned int ctl, ctr;
 	unsigned long long enable, disable;
@@ -37,23 +47,30 @@ struct uncore_event {
  * struct uncore_box
  * @idx:	IDX of this box
  * @name:	Name of this box
- * @box_list:	List of the name type boxes
+ * @box_list:	List of the same type boxes
  * @box_type:	Pointer to the type of this box
+ * @pci_dev:	PCI device of this box(If it is a PCI type box)
  *
- * Describe a single uncore pmu box. IDX is the suffix
- * of the box described in SDM. IDX is used to address
- * each box's base MSR adddress.
+ * Describe a single uncore pmu box. IDX is the suffix of the box described
+ * in SDM. IDX is used to address each box's base MSR adddress.
  */
 struct uncore_box {
 	int			idx;
 	const char		*name;
 	struct list_head	box_list;
 	struct uncore_box_type	*box_type;
+	struct pci_dev		*pci_dev;
 };
 
 /**
  * struct uncore_box_ops
- * Describe methods for a uncore pmu box
+ * @init_box:
+ * @enable_box:
+ * @disable_box:
+ * @enable_event:
+ * @disable_event:
+ *
+ * Describe methods for manipulating a uncore pmu box
  */
 struct uncore_box_ops {
 	void (*init_box)(struct uncore_box *box);
