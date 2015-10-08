@@ -29,13 +29,22 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 
-/* CPU-Independent Data */
+/* CPU Independent Data */
 struct uncore_box_type *dummy_xxx_type[] = { NULL, };
 struct uncore_box_type **uncore_msr_type = dummy_xxx_type;
 struct uncore_box_type **uncore_pci_type = dummy_xxx_type;
 
+/* Not Used */
 struct pci_driver *uncore_pci_driver;
 static bool pci_driver_registered = false;
+
+static int __always_unused
+uncore_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
+{ return -EINVAL; }
+
+static void __always_unused 
+uncore_pci_remove(struct pci_dev *dev)
+{}
 
 static void uncore_event_show(struct uncore_event *event)
 {
@@ -48,25 +57,6 @@ static void uncore_event_show(struct uncore_event *event)
 	rdmsrl(event->ctr, v2);
 	printk(KERN_INFO "SEL=%llx CNT=%llx", v1, v2);
 }
-
-/**
- * uncore_pci_probe
- * Return non-zero on failure
- * Probe method of PCI driver
- */
-static int __always_unused
-uncore_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
-{
-	struct uncore_box_type *type;
-	type = uncore_pci_type[UNCORE_PCI_DEV_TYPE(id->driver_data)];
-	if (!type)
-		pr_info("pci_probe %s", type->name);
-	return -1;
-}
-
-static void __always_unused 
-uncore_pci_remove(struct pci_dev *dev)
-{}
 
 static void uncore_types_init(struct uncore_box_type **types)
 {
@@ -186,8 +176,16 @@ static void uncore_cpu_exit(void)
 
 static int __must_check uncore_cpu_init(void)
 {
+	struct uncore_box_type *type;
+	struct uncore_box *box;
+	int i;
+
 	hswep_cpu_init();
 	uncore_types_init(uncore_msr_type);
+	
+	for (i = 0; uncore_msr_type[i]; i++) {
+		type = uncore_msr_type[i];
+	}
 
 	return 0;
 }
