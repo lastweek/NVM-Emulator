@@ -3,7 +3,8 @@
 #
 
 # Composite module
-obj-m += uncore.o
+obj-m := uncore.o
+
 uncore-y := uncore_pmu.o uncore_hswep.o
 
 KERNEL_VERSION = /lib/modules/$(shell uname -r)/build/

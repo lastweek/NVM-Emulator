@@ -19,9 +19,10 @@
 #include <linux/compiler.h>
 #include <linux/pci.h>
 
-extern struct uncore_box_type **uncore_msr_boxes;
-extern struct uncore_box_type **uncore_pci_boxes;
-extern struct pci_driver uncore_pci_driver;
+/* PCI Driver Data <--> Box Type and IDX */
+#define UNCORE_PCI_DEV_DATA(type, idx)	(((type) << 8) | (idx))
+#define UNCORE_PCI_DEV_TYPE(data)	(((data) >> 8) & 0xFF)
+#define UNCORE_PCI_DEV_IDX(data)	((data) & 0xFF)
 
 struct uncore_box_type;
 
@@ -126,6 +127,11 @@ struct uncore_box_type {
 	const struct uncore_box_ops *ops;
 	const struct uncore_event_desc *desc;
 };
+
+/* CPU-Independent Data Structures */
+extern struct uncore_box_type **uncore_msr_type;
+extern struct uncore_box_type **uncore_pci_type;
+extern struct pci_driver *uncore_pci_driver;
 
 /**
  * uncore_msr_box_offset

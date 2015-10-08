@@ -274,7 +274,7 @@ enum {
 };
 
 /* MSR Boxes */
-struct uncore_box_type *HSWEP_UNCORE_MSR_BOXES[] = {
+struct uncore_box_type *HSWEP_UNCORE_MSR_TYPE[] = {
 	[HSWEP_UNCORE_UBOX_ID]   = &HSWEP_UNCORE_UBOX,
 	[HSWEP_UNCORE_PCUBOX_ID] = &HSWEP_UNCORE_PCUBOX,
 	[HSWEP_UNCORE_SBOX_ID]   = &HSWEP_UNCORE_SBOX,
@@ -451,7 +451,7 @@ enum {
 };
 
 /* PCI Boxes */
-struct uncore_box_type *HSWEP_UNCORE_PCI_BOXES[] = {
+struct uncore_box_type *HSWEP_UNCORE_PCI_TYPE[] = {
 	[HSWEP_UNCORE_PCI_HA_ID]     = &HSWEP_UNCORE_HA,
 	[HSWEP_UNCORE_PCI_IMC_ID]    = &HSWEP_UNCORE_IMC,
 	[HSWEP_UNCORE_PCI_IRP_ID]    = &HSWEP_UNCORE_IRP,
@@ -538,11 +538,13 @@ static struct pci_driver HSWEP_UNCORE_PCI_DRIVER = {
 
 void hswep_cpu_init(void)
 {
-	uncore_msr_boxes = HSWEP_UNCORE_MSR_BOXES;
+	uncore_msr_type = HSWEP_UNCORE_MSR_TYPE;
 }
 
 void hswep_pci_init(void)
 {
-	uncore_pci_boxes = HSWEP_UNCORE_PCI_BOXES;
-	uncore_pci_driver = HSWEP_UNCORE_PCI_DRIVER;
+	uncore_pci_type = HSWEP_UNCORE_PCI_TYPE;
+	uncore_pci_driver = &HSWEP_UNCORE_PCI_DRIVER;
 }
+
+
