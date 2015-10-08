@@ -52,9 +52,9 @@ struct uncore_event {
  * struct uncore_box
  * @idx:	IDX of this box
  * @name:	Name of this box
- * @box_list:	List of the same type boxes
  * @box_type:	Pointer to the type of this box
  * @pci_dev:	PCI device of this box(If it is a PCI type box)
+ * @next:	List of the same type boxes
  *
  * Describe a single uncore pmu box. IDX is the suffix of the box described
  * in SDM. IDX is used to address each box's base MSR adddress.
@@ -62,9 +62,9 @@ struct uncore_event {
 struct uncore_box {
 	int			idx;
 	const char		*name;
-	struct list_head	box_list;
 	struct uncore_box_type	*box_type;
 	struct pci_dev		*pci_dev;
+	struct list_head	next;
 };
 
 /**
@@ -100,7 +100,7 @@ struct uncore_box_ops {
  * @box_ctl:		Box-level Control MSR address
  * @box_status:		Box-level Status MSR address
  * @msr_offset:		MSR address offset of next box
- * @boxes:		List of all avaliable boxes of this type
+ * @box_list:		List of all avaliable boxes of this type
  * @ops:		Box manipulation functions
  * @desc:		Performance Monitoring Event Description
  *
@@ -123,7 +123,7 @@ struct uncore_box_type {
 	unsigned int	box_status;
 	unsigned int	msr_offset;
 	
-	struct uncore_box *boxes;
+	struct list_head box_list;
 	const struct uncore_box_ops *ops;
 	const struct uncore_event_desc *desc;
 };
