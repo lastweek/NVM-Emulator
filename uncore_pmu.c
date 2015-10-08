@@ -49,8 +49,12 @@ static void uncore_event_show(struct uncore_event *event)
 	printk(KERN_INFO "SEL=%llx CNT=%llx", v1, v2);
 }
 
-__unused static int
-uncore_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
+/**
+ * uncore_pci_probe
+ * Return non-zero on failure
+ * Probe method of PCI driver
+ */
+static int uncore_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 {
 	struct uncore_box_type *type;
 	type = uncore_pci_type[UNCORE_PCI_DEV_TYPE(id->driver_data)];
@@ -144,8 +148,12 @@ static void uncore_cpu_init(void)
 static int uncore_init(void)
 {
 	pr_info("init");
+
 	uncore_cpu_init();
 	uncore_pci_init();
+
+	for (i = 0; uncore_pci_type[i]; i++)
+		pr_notice("%d %s", i, uncore_pci_type[i]->name);
 /*
 	struct uncore_box cbox = {
 		.idx = 0,
