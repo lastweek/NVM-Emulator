@@ -54,7 +54,7 @@ static void uncore_event_show(struct uncore_event *event)
  * Return non-zero on failure
  * Probe method of PCI driver
  */
-__unused static int
+static int __always_unused
 uncore_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 {
 	struct uncore_box_type *type;
@@ -64,7 +64,7 @@ uncore_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 	return -1;
 }
 
-__unused static void
+static void __always_unused 
 uncore_pci_remove(struct pci_dev *dev)
 {}
 
@@ -85,7 +85,7 @@ static void uncore_types_init(struct uncore_box_type **types)
  * Malloc a new box, and then insert into box_list of its box type.
  */
 static int __must_check
-uncore_pci_new_box(struct pci_dev *pdev, struct pci_dev_id *id)
+uncore_pci_new_box(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	struct uncore_box_type *type;
 	struct uncore_box *box, *last;
@@ -114,9 +114,33 @@ uncore_pci_new_box(struct pci_dev *pdev, struct pci_dev_id *id)
 	return 0;
 }
 
+static void uncore_pci_exit(void)
+{
+	struct uncore_box_type *type;
+	struct uncore_box *box;
+	struct list_head *head;
+	int i;
+
+	for (i = 0; uncore_pci_type[i]; i++) {
+		type = uncore_pci_type[i];
+		head = &type->box_list;
+
+		while (!list_empty(head)) {
+			box = list_first_entry(head, struct uncore_box, next);
+			list_del(&box->next);
+			
+			/* Put PCI device*/
+			pci_dev_put(box->pdev);
+			
+			/* Let it go */
+			kfree(box);
+		}
+	}
+}
+
 static int __must_check uncore_pci_init(void)
 {
-	struct pci_device_id *ids;
+	const struct pci_device_id *ids;
 	struct pci_dev *pdev;
 	int ret;
 
@@ -130,8 +154,10 @@ static int __must_check uncore_pci_init(void)
 	while (ids->vendor || ids->device) {
 		pdev = pci_get_device(ids->vendor, ids->device, NULL);
 		if (!pdev) {
-			ret = -ENXIO;
-			goto error;
+			/* DO NOT ABORT
+			 * Not all SKUs support all pci devices. */
+			ids++;
+			continue;
 		}
 
 		ret = uncore_pci_new_box(pdev, ids);
@@ -152,24 +178,9 @@ error:
 	return ret;
 }
 
-static void uncore_pci_exit(void)
+static void uncore_cpu_exit(void)
 {
-	struct uncore_box_type *type;
-	struct uncore_box *box;
-	struct list_head *head;
-	int i;
 
-	for (i = 0; uncore_pci_type[i]; i++) {
-		type = uncore_pci_type[i];
-		head = &type->box_list;
-
-		/* free boxes */
-		while (!list_empty(head)) {
-			box = list_first_entry(head, struct uncore_box, next);
-			list_del(&box->next);
-			kfree(box);
-		}
-	}
 }
 
 static int __must_check uncore_cpu_init(void)
@@ -180,17 +191,53 @@ static int __must_check uncore_cpu_init(void)
 	return 0;
 }
 
-static void uncore_cpu_exit(void)
+/**
+ * uncore_pci_print_boxes
+ * 
+ * Print information about all avaliable PCI type boxes.
+ * Read this to make sure your CPU has the capacity you need
+ * before sampling uncore PMU.
+ */
+static void uncore_pci_print_boxes(void)
 {
+	struct uncore_box_type *type;
+	struct uncore_box *box;
+	int i;
 
+	for (i = 0; uncore_pci_type[i]; i++) {
+		type = uncore_pci_type[i];
+		pr_info(" Name: %s", type->name);
+		
+		list_for_each_entry(box, &type->box_list, next) {
+			pr_info("       box%d  %x:%x:%x",
+			box->idx, box->pdev->bus->number, box->pdev->vendor, box->pdev->device);
+		}
+	}
+}
+
+/**
+ * uncore_msr_print_boxes
+ * 
+ * Print information about all avaliable MSR type boxes.
+ * Read this to make sure your CPU has the capacity you need
+ * before sampling uncore PMU.
+ */
+static void uncore_msr_print_boxes(void)
+{
+	struct uncore_box_type *type;
+	struct uncore_box *box;
+	int i;
+	
+	for (i = 0; uncore_msr_type[i]; i++) {
+		type = uncore_msr_type[i];
+		pr_info(" Name: %s", type->name);
+	}
 }
 
 static int uncore_init(void)
 {
 	int ret;
 	
-	pr_info("init");
-
 	ret = uncore_pci_init();
 	if (ret)
 		goto pcierr;
@@ -199,6 +246,9 @@ static int uncore_init(void)
 	if (ret)
 		goto cpuerr;
 	
+	uncore_pci_print_boxes();
+	uncore_msr_print_boxes();
+
 	return 0;
 
 cpuerr:

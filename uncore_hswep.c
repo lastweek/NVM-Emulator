@@ -288,14 +288,14 @@ struct uncore_box_type *HSWEP_UNCORE_MSR_TYPE[] = {
 
 static void hswep_uncore_pci_init_box(struct uncore_box *box)
 {
-	pci_write_config_dword(box->pci_dev,
+	pci_write_config_dword(box->pdev,
 			       uncore_pci_box_ctl(box),
 			       HSWEP_PCI_BOX_CTL_INIT);
 }
 
 static void hswep_uncore_pci_enable_box(struct uncore_box *box)
 {
-	struct pci_dev *dev = box->pci_dev;
+	struct pci_dev *dev = box->pdev;
 	unsigned int ctl = uncore_pci_box_ctl(box);
 	unsigned int config = 0; 
 	
@@ -307,7 +307,7 @@ static void hswep_uncore_pci_enable_box(struct uncore_box *box)
 
 static void hswep_uncore_pci_disable_box(struct uncore_box *box)
 {
-	struct pci_dev *dev = box->pci_dev;
+	struct pci_dev *dev = box->pdev;
 	unsigned int ctl = uncore_pci_box_ctl(box);
 	unsigned int config = 0; 
 	
@@ -320,7 +320,7 @@ static void hswep_uncore_pci_disable_box(struct uncore_box *box)
 static void hswep_uncore_pci_enable_event(struct uncore_box *box,
 					  struct uncore_event *event)
 {
-	pci_write_config_dword(box->pci_dev,
+	pci_write_config_dword(box->pdev,
 			       event->ctl,
 			       event->enable);
 }
@@ -328,7 +328,7 @@ static void hswep_uncore_pci_enable_event(struct uncore_box *box,
 static void hswep_uncore_pci_disable_event(struct uncore_box *box,
 					   struct uncore_event *event)
 {
-	pci_write_config_dword(box->pci_dev,
+	pci_write_config_dword(box->pdev,
 			       event->ctl,
 			       event->disable);
 }
@@ -514,6 +514,10 @@ static const struct pci_device_id HSWEP_UNCORE_PCI_IDS[] = {
 		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2F33),
 		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_QPI_ID, 1),
 	},
+	{ /* QPI1 Port 2 */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2F3a),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_QPI_ID, 2),
+	},
 	{ /* R2PCIe */
 		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2F34),
 		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_R2PCIE_ID, 0),
@@ -526,8 +530,13 @@ static const struct pci_device_id HSWEP_UNCORE_PCI_IDS[] = {
 		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2F37),
 		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_R3QPI_ID, 1),
 	},
-	{ /* All zero ;) */
-		0,
+	{ /* R3QPI1 Link 2 */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2F3E),
+		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_R3QPI_ID, 2),
+	},
+	{ /* All Zero ;) */
+		PCI_DEVICE(0, 0),
+		.driver_data = 0,
 	}
 };
 
