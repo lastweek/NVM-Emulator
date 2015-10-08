@@ -82,7 +82,8 @@ static void uncore_types_init(struct uncore_box_type **types)
  * @pdev:	the pci device of this box
  * @id:		the device id of this box
  *
- * Malloc a new box, and then insert into box_list of its box type.
+ * Malloc a new box of PCI type, and then insert it into the box_list
+ * of its box_type.
  */
 static int __must_check
 uncore_pci_new_box(struct pci_dev *pdev, const struct pci_device_id *id)
@@ -129,7 +130,7 @@ static void uncore_pci_exit(void)
 			box = list_first_entry(head, struct uncore_box, next);
 			list_del(&box->next);
 			
-			/* Put PCI device*/
+			/* Put PCI device */
 			pci_dev_put(box->pdev);
 			
 			/* Let it go */
@@ -206,11 +207,14 @@ static void uncore_pci_print_boxes(void)
 
 	for (i = 0; uncore_pci_type[i]; i++) {
 		type = uncore_pci_type[i];
-		pr_info(" Name: %s", type->name);
+		pr_info("Name: %s", type->name);
 		
 		list_for_each_entry(box, &type->box_list, next) {
-			pr_info("       box%d  %x:%x:%x",
-			box->idx, box->pdev->bus->number, box->pdev->vendor, box->pdev->device);
+			pr_info("      Box%d  %x:%x:%x",
+			box->idx,
+			box->pdev->bus->number,
+			box->pdev->vendor,
+			box->pdev->device);
 		}
 	}
 }
@@ -256,7 +260,7 @@ cpuerr:
 pcierr:
 	uncore_pci_exit();
 	return ret;
-
+}
 /*
 	struct uncore_box cbox = {
 		.idx = 0,
@@ -282,12 +286,9 @@ pcierr:
 
 	uncore_event_show(&event);
 */	
-}
 
 static void uncore_exit(void)
 {
-	pr_info("exit");
-	
 	uncore_pci_exit();
 	uncore_cpu_exit();
 
