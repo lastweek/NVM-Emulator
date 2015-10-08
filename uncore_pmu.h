@@ -16,8 +16,9 @@
  *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <linux/compiler.h>
 #include <linux/pci.h>
+#include <linux/types.h>
+#include <linux/compiler.h>
 
 /* PCI Driver Data <--> Box Type and IDX */
 #define UNCORE_PCI_DEV_DATA(type, idx)	(((type) << 8) | (idx))
@@ -50,21 +51,18 @@ struct uncore_event {
 
 /**
  * struct uncore_box
- * @idx:	IDX of this box
- * @name:	Name of this box
- * @box_list:	List of the same type boxes
+ * @idx:	Index of this box
  * @box_type:	Pointer to the type of this box
- * @pci_dev:	PCI device of this box(If it is a PCI type box)
+ * @pci_dev:	PCI device of this box (For PCI type box)
+ * @next:	List of the same type boxes
  *
- * Describe a single uncore pmu box. IDX is the suffix of the box described
- * in SDM. IDX is used to address each box's base MSR adddress.
+ * Describe a single uncore pmu box.
  */
 struct uncore_box {
 	int			idx;
-	const char		*name;
-	struct list_head	box_list;
 	struct uncore_box_type	*box_type;
-	struct pci_dev		*pci_dev;
+	struct pci_dev		*dev;
+	struct list_head	next;
 };
 
 /**
@@ -100,7 +98,7 @@ struct uncore_box_ops {
  * @box_ctl:		Box-level Control MSR address
  * @box_status:		Box-level Status MSR address
  * @msr_offset:		MSR address offset of next box
- * @boxes:		List of all avaliable boxes of this type
+ * @box_list:		List of all avaliable boxes of this type
  * @ops:		Box manipulation functions
  * @desc:		Performance Monitoring Event Description
  *
@@ -123,7 +121,7 @@ struct uncore_box_type {
 	unsigned int	box_status;
 	unsigned int	msr_offset;
 	
-	struct uncore_box *boxes;
+	struct list_head box_list;
 	const struct uncore_box_ops *ops;
 	const struct uncore_event_desc *desc;
 };
@@ -132,6 +130,18 @@ struct uncore_box_type {
 extern struct uncore_box_type **uncore_msr_type;
 extern struct uncore_box_type **uncore_pci_type;
 extern struct pci_driver *uncore_pci_driver;
+
+/**
+ * uncore_pci_box_ctl
+ * @box:	the box in question
+ *
+ * Return the config register address offset of this box
+ */
+static __always_inline unsigned int
+uncore_pci_box_ctl(struct uncore_box *box)
+{
+	return box->box_type->box_ctl;
+}
 
 /**
  * uncore_msr_box_offset

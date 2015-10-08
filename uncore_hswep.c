@@ -138,7 +138,7 @@
 #define HSWEP_PCI_R3QPI_PMON_CTR0		0xA0
 
 /*
- * MSR Part
+ * MSR Box Part
  */
 
 static void hswep_uncore_msr_init_box(struct uncore_box *box)
@@ -283,21 +283,21 @@ struct uncore_box_type *HSWEP_UNCORE_MSR_TYPE[] = {
 };
 
 /*
- * PCI Part
+ * PCI Box Part
  */
 
 static void hswep_uncore_pci_init_box(struct uncore_box *box)
 {
 	pci_write_config_dword(box->pci_dev,
-			       box->box_type->box_ctl,
+			       uncore_pci_box_ctl(box),
 			       HSWEP_PCI_BOX_CTL_INIT);
 }
 
 static void hswep_uncore_pci_enable_box(struct uncore_box *box)
 {
-	int ctl = box->box_type->box_ctl;
-	unsigned int config = 0; 
 	struct pci_dev *dev = box->pci_dev;
+	unsigned int ctl = uncore_pci_box_ctl(box);
+	unsigned int config = 0; 
 	
 	if (!pci_read_config_dword(dev, ctl, &config)) {
 		config &= ~HSWEP_PCI_BOX_CTL_FRZ;
@@ -307,9 +307,9 @@ static void hswep_uncore_pci_enable_box(struct uncore_box *box)
 
 static void hswep_uncore_pci_disable_box(struct uncore_box *box)
 {
-	int ctl = box->box_type->box_ctl;
-	unsigned int config = 0; 
 	struct pci_dev *dev = box->pci_dev;
+	unsigned int ctl = uncore_pci_box_ctl(box);
+	unsigned int config = 0; 
 	
 	if (!pci_read_config_dword(dev, ctl, &config)) {
 		config |= HSWEP_PCI_BOX_CTL_FRZ;
@@ -526,8 +526,8 @@ static const struct pci_device_id HSWEP_UNCORE_PCI_IDS[] = {
 		PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2F37),
 		.driver_data = UNCORE_PCI_DEV_DATA(HSWEP_UNCORE_PCI_R3QPI_ID, 1),
 	},
-	{
-	  /* Zero */
+	{ /* All zero ;) */
+		0,
 	}
 };
 
