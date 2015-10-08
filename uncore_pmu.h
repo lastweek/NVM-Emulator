@@ -53,7 +53,7 @@ struct uncore_event {
  * struct uncore_box
  * @idx:	Index of this box
  * @box_type:	Pointer to the type of this box
- * @pci_dev:	PCI device of this box (For PCI type box)
+ * @pdev:	PCI device of this box (For PCI type box)
  * @next:	List of the same type boxes
  *
  * Describe a single uncore pmu box.
@@ -61,7 +61,7 @@ struct uncore_event {
 struct uncore_box {
 	int			idx;
 	struct uncore_box_type	*box_type;
-	struct pci_dev		*dev;
+	struct pci_dev		*pdev;
 	struct list_head	next;
 };
 

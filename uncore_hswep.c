@@ -546,5 +546,3 @@ void hswep_pci_init(void)
 	uncore_pci_type = HSWEP_UNCORE_PCI_TYPE;
 	uncore_pci_driver = &HSWEP_UNCORE_PCI_DRIVER;
 }
-
-
