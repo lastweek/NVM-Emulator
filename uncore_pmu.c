@@ -54,7 +54,8 @@ static void uncore_event_show(struct uncore_event *event)
  * Return non-zero on failure
  * Probe method of PCI driver
  */
-static int uncore_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
+__unused static int
+uncore_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 {
 	struct uncore_box_type *type;
 	type = uncore_pci_type[UNCORE_PCI_DEV_TYPE(id->driver_data)];
@@ -83,7 +84,8 @@ static void uncore_types_init(struct uncore_box_type **types)
  *
  * Malloc a new box, and then insert into box_list of its box type.
  */
-static int uncore_pci_new_box(struct pci_dev *pdev, struct pci_dev_id *id)
+static int __must_check
+uncore_pci_new_box(struct pci_dev *pdev, struct pci_dev_id *id)
 {
 	struct uncore_box_type *type;
 	struct uncore_box *box, *last;
@@ -112,48 +114,99 @@ static int uncore_pci_new_box(struct pci_dev *pdev, struct pci_dev_id *id)
 	return 0;
 }
 
-static void uncore_pci_init(void)
+static int __must_check uncore_pci_init(void)
 {
-	int ret;
 	struct pci_device_id *ids;
 	struct pci_dev *pdev;
+	int ret;
 
 	hswep_pci_init();
 	uncore_types_init(uncore_pci_type);
 
 	ids = uncore_pci_driver->id_table;
 	if (!ids)
-		goto error;
+		return -EFAULT;
 
-	while (ids->vendor && ids->device) {
+	while (ids->vendor || ids->device) {
 		pdev = pci_get_device(ids->vendor, ids->device, NULL);
-		if (pdev)
-			uncore_pci_new_box(pdev, ids);
+		if (!pdev) {
+			ret = -ENXIO;
+			goto error;
+		}
+
+		ret = uncore_pci_new_box(pdev, ids);
+		if (ret)
+			goto error;
+
 		ids++;
 	}
 
 	/* Driver methods, never being called */
 	uncore_pci_driver->probe = uncore_pci_probe;
 	uncore_pci_driver->remove = uncore_pci_remove;
+	
+	return 0;
 
 error:
-	
+	uncore_pci_exit();
+	return ret;
 }
 
-static void uncore_cpu_init(void)
+static void uncore_pci_exit(void)
+{
+	struct uncore_box_type *type;
+	struct uncore_box *box;
+	struct list_head *head;
+	int i;
+
+	for (i = 0; uncore_pci_type[i]; i++) {
+		type = uncore_pci_type[i];
+		head = &type->box_list;
+
+		/* free boxes */
+		while (!list_empty(head)) {
+			box = list_first_entry(head, struct uncore_box, next);
+			list_del(&box->next);
+			kfree(box);
+		}
+	}
+}
+
+static int __must_check uncore_cpu_init(void)
 {
 	hswep_cpu_init();
+	uncore_types_init(uncore_msr_type);
+
+	return 0;
+}
+
+static void uncore_cpu_exit(void)
+{
+
 }
 
 static int uncore_init(void)
 {
+	int ret;
+	
 	pr_info("init");
 
-	uncore_cpu_init();
-	uncore_pci_init();
+	ret = uncore_pci_init();
+	if (ret)
+		goto pcierr;
 
-	for (i = 0; uncore_pci_type[i]; i++)
-		pr_notice("%d %s", i, uncore_pci_type[i]->name);
+	ret = uncore_cpu_init();
+	if (ret)
+		goto cpuerr;
+	
+	return 0;
+
+cpuerr:
+	uncore_cpu_exit();
+pcierr:
+	uncore_pci_exit();
+	return ret;
+
 /*
 	struct uncore_box cbox = {
 		.idx = 0,
@@ -179,12 +232,14 @@ static int uncore_init(void)
 
 	uncore_event_show(&event);
 */	
-	return 0;
 }
 
 static void uncore_exit(void)
 {
 	pr_info("exit");
+	
+	uncore_pci_exit();
+	uncore_cpu_exit();
 
 	if (pci_driver_registered)
 		pci_unregister_driver(uncore_pci_driver);
