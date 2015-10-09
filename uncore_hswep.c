@@ -21,6 +21,10 @@
  * O	Platform:		Xeon® E5 v3, Xeon® E7 v3
  *	Microarchitecture:	Haswell-EP, Haswell-EX
  *
+ * For more information about Xeon® E5 v3, Xeon® E7 v3 uncore PMU, plese consult
+ * [Intel Xeon E5 and E7 v3 Family Uncore Performance Monitoring Reference Manual]
+ * Document Number: 331051-002
+ *
  * Ancient:
  * O	Platform:		Xeon® E5 v2, Xeon® E7 v2
  *	Microarchitecture:	Ivy Bridge-EP, Ivy Bridge-EX
@@ -214,7 +218,7 @@ const struct uncore_box_ops HSWEP_UNCORE_CBOX_OPS = {
 };
 
 struct uncore_box_type HSWEP_UNCORE_UBOX = {
-	.name		= "U-BOX MSR Type",
+	.name		= "U-BOX",
 	.num_counters	= 2,
 	.num_boxes	= 1,
 	.perf_ctr_bits	= 48,
@@ -228,7 +232,7 @@ struct uncore_box_type HSWEP_UNCORE_UBOX = {
 };
 
 struct uncore_box_type HSWEP_UNCORE_PCUBOX = {
-	.name		= "PCU-BOX MSR Type",
+	.name		= "PCU-BOX",
 	.num_counters	= 4,
 	.num_boxes	= 1,
 	.perf_ctr_bits	= 48,
@@ -241,7 +245,7 @@ struct uncore_box_type HSWEP_UNCORE_PCUBOX = {
 };
 
 struct uncore_box_type HSWEP_UNCORE_SBOX = {
-	.name		= "S-BOX MSR Type",
+	.name		= "S-BOX",
 	.num_counters	= 4,
 	.num_boxes	= 4,
 	.perf_ctr_bits	= 48,
@@ -254,7 +258,7 @@ struct uncore_box_type HSWEP_UNCORE_SBOX = {
 };
 
 struct uncore_box_type HSWEP_UNCORE_CBOX = {
-	.name		= "C-BOX MSR Type",
+	.name		= "C-BOX",
 	.num_counters	= 4,
 	.num_boxes	= 18,
 	.perf_ctr_bits	= 48,
@@ -366,7 +370,7 @@ const struct uncore_box_ops HSWEP_UNCORE_R3QPIBOX_OPS = {
 };
 
 struct uncore_box_type HSWEP_UNCORE_HA = {
-	.name		= "HA-Box PCI Type",
+	.name		= "HA-Box",
 	.num_counters	= 5,
 	.num_boxes	= 2,
 	.perf_ctr_bits  = 48,
@@ -379,7 +383,7 @@ struct uncore_box_type HSWEP_UNCORE_HA = {
 };
 
 struct uncore_box_type HSWEP_UNCORE_IMC = {
-	.name		= "IMC-Box PCI Type",
+	.name		= "IMC-Box",
 	.num_counters	= 5,
 	.num_boxes	= 8,
 	.perf_ctr_bits	= 48,
@@ -395,7 +399,7 @@ struct uncore_box_type HSWEP_UNCORE_IMC = {
 };
 
 struct uncore_box_type HSWEP_UNCORE_IRP = {
-	.name		= "IRP-Box PCI Type",
+	.name		= "IRP-Box",
 	.num_counters	= 4,
 	.num_boxes	= 1,
 	.box_ctl	= HSWEP_PCI_IRP_PMON_BOX_CTL,
@@ -404,9 +408,9 @@ struct uncore_box_type HSWEP_UNCORE_IRP = {
 };
 
 struct uncore_box_type HSWEP_UNCORE_QPI = {
-	.name		= "QPI-Box PCI Type",
+	.name		= "QPI-Box",
 	.num_counters	= 4,
-	.num_boxes	= 2,
+	.num_boxes	= 3,
 	.perf_ctr_bits	= 48,
 	.perf_ctr	= HSWEP_PCI_QPI_PMON_CTR0,
 	.perf_ctl	= HSWEP_PCI_QPI_PMON_CTL0,
@@ -417,7 +421,7 @@ struct uncore_box_type HSWEP_UNCORE_QPI = {
 };
 
 struct uncore_box_type HSWEP_UNCORE_R2PCIE = {
-	.name		= "R2PCIE-Box PCI Type",
+	.name		= "R2PCIE-Box",
 	.num_counters	= 4,
 	.num_boxes	= 1,
 	.perf_ctr_bits	= 48,
@@ -430,9 +434,9 @@ struct uncore_box_type HSWEP_UNCORE_R2PCIE = {
 };
 
 struct uncore_box_type HSWEP_UNCORE_R3QPI = {
-	.name		= "R2PCIE-Box PCI Type",
+	.name		= "R3QPI-Box",
 	.num_counters	= 3,
-	.num_boxes	= 2,
+	.num_boxes	= 3,
 	.perf_ctr_bits	= 48,
 	.perf_ctr	= HSWEP_PCI_R3QPI_PMON_CTR0,
 	.perf_ctl	= HSWEP_PCI_R3QPI_PMON_CTL0,

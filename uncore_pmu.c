@@ -276,7 +276,7 @@ static void uncore_pci_print_boxes(void)
 	for (i = 0; uncore_pci_type[i]; i++) {
 		type = uncore_pci_type[i];
 		pr_info("\n");
-		pr_info("Name: %s Boxes: %d", type->name,
+		pr_info("PCI Type: %s Boxes: %d", type->name,
 			list_empty(&type->box_list)?0:type->num_boxes);
 
 		list_for_each_entry(box, &type->box_list, next) {
@@ -305,7 +305,7 @@ static void uncore_msr_print_boxes(void)
 	for (i = 0; uncore_msr_type[i]; i++) {
 		type = uncore_msr_type[i];
 		pr_info("\n");
-		pr_info("Name: %s Boxes: %d", type->name,
+		pr_info("MSR Type: %s Boxes: %d", type->name,
 			list_empty(&type->box_list)?0:type->num_boxes);
 
 		list_for_each_entry(box, &type->box_list, next) {
