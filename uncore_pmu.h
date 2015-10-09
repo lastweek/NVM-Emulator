@@ -142,8 +142,7 @@ extern struct pci_driver *uncore_pci_driver;
  *
  * Return the config register address offset of this box
  */
-static __always_inline unsigned int
-uncore_pci_box_ctl(struct uncore_box *box)
+static inline unsigned int uncore_pci_box_ctl(struct uncore_box *box)
 {
 	return box->box_type->box_ctl;
 }
@@ -154,8 +153,7 @@ uncore_pci_box_ctl(struct uncore_box *box)
  *
  * Return the control MSR's address offset of this box
  */
-static __always_inline unsigned int
-uncore_msr_box_offset(struct uncore_box *box)
+static inline unsigned int uncore_msr_box_offset(struct uncore_box *box)
 {
 	return box->idx * box->box_type->msr_offset;
 }
@@ -166,8 +164,7 @@ uncore_msr_box_offset(struct uncore_box *box)
  *
  * Return the control MSR's address of this box
  */
-static __always_inline unsigned int
-uncore_msr_box_ctl(struct uncore_box *box)
+static inline unsigned int uncore_msr_box_ctl(struct uncore_box *box)
 {
 	return box->box_type->box_ctl + uncore_msr_box_offset(box);
 }
