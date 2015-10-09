@@ -38,13 +38,14 @@ struct uncore_box_type **uncore_pci_type = dummy_xxx_type;
 struct pci_driver *uncore_pci_driver;
 static bool pci_driver_registered = false;
 
-static int __always_unused
-uncore_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
-{ return -EINVAL; }
+static int __always_unused uncore_pci_probe(struct pci_dev *dev,
+					    const struct pci_device_id *id)
+{
+	return -EINVAL;
+}
 
-static void __always_unused 
-uncore_pci_remove(struct pci_dev *dev)
-{}
+static void __always_unused  uncore_pci_remove(struct pci_dev *dev)
+{ }
 
 static void uncore_event_show(struct uncore_event *event)
 {
@@ -58,6 +59,14 @@ static void uncore_event_show(struct uncore_event *event)
 	printk(KERN_INFO "SEL=%llx CNT=%llx", v1, v2);
 }
 
+/**
+ * uncore_types_init
+ * @types:	box_type to init
+ *
+ * Init the array of uncore_box_type. Specially, the list_head.
+ * This function should be called *after* CPU-specific init
+ * function.
+ */
 static void uncore_types_init(struct uncore_box_type **types)
 {
 	int i;
@@ -71,12 +80,13 @@ static void uncore_types_init(struct uncore_box_type **types)
  * uncore_pci_new_box
  * @pdev:	the pci device of this box
  * @id:		the device id of this box
+ * Return 0 on success, otherwise return error number.
  *
- * Malloc a new box of PCI type, and then insert it into the box_list
- * of its box_type.
+ * Malloc a new box of PCI type, and then insert it into the tail
+ * of box_list of its uncore_box_type.
  */
-static int __must_check
-uncore_pci_new_box(struct pci_dev *pdev, const struct pci_device_id *id)
+static int __must_check uncore_pci_new_box(struct pci_dev *pdev,
+					   const struct pci_device_id *id)
 {
 	struct uncore_box_type *type;
 	struct uncore_box *box, *last;
@@ -91,11 +101,13 @@ uncore_pci_new_box(struct pci_dev *pdev, const struct pci_device_id *id)
 		return -EFAULT;
 	}
 
-	if (list_empty(&type->box_list))
+	if (list_empty(&type->box_list)) {
 		box->idx = 0;
-	else {
+		type->num_boxes = 1;
+	} else {
 		last = list_last_entry(&type->box_list, struct uncore_box, next);
 		box->idx = last->idx + 1;
+		type->num_boxes++;
 	}
 	
 	box->box_type = type;
@@ -105,6 +117,7 @@ uncore_pci_new_box(struct pci_dev *pdev, const struct pci_device_id *id)
 	return 0;
 }
 
+/* Free PCI boxes */
 static void uncore_pci_exit(void)
 {
 	struct uncore_box_type *type;
@@ -129,6 +142,7 @@ static void uncore_pci_exit(void)
 	}
 }
 
+/* Malloc PCI boxes */
 static int __must_check uncore_pci_init(void)
 {
 	const struct pci_device_id *ids;
@@ -145,8 +159,10 @@ static int __must_check uncore_pci_init(void)
 	while (ids->vendor || ids->device) {
 		pdev = pci_get_device(ids->vendor, ids->device, NULL);
 		if (!pdev) {
-			/* DO NOT ABORT
-			 * Not all SKUs support all pci devices. */
+			/*
+			 * DO NOT ABORT!
+			 * Not all SKUs support all PCI devices.
+			 */
 			ids++;
 			continue;
 		}
@@ -161,7 +177,11 @@ static int __must_check uncore_pci_init(void)
 	/* Driver methods, never being called */
 	uncore_pci_driver->probe = uncore_pci_probe;
 	uncore_pci_driver->remove = uncore_pci_remove;
-	
+	ret = pci_register_driver(uncore_pci_driver);
+	if (ret)
+		goto error;
+	pci_driver_registered = true;
+
 	return 0;
 
 error:
@@ -169,25 +189,78 @@ error:
 	return ret;
 }
 
-static void uncore_cpu_exit(void)
+/**
+ * uncore_msr_new_box
+ * @type:	the MSR box_type
+ * @idx:	the idx of the new box
+ * Return 0 on success, otherwise return error number
+ *
+ * Malloc a new box of MSR type, and then insert it into the tail
+ * of box_list of its uncore_box_type.
+ */
+static int __must_check uncore_msr_new_box(struct uncore_box_type *type,
+					   unsigned int idx)
 {
+	struct uncore_box *box;
+	int ret;
 
+	if (!type)
+		return -EINVAL;
+
+	box = kzalloc(sizeof(struct uncore_box), GFP_KERNEL);
+	if (!box)
+		return -ENOMEM;
+
+	box->idx = idx;
+	box->box_type = type;
+	box->pdev = NULL;
+	list_add_tail(&box->next, &type->box_list);
+
+	return 0;
 }
 
-static int __must_check uncore_cpu_init(void)
+/* Free MSR type boxes */
+static void uncore_cpu_exit(void)
 {
 	struct uncore_box_type *type;
 	struct uncore_box *box;
+	struct list_head *head;
 	int i;
+
+	for (i = 0; uncore_msr_type[i]; i++) {
+		type = uncore_msr_type[i];
+		head = &type->box_list;
+		while (!list_empty(head)) {
+			box = list_first_entry(head, struct uncore_box, next);
+			list_del(&box->next);
+			kfree(box);
+		}
+	}
+}
+
+/* Malloc MSR type boxes */
+static int __must_check uncore_cpu_init(void)
+{
+	struct uncore_box_type *type;
+	int i, j, ret;
 
 	hswep_cpu_init();
 	uncore_types_init(uncore_msr_type);
 	
 	for (i = 0; uncore_msr_type[i]; i++) {
 		type = uncore_msr_type[i];
+		for (j = 0; j < type->num_boxes; j++) {
+			ret = uncore_msr_new_box(type, j);
+			if (ret)
+				goto error;
+		}
 	}
 
 	return 0;
+
+error:
+	uncore_cpu_exit();
+	return ret;
 }
 
 /**
@@ -205,10 +278,12 @@ static void uncore_pci_print_boxes(void)
 
 	for (i = 0; uncore_pci_type[i]; i++) {
 		type = uncore_pci_type[i];
-		pr_info("Name: %s", type->name);
-		
+		pr_info("\n");
+		pr_info("Name: %s Boxes: %d", type->name,
+			list_empty(&type->box_list)?0:type->num_boxes);
+
 		list_for_each_entry(box, &type->box_list, next) {
-			pr_info("      Box%d  %x:%x:%x",
+			pr_info("......Box%d  %x:%x:%x",
 			box->idx,
 			box->pdev->bus->number,
 			box->pdev->vendor,
@@ -232,7 +307,13 @@ static void uncore_msr_print_boxes(void)
 	
 	for (i = 0; uncore_msr_type[i]; i++) {
 		type = uncore_msr_type[i];
-		pr_info(" Name: %s", type->name);
+		pr_info("\n");
+		pr_info("Name: %s Boxes: %d", type->name,
+			list_empty(&type->box_list)?0:type->num_boxes);
+
+		list_for_each_entry(box, &type->box_list, next) {
+			pr_info("......Box%d", box->idx);
+		}
 	}
 }
 
@@ -250,6 +331,8 @@ static int uncore_init(void)
 	
 	uncore_pci_print_boxes();
 	uncore_msr_print_boxes();
+	pr_info("init succeed");
+
 
 	return 0;
 

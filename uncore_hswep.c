@@ -31,6 +31,7 @@
 
 #include "uncore_pmu.h"
 
+#include <asm/setup.h>
 #include <linux/pci.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
@@ -547,6 +548,9 @@ static struct pci_driver HSWEP_UNCORE_PCI_DRIVER = {
 
 void hswep_cpu_init(void)
 {
+	if (HSWEP_UNCORE_CBOX.num_boxes > boot_cpu_data.x86_max_cores)
+		HSWEP_UNCORE_CBOX.num_boxes = boot_cpu_data.x86_max_cores;
+
 	uncore_msr_type = HSWEP_UNCORE_MSR_TYPE;
 }
 
