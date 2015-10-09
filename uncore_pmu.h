@@ -52,14 +52,19 @@ struct uncore_event {
 /**
  * struct uncore_box
  * @idx:	Index of this box
+ * @node_id	NUMA node id of this box
  * @box_type:	Pointer to the type of this box
  * @pdev:	PCI device of this box (For PCI type box)
  * @next:	List of the same type boxes
  *
- * Describe a single uncore pmu box.
+ * Describe a single uncore pmu box instance. All boxes of the same type
+ * are linked together. Since all boxes of all nodes all mixed together,
+ * hence node_id is needed to distinguish two boxes with the same idx but
+ * lay in different nodes.
  */
 struct uncore_box {
 	int			idx;
+	int			node_id;
 	struct uncore_box_type	*box_type;
 	struct pci_dev		*pdev;
 	struct list_head	next;
