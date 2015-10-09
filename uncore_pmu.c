@@ -314,6 +314,27 @@ static void uncore_msr_print_boxes(void)
 	}
 }
 
+static void _test(void)
+{
+	struct pci_dev *dev;
+	int nodeid, mapping;
+	u32 config;
+
+while(1) {
+	config=0;
+	dev = pci_get_device(PCI_VENDOR_ID_INTEL, 0x2f1e, dev);
+	if (!dev)
+		break;
+	
+	pr_info("BusNo: %d", dev->bus->number);
+	pci_read_config_dword(dev, 0x40, &config);
+	pr_info("Nodeid:  %x", config);
+	pci_read_config_dword(dev, 0x54, &config);
+	pr_info("Mapping: %x", config);
+}
+	pci_dev_put(dev);
+}
+
 static int uncore_init(void)
 {
 	int ret;
@@ -329,7 +350,7 @@ static int uncore_init(void)
 	uncore_pci_print_boxes();
 	uncore_msr_print_boxes();
 	pr_info("INIT ON CPU %2d", smp_processor_id());
-
+	_test();
 	return 0;
 
 cpuerr:
