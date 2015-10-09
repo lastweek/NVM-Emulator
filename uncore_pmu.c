@@ -91,16 +91,14 @@ static int __must_check uncore_pci_new_box(struct pci_dev *pdev,
 	struct uncore_box_type *type;
 	struct uncore_box *box, *last;
 
+	type = uncore_pci_type[UNCORE_PCI_DEV_TYPE(id->driver_data)];
+	if (!type)
+		return -EFAULT;
+
 	box = kzalloc(sizeof(struct uncore_box), GFP_KERNEL);
 	if (!box)
 		return -ENOMEM;
 	
-	type = uncore_pci_type[UNCORE_PCI_DEV_TYPE(id->driver_data)];
-	if (!type) {
-		kfree(box);
-		return -EFAULT;
-	}
-
 	if (list_empty(&type->box_list)) {
 		box->idx = 0;
 		type->num_boxes = 1;
@@ -117,7 +115,7 @@ static int __must_check uncore_pci_new_box(struct pci_dev *pdev,
 	return 0;
 }
 
-/* Free PCI boxes */
+/* Free PCI type boxes */
 static void uncore_pci_exit(void)
 {
 	struct uncore_box_type *type;
@@ -142,7 +140,7 @@ static void uncore_pci_exit(void)
 	}
 }
 
-/* Malloc PCI boxes */
+/* Malloc PCI type boxes */
 static int __must_check uncore_pci_init(void)
 {
 	const struct pci_device_id *ids;
@@ -213,7 +211,6 @@ static int __must_check uncore_msr_new_box(struct uncore_box_type *type,
 
 	box->idx = idx;
 	box->box_type = type;
-	box->pdev = NULL;
 	list_add_tail(&box->next, &type->box_list);
 
 	return 0;
@@ -331,8 +328,7 @@ static int uncore_init(void)
 	
 	uncore_pci_print_boxes();
 	uncore_msr_print_boxes();
-	pr_info("init succeed");
-
+	pr_info("INIT ON CPU %2d", smp_processor_id());
 
 	return 0;
 
@@ -343,12 +339,6 @@ pcierr:
 	return ret;
 }
 /*
-	struct uncore_box cbox = {
-		.idx = 0,
-		.name = "C0",
-		.box_type = &HSWEP_UNCORE_CBOX
-	};
-
 	struct uncore_event event = {
 		.ctl = 0xe01,
 		.ctr = 0xe08,
@@ -375,6 +365,8 @@ static void uncore_exit(void)
 
 	if (pci_driver_registered)
 		pci_unregister_driver(uncore_pci_driver);
+	
+	pr_info("EXIT ON CPU %2d", smp_processor_id());
 }
 
 module_init(uncore_init);
