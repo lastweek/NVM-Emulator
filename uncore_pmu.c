@@ -239,15 +239,15 @@ static void uncore_cpu_exit(void)
 static int __must_check uncore_cpu_init(void)
 {
 	struct uncore_box_type *type;
-	int i, j, ret;
+	int n, idx, ret;
 
 	hswep_cpu_init();
 	uncore_types_init(uncore_msr_type);
 	
-	for (i = 0; uncore_msr_type[i]; i++) {
-		type = uncore_msr_type[i];
-		for (j = 0; j < type->num_boxes; j++) {
-			ret = uncore_msr_new_box(type, j);
+	for (n = 0; uncore_msr_type[n]; n++) {
+		type = uncore_msr_type[n];
+		for (idx = 0; idx < type->num_boxes; idx++) {
+			ret = uncore_msr_new_box(type, idx);
 			if (ret)
 				goto error;
 		}
