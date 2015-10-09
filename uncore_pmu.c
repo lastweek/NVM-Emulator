@@ -325,7 +325,9 @@ static int uncore_init(void)
 	ret = uncore_cpu_init();
 	if (ret)
 		goto cpuerr;
-	
+
+	uncore_proc_create();
+
 	uncore_pci_print_boxes();
 	uncore_msr_print_boxes();
 	pr_info("INIT ON CPU %2d", smp_processor_id());
@@ -362,6 +364,7 @@ static void uncore_exit(void)
 {
 	uncore_pci_exit();
 	uncore_cpu_exit();
+	uncore_proc_remove();
 
 	if (pci_driver_registered)
 		pci_unregister_driver(uncore_pci_driver);
