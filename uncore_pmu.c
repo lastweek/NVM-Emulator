@@ -74,7 +74,7 @@ static void uncore_types_init(struct uncore_box_type **types)
 {
 	int i;
 
-	for (i = 0; types[i] != NULL; i++) {
+	for (i = 0; types[i]; i++) {
 		INIT_LIST_HEAD(&types[i]->box_list);
 	}
 }
@@ -375,6 +375,7 @@ pcierr:
 	uncore_pci_exit();
 	return ret;
 }
+
 /*
 	struct uncore_event event = {
 		.ctl = 0xe01,
