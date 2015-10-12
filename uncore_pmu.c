@@ -179,13 +179,17 @@ static int __must_check uncore_pci_init(void)
 	struct pci_dev *pdev;
 	int ret;
 
+	ret = -ENXIO;
 	switch (boot_cpu_data.x86_model) {
+		case 45: /* Sandy Bridge-EP*/
+			break;
+		case 62: /* Ivy Bridge-EP */
+			break;
 		case 63: /* Haswell-EP */
 			ret = hswep_pci_init();
 			break;
 		default:
-			pr_err("Not an E5-v3");
-			return -ENXIO;
+			pr_err("Buy an E5-v3");
 	};
 
 	if (ret)
@@ -282,13 +286,17 @@ static int __must_check uncore_cpu_init(void)
 	struct uncore_box_type *type;
 	int n, idx, ret;
 
+	ret = -ENXIO;
 	switch (boot_cpu_data.x86_model) {
+		case 45: /* Sandy Bridge-EP*/
+			break;
+		case 62: /* Ivy Bridge-EP */
+			break;
 		case 63: /* Haswell-EP */
 			ret = hswep_cpu_init();
 			break;
 		default:
 			pr_err("Not an E5-v3");
-			return -ENXIO;
 	};
 
 	if (ret)
