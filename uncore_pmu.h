@@ -35,14 +35,6 @@
 struct uncore_box_type;
 
 /**
- * struct uncore_event_desc
- * Describe an uncore monitoring event
- */
-struct uncore_event_desc {
-
-};
-
-/**
  * struct uncore_event
  * @enable:	Bit mask to enable this event
  * @disable:	Bis mask to disable this event
@@ -50,7 +42,7 @@ struct uncore_event_desc {
  */
 struct uncore_event {
 	unsigned long long enable, disable;
-	struct uncore_event_desc *desc;
+	const char *desc;
 };
 
 /**
@@ -115,7 +107,6 @@ struct uncore_box_ops {
  * @msr_offset:		MSR address offset of next box
  * @box_list:		List of all avaliable boxes of this type
  * @ops:		Box manipulation functions
- * @desc:		Performance Monitoring Event Description
  *
  * This struct describes a specific type of box. Not all box types
  * support all fields, it is up to the @ops to manipulate each
@@ -138,7 +129,6 @@ struct uncore_box_type {
 	
 	struct list_head box_list;
 	const struct uncore_box_ops *ops;
-	const struct uncore_event_desc *desc;
 };
 
 extern struct uncore_box_type **uncore_msr_type;

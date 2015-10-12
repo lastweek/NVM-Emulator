@@ -46,13 +46,14 @@ int uncore_pcibus_to_nodeid[256] = { [0 ... 255] = -1, };
  */
 struct pci_driver *uncore_pci_driver;
 static bool pci_driver_registered = false;
-static void __always_unused uncore_pci_remove(struct pci_dev *dev) {}
-static int __always_unused uncore_pci_probe(struct pci_dev *dev,
-					    const struct pci_device_id *id)
+static void __always_unused
+uncore_pci_remove(struct pci_dev *dev) {}
+static int __always_unused
+uncore_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 {return -EIO;}
 
 /**
- * uncore_get_box	-	Get a uncore PMU box
+ * uncore_get_box
  * @type:	Pointer to box_type
  * @idx:	idx of the box in this box_type
  * @nodeid:	which NUMA node to get this box
@@ -70,10 +71,6 @@ struct uncore_box *uncore_get_box(struct uncore_box_type *type,
 	if (!type)
 		return NULL;
 
-	if (idx < 0 || idx >= type->num_boxes ||
-	    nodeid < 0 || nodeid >= UNCORE_MAX_SOCKET)
-		return NULL;
-	
 	list_for_each_entry(box, &type->box_list, next) {
 		if (box->idx == idx && box->nodeid == nodeid)
 			return box;
@@ -383,17 +380,43 @@ static void uncore_msr_print_boxes(void)
 	}
 }
 
+struct uncore_event ha_requests_reads_local = {
+	.enable = (1<<22) | (1<<20) | 0x0100 | 0x0001,
+	.disable = 0
+};
+
+struct uncore_event ha_requests_reads_remote = {
+	.enable = (1<<22) | (1<<20) | 0x0200 | 0x0001,
+	.disable = 0
+};
+
+struct uncore_event ha_requests_reads = {
+	.enable = (1<<22) | (1<<20) | 0x0300 | 0x0001,
+	.disable = 0
+};
+
+struct uncore_event ha_requests_writes_local = {
+	.enable = (1<<22) | (1<<20) | 0x0400 | 0x0001,
+	.disable = 0
+};
+
+struct uncore_event ha_requests_writes_remote = {
+	.enable = (1<<22) | (1<<20) | 0x0800 | 0x0001,
+	.disable = 0
+};
+
+struct uncore_event ha_requests_writes = {
+	.enable = (1<<22) | (1<<20) | 0x0B00 | 0x0001,
+	.disable = 0
+};
+
 /*
  * Set a uncore PMU session
  */
-static int uncore_main(void)
+static void uncore_main(void)
 {
-	int i;
 	struct uncore_box *habox, *ubox;
-	struct uncore_event event = {
-		.enable = (1<<22) | (1<<20) | 0x0000 | 0x0000,
-		.disable = 0
-	};
+	struct uncore_event *event;
 
 	/* Home Agent, Box0, Node1 */
 	/* UBOX, Box0, Node1 */
@@ -401,23 +424,19 @@ static int uncore_main(void)
 	ubox = uncore_get_box(uncore_msr_type[0], 0, 1);
 	if (!habox || !ubox) {
 		pr_err("Get box error");
-		return -EFAULT;
+		return;
 	}
 
-	for (i = 1; i < 2; i++) {
-		uncore_init_box(box); /* Clear all */
-		//uncore_enable_event(box, &event);
-		
-		uncore_write_counter(box, 0xfffffffffff0);
-		uncore_show_box(box);
-		//uncore_enable_box(box); /* Start counting */
-		udelay(1*i);
-		uncore_show_box(box);
-		uncore_disable_event(box, &event);
-		uncore_disable_box(box);
-	}
-
-	return 0;
+	uncore_init_box(habox); /* Clear all */
+	//uncore_enable_event(box, &event);
+	
+	uncore_write_counter(box, 0xfffffffffff0);
+	uncore_show_box(box);
+	//uncore_enable_box(box); /* Start counting */
+	udelay(1*i);
+	uncore_show_box(box);
+	uncore_disable_event(box, &event);
+	uncore_disable_box(box);
 }
 
 static int uncore_init(void)
@@ -444,9 +463,7 @@ static int uncore_init(void)
 	uncore_pci_print_mapping();
 	
 	/* Show time */
-	rer = uncore_main();
-	if (ret)
-		goto out;
+	uncore_main();
 
 	return 0;
 

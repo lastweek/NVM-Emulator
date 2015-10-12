@@ -691,3 +691,69 @@ int hswep_pci_init(void)
 
 	return 0;
 }
+
+/*
+ * Hmm, ugh
+ */
+
+/*
+ * Home Agent Event
+ * Read and Write requests made into HA
+ */
+struct uncore_event ha_requests_reads_local = {
+	.enable = (1<<22) | (1<<20) | 0x0100 | 0x0001,
+	.disable = 0,
+	.desc = "Read requests coming from local socket"
+};
+
+struct uncore_event ha_requests_reads_remote = {
+	.enable = (1<<22) | (1<<20) | 0x0200 | 0x0001,
+	.disable = 0,
+	.desc = "Read requests coming from remote socket"
+};
+
+struct uncore_event ha_requests_reads = {
+	.enable = (1<<22) | (1<<20) | 0x0300 | 0x0001,
+	.disable = 0,
+	.desc = "Incoming read requests total"
+};
+
+struct uncore_event ha_requests_writes_local = {
+	.enable = (1<<22) | (1<<20) | 0x0400 | 0x0001,
+	.disable = 0,
+	.desc = "Write requests from local socket"
+};
+
+struct uncore_event ha_requests_writes_remote = {
+	.enable = (1<<22) | (1<<20) | 0x0800 | 0x0001,
+	.disable = 0,
+	.desc = "Write requests from remote socket"
+};
+
+struct uncore_event ha_requests_writes = {
+	.enable = (1<<22) | (1<<20) | 0x0B00 | 0x0001,
+	.disable = 0,
+	.desc = "Incoming write requests total"
+};
+
+/*
+ * Home Agent Event
+ * HA to IMC requests
+ */
+struct uncore_event ha_imc_reads = {
+	.enable = (1<<22) | (1<<20) | 0x0100 | 0x0017,
+	.disable = 0,
+	.desc = "HA to IMC normal priority read requests"
+};
+
+struct uncore_event ha_imc_writes_full = {
+	.enable = (1<<22) | (1<<20) | 0x0100 | 0x001A,
+	.disable = 0,
+	.desc = "HA to IMC full line write requests"
+};
+
+struct uncore_event ha_imc_writes_partial = {
+	.enable = (1<<22) | (1<<20) | 0x0200 | 0x001A,
+	.disable = 0,
+	.desc = "HA to IMC partial line write requests"
+};
