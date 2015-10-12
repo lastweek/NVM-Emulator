@@ -383,19 +383,26 @@ static void uncore_msr_print_boxes(void)
 	}
 }
 
-static void uncore_main(void)
+/*
+ * Set a uncore PMU session
+ */
+static int uncore_main(void)
 {
 	int i;
-	struct uncore_box *box;
+	struct uncore_box *habox, *ubox;
 	struct uncore_event event = {
 		.enable = (1<<22) | (1<<20) | 0x0000 | 0x0000,
 		.disable = 0
 	};
 
 	/* Home Agent, Box0, Node1 */
-	box = uncore_get_box(uncore_pci_type[0], 0, 1);
-	if (!box)
-		return;
+	/* UBOX, Box0, Node1 */
+	habox = uncore_get_box(uncore_pci_type[0], 0, 1);
+	ubox = uncore_get_box(uncore_msr_type[0], 0, 1);
+	if (!habox || !ubox) {
+		pr_err("Get box error");
+		return -EFAULT;
+	}
 
 	for (i = 1; i < 2; i++) {
 		uncore_init_box(box); /* Clear all */
@@ -409,6 +416,8 @@ static void uncore_main(void)
 		uncore_disable_event(box, &event);
 		uncore_disable_box(box);
 	}
+
+	return 0;
 }
 
 static int uncore_init(void)
@@ -421,11 +430,11 @@ static int uncore_init(void)
 
 	ret = uncore_cpu_init();
 	if (ret)
-		goto cpuerr;
+		goto out;
 
 	ret = uncore_proc_create();
 	if (ret)
-		goto cpuerr;
+		goto out;
 
 	/* Pay attention to these messages */
 	pr_info("INIT ON CPU %2d (NODE %2d)",
@@ -435,11 +444,13 @@ static int uncore_init(void)
 	uncore_pci_print_mapping();
 	
 	/* Show time */
-	uncore_main();
+	rer = uncore_main();
+	if (ret)
+		goto out;
 
 	return 0;
 
-cpuerr:
+out:
 	uncore_cpu_exit();
 pcierr:
 	uncore_pci_exit();

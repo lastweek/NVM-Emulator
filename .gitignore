@@ -3,6 +3,7 @@
 *.mod.c
 *.order
 *.symvers
+*~
 
 .*
 !.gitignore
