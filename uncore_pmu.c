@@ -387,6 +387,7 @@ static void uncore_msr_print_boxes(void)
  */
 static void uncore_main(void)
 {
+	int i;
 	struct uncore_box *box;
 	struct uncore_event event = {
 		.enable = (1<<22) | 0x0000 | 0x0000,
@@ -396,17 +397,17 @@ static void uncore_main(void)
 	box = uncore_get_box(uncore_pci_type[0], 0, 1);
 	if (!box)
 		return;
-	
-	uncore_init_box(box);
-	uncore_show_box(box);
-	
-	uncore_enable_box(box);
-	uncore_enable_event(box, &event);
-	udelay(10);
-	uncore_disable_event(box, &event);
-	
-	uncore_disable_box(box);
-	uncore_show_box(box);
+
+	for (i = 1; i < 4; i++) {
+		uncore_init_box(box); /* Clear all */
+		uncore_enable_event(box, &event);
+		uncore_enable_box(box); /* Start counting */
+		udelay(10*i);
+		uncore_disable_event(box, &event);
+		uncore_disable_box(box);
+		
+		uncore_show_box(box);
+	}
 }
 
 static int uncore_init(void)
@@ -432,6 +433,7 @@ static int uncore_init(void)
 	uncore_pci_print_boxes();
 	uncore_pci_print_mapping();
 	
+	/* Show time */
 	uncore_main();
 
 	return 0;

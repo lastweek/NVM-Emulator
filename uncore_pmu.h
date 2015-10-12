@@ -132,11 +132,15 @@ struct uncore_box_type {
 	const struct uncore_event_desc *desc;
 };
 
-/* CPU-Independent Data Structures */
 extern struct uncore_box_type **uncore_msr_type;
 extern struct uncore_box_type **uncore_pci_type;
 extern struct pci_driver *uncore_pci_driver;
 extern int uncore_pcibus_to_nodeid[256];
+
+static inline unsigned int uncore_pci_box_status(struct uncore_box *box)
+{
+	return box->box_type->box_status;
+}
 
 static inline unsigned int uncore_pci_box_ctl(struct uncore_box *box)
 {
@@ -162,6 +166,11 @@ static inline unsigned int uncore_pci_perf_ctr(struct uncore_box *box)
 static inline unsigned int uncore_msr_box_offset(struct uncore_box *box)
 {
 	return box->idx * box->box_type->msr_offset;
+}
+
+static inline unsigned int uncore_msr_box_status(struct uncore_box *box)
+{
+	return box->box_type->box_status + uncore_msr_box_offset(box);
 }
 
 static inline unsigned int uncore_msr_box_ctl(struct uncore_box *box)

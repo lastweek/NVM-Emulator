@@ -347,14 +347,19 @@ static void hswep_uncore_pci_disable_event(struct uncore_box *box,
 static void hswep_uncore_pci_show_box(struct uncore_box *box)
 {
 	struct pci_dev *pdev = box->pdev;
-	unsigned long long ctr;
 	unsigned int config, hehe;
 
+	pr_info("Show");
+
+	pci_read_config_dword(pdev, uncore_pci_box_status(box), &config);
+	pr_info("Box Status: %X", config);
+
 	pci_read_config_dword(pdev, uncore_pci_perf_ctl(box), &config);
-	pr_info("Control = %X", config);
+	pr_info("Control: %X", config);
+
 	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box), &config);
 	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box) + 4, &hehe);
-	pr_info("Counter = %lld", ((u64)hehe << 32) | (u64)config);
+	pr_info("Counter: %lld", ((u64)hehe << 32) | (u64)config);
 }
 
 #define HSWEP_UNCORE_PCI_BOX_OPS()				\
