@@ -18,19 +18,20 @@
 
 /*
  * Support:
- * O	Platform:		Xeon® E5 v3, Xeon® E7 v3
- *	Microarchitecture:	Haswell-EP, Haswell-EX
+ * O	Platform:		Xeon E5 v3, Xeon E7 v3
+ *	MicroArchitecture:	Haswell-EP, Haswell-EX
  *
- * For more information about Xeon® E5 v3, Xeon® E7 v3 uncore PMU, plese consult
+ * For more information about Xeon E5 v3 and E7 v3 uncore PMU, plese consult
  * [Intel Xeon E5 and E7 v3 Family Uncore Performance Monitoring Reference Manual]
- * Document Number: 331051-002
- *
+ */
+
+/*
  * Ancient:
- * O	Platform:		Xeon® E5 v2, Xeon® E7 v2
- *	Microarchitecture:	Ivy Bridge-EP, Ivy Bridge-EX
+ * O	Platform:		Xeon E5 v2, Xeon E7 v2
+ *	MicroArchitecture:	Ivy Bridge-EP, Ivy Bridge-EX
  *
- * O	Platform:		Xeon® E5, Xeon® E7
- *	Microarchitecture:	Sandy Bridge-EP, Westmere-EX
+ * O	Platform:		Xeon E5, Xeon E7
+ *	MicroArchitecture:	Sandy Bridge-EP, Westmere-EX
  */
 
 #include "uncore_pmu.h"
@@ -41,30 +42,30 @@
 #include <linux/types.h>
 
 /* HSWEP Box-Level Control MSR Bit Layout */
-#define HSWEP_MSR_BOX_CTL_RST_CTRL	(1 << 0)
-#define HSWEP_MSR_BOX_CTL_RST_CTRS	(1 << 1)
-#define HSWEP_MSR_BOX_CTL_FRZ		(1 << 8)
-#define HSWEP_MSR_BOX_CTL_INIT		(HSWEP_MSR_BOX_CTL_RST_CTRL | \
-					 HSWEP_MSR_BOX_CTL_RST_CTRS )
+#define HSWEP_MSR_BOX_CTL_RST_CTRL		(1 << 0)
+#define HSWEP_MSR_BOX_CTL_RST_CTRS		(1 << 1)
+#define HSWEP_MSR_BOX_CTL_FRZ			(1 << 8)
+#define HSWEP_MSR_BOX_CTL_INIT			(HSWEP_MSR_BOX_CTL_RST_CTRL | \
+						 HSWEP_MSR_BOX_CTL_RST_CTRS )
 
 /* HSWEP Box-Level Control PCI Bit Layout */
-#define HSWEP_PCI_BOX_CTL_FRZ		HSWEP_MSR_BOX_CTL_FRZ
-#define HSWEP_PCI_BOX_CTL_INIT		HSWEP_MSR_BOX_CTL_INIT
+#define HSWEP_PCI_BOX_CTL_FRZ			HSWEP_MSR_BOX_CTL_FRZ
+#define HSWEP_PCI_BOX_CTL_INIT			HSWEP_MSR_BOX_CTL_INIT
 
 /* HSWEP Event Select MSR Bit Layout */
-#define HSWEP_MSR_EVNTSEL_EVENT		0x000000FF
-#define HSWEP_MSR_EVNTSEL_UMASK		0x0000FF00
-#define HSWEP_MSR_EVNTSEL_RST		(1 << 17)
-#define HSWEP_MSR_EVNTSEL_EDGE_DET	(1 << 18)
-#define HSWEP_MSR_EVNTSEL_TID_EN	(1 << 19)
-#define HSWEP_MSR_EVNTSEL_EN		(1 << 22)
-#define HSWEP_MSR_EVNTSEL_INVERT	(1 << 23)
-#define HSWEP_MSR_EVNTSEL_THRESHOLD	0xFF000000
-#define HSWEP_MSR_RAW_EVNTSEL_MASK	(HSWEP_MSR_EVNTSEL_EVENT	| \
-					 HSWEP_MSR_EVNTSEL_UMASK	| \
-					 HSWEP_MSR_EVNTSEL_EDGE_DET	| \
-					 HSWEP_MSR_EVNTSEL_INVERT	| \
-					 HSWEP_MSR_EVNTSEL_THRESHOLD)
+#define HSWEP_MSR_EVNTSEL_EVENT			0x000000FF
+#define HSWEP_MSR_EVNTSEL_UMASK			0x0000FF00
+#define HSWEP_MSR_EVNTSEL_RST			(1 << 17)
+#define HSWEP_MSR_EVNTSEL_EDGE_DET		(1 << 18)
+#define HSWEP_MSR_EVNTSEL_TID_EN		(1 << 19)
+#define HSWEP_MSR_EVNTSEL_EN			(1 << 22)
+#define HSWEP_MSR_EVNTSEL_INVERT		(1 << 23)
+#define HSWEP_MSR_EVNTSEL_THRESHOLD		0xFF000000
+#define HSWEP_MSR_RAW_EVNTSEL_MASK		(HSWEP_MSR_EVNTSEL_EVENT	| \
+						 HSWEP_MSR_EVNTSEL_UMASK	| \
+						 HSWEP_MSR_EVNTSEL_EDGE_DET	| \
+						 HSWEP_MSR_EVNTSEL_INVERT	| \
+						 HSWEP_MSR_EVNTSEL_THRESHOLD)
 
 /* HSWEP Uncore Global Per-Socket MSRs */
 #define HSWEP_MSR_PMON_GLOBAL_CTL		0x700
@@ -146,6 +147,20 @@
  * MSR Box Part
  */
 
+static void hswep_uncore_msr_show_box(struct uncore_box *box)
+{
+	unsigned long long value;
+
+	rdmsrl(uncore_msr_box_status(box), value);
+	pr_info("Box Status: 0x%llx", value);
+
+	rdmsrl(uncore_msr_perf_ctl(box), value);
+	pr_info("Control: 0x%llx", value);
+
+	rdmsrl(uncore_msr_perf_ctr(box), value);
+	pr_info("Counter: 0x%llx", value);
+}
+
 static void hswep_uncore_msr_init_box(struct uncore_box *box)
 {
 	unsigned int msr;
@@ -182,31 +197,28 @@ static void hswep_uncore_msr_disable_box(struct uncore_box *box)
 }
 
 static void hswep_uncore_msr_enable_event(struct uncore_box *box,
-					struct uncore_event *event)
+					  struct uncore_event *event)
 {
 	wrmsrl(uncore_msr_perf_ctl(box), event->disable);
 }
 
 static void hswep_uncore_msr_disable_event(struct uncore_box *box,
-					struct uncore_event *event)
+					   struct uncore_event *event)
 {
 	wrmsrl(uncore_msr_perf_ctl(box), event->enable);
 }
 
-/* TODO */
-static void hswep_uncore_msr_show_box(struct uncore_box *box)
-{
-
-}
-
 static void hswep_uncore_msr_write_counter(struct uncore_box *box, u64 value)
 {
-
+	wrmsrl(uncore_msr_perf_ctr(box), value & uncore_box_ctr_mask(box));
 }
 
 static void hswep_uncore_msr_read_counter(struct uncore_box *box, u64 *value)
 {
+	u64 tmp;
 
+	rdmsrl(uncore_msr_perf_ctr(box), tmp);
+	*value = tmp & uncore_box_ctr_mask(box);
 }
 
 #define HSWEP_UNCORE_MSR_BOX_OPS()				\
@@ -296,7 +308,7 @@ enum {
 	HSWEP_UNCORE_CBOX_ID
 };
 
-/* MSR Boxes */
+/* MSR Types */
 struct uncore_box_type *HSWEP_UNCORE_MSR_TYPE[] = {
 	[HSWEP_UNCORE_UBOX_ID]   = &HSWEP_UNCORE_UBOX,
 	[HSWEP_UNCORE_PCUBOX_ID] = &HSWEP_UNCORE_PCUBOX,
@@ -313,8 +325,6 @@ static void hswep_uncore_pci_show_box(struct uncore_box *box)
 {
 	struct pci_dev *pdev = box->pdev;
 	unsigned int config, low, high;
-
-	pr_info("Show");
 
 	pci_read_config_dword(pdev, uncore_pci_box_status(box), &config);
 	pr_info("Box Status: 0x%llx", config);
@@ -378,10 +388,10 @@ static void hswep_uncore_pci_disable_event(struct uncore_box *box,
 
 static void hswep_uncore_pci_write_counter(struct uncore_box *box, u64 value)
 {
-	unsigned int low, high;
+	u32 low, high;
 	
-	low = (unsigned int)(value & 0xffffffff);
-	high = (unsigned int)((value & uncore_box_ctr_mask(box)) >> 32);
+	low = (u32)(value & 0xffffffff);
+	high = (u32)((value & uncore_box_ctr_mask(box)) >> 32);
 
 	pci_write_config_dword(box->pdev, uncore_pci_perf_ctr(box), low);
 	pci_write_config_dword(box->pdev, uncore_pci_perf_ctr(box)+4, high);
@@ -394,7 +404,8 @@ static void hswep_uncore_pci_read_counter(struct uncore_box *box, u64 *value)
 	pci_read_config_dword(box->pdev, uncore_pci_perf_ctr(box), &low);
 	pci_read_config_dword(box->pdev, uncore_pci_perf_ctr(box)+4, &high);
 
-	*value = ((u64)low | ((u64)high << 32)) & uncore_box_ctr_mask(box);
+	*value = ((u64)high << 32) | (u64)low;
+	*value &= uncore_box_ctr_mask(box);
 }
 
 #define HSWEP_UNCORE_PCI_BOX_OPS()				\
@@ -517,7 +528,7 @@ enum {
 	HSWEP_UNCORE_PCI_R3QPI_ID,
 };
 
-/* PCI Boxes */
+/* PCI Types */
 struct uncore_box_type *HSWEP_UNCORE_PCI_TYPE[] = {
 	[HSWEP_UNCORE_PCI_HA_ID]     = &HSWEP_UNCORE_HA,
 	[HSWEP_UNCORE_PCI_IMC_ID]    = &HSWEP_UNCORE_IMC,
@@ -652,7 +663,7 @@ static int hswep_pcibus_to_nodeid(int devid)
 }
 
 static struct pci_driver HSWEP_UNCORE_PCI_DRIVER = {
-	.name		= "HSWEP UNCORE",
+	.name		= "HSWEP-UNCORE",
 	.id_table	= HSWEP_UNCORE_PCI_IDS
 };
 
@@ -666,14 +677,12 @@ int hswep_cpu_init(void)
 	return 0;
 }
 
-/* See Intel Xeon E5 v3 Data Sheet Volume 2: Registers */
-#define HSWEP_UBOX_PCI_DEVICE	0x2F1E
-
 int hswep_pci_init(void)
 {
 	int ret;
 	
-	ret = hswep_pcibus_to_nodeid(HSWEP_UBOX_PCI_DEVICE);
+	/* Xeon E5-v3 Datasheet Volume2 */
+	ret = hswep_pcibus_to_nodeid(0x2F1E);
 	if (ret)
 		return ret;
 

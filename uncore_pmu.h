@@ -16,11 +16,16 @@
  *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+/*
+ * This file describes data structures and APIs of Uncore PMU programming.
+ * See comments of each structures or functions for details.
+ */
+
 #include <linux/pci.h>
 #include <linux/types.h>
 #include <linux/compiler.h>
 
-#define UNCORE_MAX_SOCKET		8
+#define UNCORE_MAX_SOCKET 8
 
 /* PCI Driver Data <--> Box Type and IDX */
 #define UNCORE_PCI_DEV_DATA(type, idx)	(((type) << 8) | (idx))
@@ -51,7 +56,7 @@ struct uncore_event {
 /**
  * struct uncore_box
  * @idx:	Index of this box
- * @nodeid	NUMA node id of this box
+ * @nodeid:	NUMA node id of this box
  * @box_type:	Pointer to the type of this box
  * @pdev:	PCI device of this box (For PCI type box)
  * @next:	List of the same type boxes
@@ -146,6 +151,10 @@ static inline u64 uncore_box_ctr_mask(struct uncore_box *box)
 	return (1ULL << box->box_type->perf_ctr_bits) - 1;
 }
 
+/*
+ * PCI Type Box
+ */
+
 static inline unsigned int uncore_pci_box_status(struct uncore_box *box)
 {
 	return box->box_type->box_status;
@@ -166,12 +175,10 @@ static inline unsigned int uncore_pci_perf_ctr(struct uncore_box *box)
 	return box->box_type->perf_ctr;
 }
 
-/**
- * uncore_msr_box_offset
- * @box:	the box in question
- *
- * Return the control MSR's address offset of this box
+/*
+ * MSR Type Box
  */
+
 static inline unsigned int uncore_msr_box_offset(struct uncore_box *box)
 {
 	return box->idx * box->box_type->msr_offset;
@@ -197,11 +204,15 @@ static inline unsigned int uncore_msr_perf_ctr(struct uncore_box *box)
 	return box->box_type->perf_ctr + uncore_msr_box_offset(box);
 }
 
+/*
+ * Uncore PMU General APIs
+ */
+
 /**
- * uncore_show_event
+ * uncore_show_box
  * @box:	the box to show
  *
- * Show control and conter status of the box
+ * Show control and counter status of the box
  */
 static inline void uncore_show_box(struct uncore_box *box)
 {
@@ -265,7 +276,7 @@ static inline void uncore_enable_event(struct uncore_box *box,
  * @box:	the box to disable
  * @event:	the event to disable
  *
- * Remove a specific event from box
+ * Remove a specific event from box.
  * This method will *NOT* disable counting, call uncore_disable_box to stop.
  */
 static inline void uncore_disable_event(struct uncore_box *box,
@@ -274,11 +285,27 @@ static inline void uncore_disable_event(struct uncore_box *box,
 	box->box_type->ops->disable_event(box, event);
 }
 
+/**
+ * uncore_write_counter
+ * @box:	the box to write
+ * @value:	the value to write
+ *
+ * Write to the counter of this box.
+ * Most useful when sampling events.
+ */
 static inline void uncore_write_counter(struct uncore_box *box, u64 value)
 {
 	box->box_type->ops->write_counter(box, value);
 }
 
+/**
+ * uncore_read_counter
+ * @box:	the box to 
+ * @value:	place to hold value
+ *
+ * Read the counter of this box.
+ * Lightweight show method, most useful when debugging.
+ */
 static inline void uncore_read_counter(struct uncore_box *box, u64 *value)
 {
 	box->box_type->ops->read_counter(box, value);
