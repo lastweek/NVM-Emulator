@@ -181,7 +181,6 @@ static void hswep_uncore_msr_disable_box(struct uncore_box *box)
 	}
 }
 
-/* FIXME Maybe merging two masks? */
 static void hswep_uncore_msr_enable_event(struct uncore_box *box,
 					struct uncore_event *event)
 {
@@ -194,6 +193,7 @@ static void hswep_uncore_msr_disable_event(struct uncore_box *box,
 	wrmsrl(uncore_msr_perf_ctl(box), event->enable);
 }
 
+/* TODO */
 static void hswep_uncore_msr_show_box(struct uncore_box *box)
 {
 
@@ -217,7 +217,7 @@ static void hswep_uncore_msr_read_counter(struct uncore_box *box, u64 *value)
 	.enable_event	= hswep_uncore_msr_enable_event,	\
 	.disable_event	= hswep_uncore_msr_disable_event,	\
 	.write_counter	= hswep_uncore_msr_write_counter,	\
-	.read_counter	= hswep_uncore_msr_read_counter		\
+	.read_counter	= hswep_uncore_msr_read_counter
 
 const struct uncore_box_ops HSWEP_UNCORE_UBOX_OPS = {
 	HSWEP_UNCORE_MSR_BOX_OPS()
@@ -312,21 +312,21 @@ struct uncore_box_type *HSWEP_UNCORE_MSR_TYPE[] = {
 static void hswep_uncore_pci_show_box(struct uncore_box *box)
 {
 	struct pci_dev *pdev = box->pdev;
-	unsigned int config, hehe;
+	unsigned int config, low, high;
 
 	pr_info("Show");
 
 	pci_read_config_dword(pdev, uncore_pci_box_status(box), &config);
-	pr_info("Box Status: %X", config);
+	pr_info("Box Status: 0x%llx", config);
 
 	pci_read_config_dword(pdev, uncore_pci_perf_ctl(box), &config);
-	pr_info("Control: %X", config);
+	pr_info("Control: 0x%llx", config);
 
 	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box), &config);
-	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box) + 4, &hehe);
-	pr_info("Counter: %x %x", hehe, config);
+	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box)+4, &hehe);
+	pr_info("Counter: 0x%x 0x%x", hehe, config);
 	pr_info("Counter: %lld", ((u64)hehe << 32) | (u64)config);
-	pr_info("Counter: %llx", ((u64)hehe << 32) | (u64)config);
+	pr_info("Counter: 0x%llx", ((u64)hehe << 32) | (u64)config);
 }
 
 static void hswep_uncore_pci_init_box(struct uncore_box *box)
@@ -384,7 +384,7 @@ static void hswep_uncore_pci_write_counter(struct uncore_box *box, u64 value)
 	high = (unsigned int)((value & uncore_box_ctr_mask(box)) >> 32);
 
 	pci_write_config_dword(box->pdev, uncore_pci_perf_ctr(box), low);
-	pci_write_config_dword(box->pdev, uncore_pci_perf_ctr(box) + 4, high);
+	pci_write_config_dword(box->pdev, uncore_pci_perf_ctr(box)+4, high);
 }
 
 static void hswep_uncore_pci_read_counter(struct uncore_box *box, u64 *value)
@@ -392,7 +392,7 @@ static void hswep_uncore_pci_read_counter(struct uncore_box *box, u64 *value)
 	unsigned int low, high;
 
 	pci_read_config_dword(box->pdev, uncore_pci_perf_ctr(box), &low);
-	pci_read_config_dword(box->pdev, uncore_pci_perf_ctr(box) + 4, &high);
+	pci_read_config_dword(box->pdev, uncore_pci_perf_ctr(box)+4, &high);
 
 	*value = ((u64)low | ((u64)high << 32)) & uncore_box_ctr_mask(box);
 }
@@ -405,7 +405,7 @@ static void hswep_uncore_pci_read_counter(struct uncore_box *box, u64 *value)
 	.enable_event	= hswep_uncore_pci_enable_event,	\
 	.disable_event	= hswep_uncore_pci_disable_event,	\
 	.write_counter	= hswep_uncore_pci_write_counter,	\
-	.read_counter	= hswep_uncore_pci_read_counter		\
+	.read_counter	= hswep_uncore_pci_read_counter
 
 const struct uncore_box_ops HSWEP_UNCORE_HABOX_OPS = {
 	HSWEP_UNCORE_PCI_BOX_OPS()
