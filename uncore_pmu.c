@@ -44,8 +44,7 @@ static int __always_unused uncore_pci_probe(struct pci_dev *dev,
 	return -EINVAL;
 }
 
-static void __always_unused  uncore_pci_remove(struct pci_dev *dev)
-{ }
+static void __always_unused  uncore_pci_remove(struct pci_dev *dev) { }
 
 static void uncore_event_show(struct uncore_event *event)
 {
@@ -71,7 +70,7 @@ static void uncore_types_init(struct uncore_box_type **types)
 {
 	int i;
 
-	for (i = 0; types[i] != NULL; i++) {
+	for (i = 0; types[i]; i++) {
 		INIT_LIST_HEAD(&types[i]->box_list);
 	}
 }
@@ -361,6 +360,7 @@ pcierr:
 	uncore_pci_exit();
 	return ret;
 }
+
 /*
 	struct uncore_event event = {
 		.ctl = 0xe01,
