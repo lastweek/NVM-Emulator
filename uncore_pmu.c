@@ -397,12 +397,14 @@ static void uncore_main(void)
 	if (!box)
 		return;
 
-	for (i = 1; i < 4; i++) {
+	for (i = 1; i < 2; i++) {
 		uncore_init_box(box); /* Clear all */
-		uncore_enable_event(box, &event);
-		uncore_write_counter(box, 0xFFFFFFFFFFF0);
-		uncore_enable_box(box); /* Start counting */
-		udelay(10*i);
+		//uncore_enable_event(box, &event);
+		
+		uncore_write_counter(box, 0xfffffffffff0);
+		uncore_show_box(box);
+		//uncore_enable_box(box); /* Start counting */
+		udelay(1*i);
 		uncore_show_box(box);
 		uncore_disable_event(box, &event);
 		uncore_disable_box(box);

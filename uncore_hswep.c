@@ -324,8 +324,9 @@ static void hswep_uncore_pci_show_box(struct uncore_box *box)
 
 	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box), &config);
 	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box) + 4, &hehe);
+	pr_info("Counter: %x %x", hehe, config);
 	pr_info("Counter: %lld", ((u64)hehe << 32) | (u64)config);
-	pr_info("Counter: %llX", ((u64)hehe << 32) | (u64)config);
+	pr_info("Counter: %llx", ((u64)hehe << 32) | (u64)config);
 }
 
 static void hswep_uncore_pci_init_box(struct uncore_box *box)
@@ -377,9 +378,13 @@ static void hswep_uncore_pci_disable_event(struct uncore_box *box,
 
 static void hswep_uncore_pci_write_counter(struct uncore_box *box, u64 value)
 {
-	pci_write_config_dword(box->pdev,
-			       uncore_pci_perf_ctr(box),
-			       value & uncore_box_ctr_mask(box));
+	unsigned int low, high;
+	
+	low = (unsigned int)(value & 0xffffffff);
+	high = (unsigned int)((value & uncore_box_ctr_mask(box)) >> 32);
+
+	pci_write_config_dword(box->pdev, uncore_pci_perf_ctr(box), low);
+	pci_write_config_dword(box->pdev, uncore_pci_perf_ctr(box) + 4, high);
 }
 
 static void hswep_uncore_pci_read_counter(struct uncore_box *box, u64 *value)
