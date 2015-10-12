@@ -20,6 +20,7 @@
 
 #include "uncore_pmu.h"
 
+#include <asm/setup.h>
 #include <linux/errno.h>
 #include <linux/slab.h>
 #include <linux/pci.h>
@@ -34,18 +35,20 @@ struct uncore_box_type *dummy_xxx_type[] = { NULL, };
 struct uncore_box_type **uncore_msr_type = dummy_xxx_type;
 struct uncore_box_type **uncore_pci_type = dummy_xxx_type;
 
-/* Not Used */
+/* PCI Bus Number <---> NUMA Node ID */
+int uncore_pcibus_to_nodeid[256] = { [0 ... 255] = -1, };
+
+/*
+ * Since kernel has a uncore PMU module which has claimed all the PCI boxes
+ * at kernel startup, so this uncore_pci_probe method will never get called.
+ * I leave pci driver and these two methods here for future usage.
+ */
 struct pci_driver *uncore_pci_driver;
 static bool pci_driver_registered = false;
-
-static int __always_unused uncore_pci_probe(struct pci_dev *dev,
-					    const struct pci_device_id *id)
-{
-	return -EINVAL;
-}
-
-static void __always_unused  uncore_pci_remove(struct pci_dev *dev)
-{ }
+static int __always_unused
+uncore_pci_probe(struct pci_dev *dev, const struct pci_device_id *id) {return -EIO;}
+static void __always_unused
+uncore_pci_remove(struct pci_dev *dev) {}
 
 static void uncore_event_show(struct uncore_event *event)
 {
@@ -147,7 +150,18 @@ static int __must_check uncore_pci_init(void)
 	struct pci_dev *pdev;
 	int ret;
 
-	hswep_pci_init();
+	switch (boot_cpu_data.x86_model) {
+		case 63: /* Haswell-EP */
+			ret = hswep_pci_init();
+			break;
+		default:
+			pr_err("Not an E5-v3");
+			return -ENXIO;
+	};
+
+	if (ret)
+		return ret;
+
 	uncore_types_init(uncore_pci_type);
 
 	ids = uncore_pci_driver->id_table;
@@ -172,7 +186,7 @@ static int __must_check uncore_pci_init(void)
 		ids++;
 	}
 
-	/* Driver methods, never being called */
+	/* Register uncore PMU PCI driver*/
 	uncore_pci_driver->probe = uncore_pci_probe;
 	uncore_pci_driver->remove = uncore_pci_remove;
 	ret = pci_register_driver(uncore_pci_driver);

@@ -545,21 +545,78 @@ static const struct pci_device_id HSWEP_UNCORE_PCI_IDS[] = {
 	}
 };
 
+/**
+ * hswep_pcibus_to_nodeid
+ * @devid:	The device id of PCI UBOX device
+ * Return:	Non-zero on failure
+ *
+ * According to Intel CPU datasheet, get the configuration about the mapping
+ * between PCI bus number and NUMA node ID from PCI UBOX device. After all,
+ * the mapping is stored in a CPU-independent mapping array.
+ */
+static int hswep_pcibus_to_nodeid(int devid)
+{
+	struct pci_dev *ubox;
+	int err, nodeid, mapping, bus, i;
+
+	while (1) {
+		ubox = pci_get_device(PCI_VENDOR_ID_INTEL, devid, ubox);
+		if (!ubox)
+			break;
+		bus = ubox->bux->number;
+
+		/* Read Node ID Configuration Resgister */
+		err = pci_read_config_dword(ubox, 0x40, &nodeid);
+		if (err)
+			break;
+
+		/* Read Node ID Mapping Register */
+		err = pci_read_config_dword(ubox, 0x54, &mapping);
+		if (err)
+			break;
+		
+		/* Every 3-bit maps a node */
+		for (i = 0; i < 8; i++) {
+			if (nodeid == ((mapping >> (i * 3)) & 0x7)) {
+				pcibus_to_nodeid[bus] = i;
+				break;
+			}
+		}
+	}
+
+	pci_dev_put(ubox);
+	
+	return err? pcibios_err_to_errno(err) : 0;
+}
+
 static struct pci_driver HSWEP_UNCORE_PCI_DRIVER = {
 	.name		= "HSWEP UNCORE",
 	.id_table	= HSWEP_UNCORE_PCI_IDS
 };
 
-void hswep_cpu_init(void)
+int hswep_cpu_init(void)
 {
 	if (HSWEP_UNCORE_CBOX.num_boxes > boot_cpu_data.x86_max_cores)
 		HSWEP_UNCORE_CBOX.num_boxes = boot_cpu_data.x86_max_cores;
 
 	uncore_msr_type = HSWEP_UNCORE_MSR_TYPE;
+	
+	return 0;
 }
 
-void hswep_pci_init(void)
+/* See Intel Xeon E5 v3 Data Sheet Volume 2: Registers */
+#define HSWEP_UBOX_PCI_DEVICE	0x2F1E
+
+int hswep_pci_init(void)
 {
+	int ret;
+	
+	ret = hswep_pcibus_to_nodeid(HSWEP_UBOX_PCI_DEVICE);
+	if (ret)
+		return ret;
+
 	uncore_pci_type = HSWEP_UNCORE_PCI_TYPE;
 	uncore_pci_driver = &HSWEP_UNCORE_PCI_DRIVER;
+
+	return 0;
 }

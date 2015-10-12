@@ -230,7 +230,7 @@ static inline void uncore_disable_event(struct uncore_box *box,
 
 /* Haswell-EP */
 void hswep_cpu_init(void);
-void hswep_pci_init(void);
+int hswep_pci_init(void);
 
 /* User-Space Interface /proc */
 void uncore_proc_create(void);
