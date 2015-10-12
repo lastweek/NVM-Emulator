@@ -39,14 +39,11 @@ struct uncore_event_desc {
 
 /**
  * struct uncore_event
- * @ctl:	Address of Control MSR
- * @ctr:	Address of Counter MSR
  * @enable:	Bit mask to enable this event
  * @disable:	Bis mask to disable this event
  * @desc:	Description about this event
  */
 struct uncore_event {
-	unsigned int ctl, ctr;
 	unsigned long long enable, disable;
 	struct uncore_event_desc *desc;
 };
@@ -79,10 +76,12 @@ struct uncore_box {
  * @disable_box:
  * @enable_event:
  * @disable_event:
+ * @show_event:
  *
  * Describe methods for manipulating a uncore pmu box
  */
 struct uncore_box_ops {
+	void (*show_box)(struct uncore_box *box);
 	void (*init_box)(struct uncore_box *box);
 	void (*enable_box)(struct uncore_box *box);
 	void (*disable_box)(struct uncore_box *box);
@@ -96,14 +95,14 @@ struct uncore_box_ops {
  * @num_counters:	Counters this type box has
  * @num_boxes:		Boxes this type box has
  * @perf_ctr_bits:	Bit width of PMC
- * @perf_ctr:		PMC MSR address
- * @perf_ctl:		EventSel MSR address
+ * @perf_ctr:		PMC address
+ * @perf_ctl:		EventSel address
  * @event_mask:		perf_ctl writable bits mask
  * @fixed_ctr_bits:	Bit width of fixed counter
- * @fixed_ctr:		Fixed counter MSR address
- * @fixed_ctl:		Fixed EventSel MSR address
- * @box_ctl:		Box-level Control MSR address
- * @box_status:		Box-level Status MSR address
+ * @fixed_ctr:		Fixed counter address
+ * @fixed_ctl:		Fixed EventSel address
+ * @box_ctl:		Box-level Control address
+ * @box_status:		Box-level Status address
  * @msr_offset:		MSR address offset of next box
  * @box_list:		List of all avaliable boxes of this type
  * @ops:		Box manipulation functions
@@ -139,15 +138,19 @@ extern struct uncore_box_type **uncore_pci_type;
 extern struct pci_driver *uncore_pci_driver;
 extern int uncore_pcibus_to_nodeid[256];
 
-/**
- * uncore_pci_box_ctl
- * @box:	the box in question
- *
- * Return the config register address offset of this box
- */
 static inline unsigned int uncore_pci_box_ctl(struct uncore_box *box)
 {
 	return box->box_type->box_ctl;
+}
+
+static inline unsigned int uncore_pci_perf_ctl(struct uncore_box *box)
+{
+	return box->box_type->perf_ctl;
+}
+
+static inline unsigned int uncore_pci_perf_ctr(struct uncore_box *box)
+{
+	return box->box_type->perf_ctr;
 }
 
 /**
@@ -161,22 +164,39 @@ static inline unsigned int uncore_msr_box_offset(struct uncore_box *box)
 	return box->idx * box->box_type->msr_offset;
 }
 
-/**
- * uncore_msr_box_ctl
- * @box:	the box in question
- *
- * Return the control MSR's address of this box
- */
 static inline unsigned int uncore_msr_box_ctl(struct uncore_box *box)
 {
 	return box->box_type->box_ctl + uncore_msr_box_offset(box);
+}
+
+static inline unsigned int uncore_msr_perf_ctl(struct uncore_box *box)
+{
+	return box->box_type->perf_ctl + uncore_msr_box_offset(box);
+}
+
+static inline unsigned int uncore_msr_perf_ctr(struct uncore_box *box)
+{
+	return box->box_type->perf_ctr + uncore_msr_box_offset(box);
+}
+
+/**
+ * uncore_show_event
+ * @box:	the box to show
+ *
+ * Show control and conter status of the box
+ */
+static inline void uncore_show_box(struct uncore_box *box)
+{
+	box->box_type->ops->show_box(box);
 }
 
 /**
  * uncore_init_box
  * @box:	the box to init
  *
- * Initialize a uncore box
+ * Initialize a uncore box for a new event.
+ * This method will clear the control and the counter registers.
+ * Always call this if you want to begin a new event to count or sample.
  */
 static inline void uncore_init_box(struct uncore_box *box)
 {
@@ -187,7 +207,9 @@ static inline void uncore_init_box(struct uncore_box *box)
  * uncore_enable_box
  * @box:	the box to enable
  *
- * Enable counting at box-level
+ * Enable the box to count or sample.
+ * This method will enable counting at the box-level. Note that this method
+ * will *NOT* clear counters, use uncore_init_box to clear all registers.
  */
 static inline void uncore_enable_box(struct uncore_box *box)
 {
@@ -198,7 +220,8 @@ static inline void uncore_enable_box(struct uncore_box *box)
  * uncore_disable_box
  * @box:	the box to disable
  *
- * Disable counting at box-level
+ * Disable the box to count or sample.
+ * This method will disbale counting at the box-level. Just freeze the counter.
  */
 static inline void uncore_disable_box(struct uncore_box *box)
 {
@@ -208,9 +231,10 @@ static inline void uncore_disable_box(struct uncore_box *box)
 /**
  * uncore_enable_event
  * @box:	the box to enable
- * @event:	the event to count
+ * @event:	the event to count or sample
  *
- * Enable counting at a specific counter of a box
+ * Assign a specific event to box.
+ * This method will *NOT* start counting, call uncore_enable_box to start.
  */
 static inline void uncore_enable_event(struct uncore_box *box,
 				       struct uncore_event *event)
@@ -223,7 +247,8 @@ static inline void uncore_enable_event(struct uncore_box *box,
  * @box:	the box to disable
  * @event:	the event to disable
  *
- * Disable counting at a specific counter of a box
+ * Remove a specific event from box
+ * This method will *NOT* disable counting, call uncore_disable_box to stop.
  */
 static inline void uncore_disable_event(struct uncore_box *box,
 					struct uncore_event *event)

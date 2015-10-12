@@ -22,6 +22,7 @@
 
 #include <asm/setup.h>
 #include <linux/errno.h>
+#include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/pci.h>
 #include <linux/list.h>
@@ -49,18 +50,6 @@ static void __always_unused uncore_pci_remove(struct pci_dev *dev) {}
 static int __always_unused uncore_pci_probe(struct pci_dev *dev,
 					    const struct pci_device_id *id)
 {return -EIO;}
-
-static void uncore_event_show(struct uncore_event *event)
-{
-	unsigned long long v1, v2;
-
-	if (!event | !event->ctl | !event->ctr)
-		return;
-	
-	rdmsrl(event->ctl, v1);
-	rdmsrl(event->ctr, v2);
-	printk(KERN_INFO "SEL=%llx CNT=%llx", v1, v2);
-}
 
 /**
  * uncore_get_box	-	Get a uncore PMU box
@@ -357,7 +346,7 @@ static void uncore_pci_print_mapping(void)
 {
 	int bus;
 
-	pr_info("\n");
+	pr_info("BUS2Node Mapping");
 	for (bus = 0; bus < 256; bus++) {
 		if (uncore_pcibus_to_nodeid[bus] != -1) {
 			pr_info("PCI BUS %d(0x%x) <---> NODE %d",
@@ -393,14 +382,31 @@ static void uncore_msr_print_boxes(void)
 	}
 }
 
-static void test(void)
+/*
+ * init_box
+ */
+static void uncore_main(void)
 {
 	struct uncore_box *box;
+	struct uncore_event event = {
+		.enable = (1<<22) | 0x0000 | 0x0000,
+		.disable = 0
+	};
 
-	box = uncore_get_box(uncore_pci_type[1], 0, 1);
+	box = uncore_get_box(uncore_pci_type[0], 0, 1);
 	if (!box)
 		return;
 	
+	uncore_init_box(box);
+	uncore_show_box(box);
+	
+	uncore_enable_box(box);
+	uncore_enable_event(box, &event);
+	udelay(10);
+	uncore_disable_event(box, &event);
+	
+	uncore_disable_box(box);
+	uncore_show_box(box);
 }
 
 static int uncore_init(void)
@@ -419,12 +425,14 @@ static int uncore_init(void)
 	if (ret)
 		goto cpuerr;
 
-	pr_info("INIT ON CPU %2d", smp_processor_id());
+	/* Pay attention to these messages */
+	pr_info("INIT ON CPU %2d (NODE %2d)",
+		smp_processor_id(), numa_node_id());
 	uncore_msr_print_boxes();
 	uncore_pci_print_boxes();
 	uncore_pci_print_mapping();
 	
-	test();
+	uncore_main();
 
 	return 0;
 
@@ -435,20 +443,6 @@ pcierr:
 	return ret;
 }
 
-/*
-	struct uncore_event event = {
-		.ctl = 0xe01,
-		.ctr = 0xe08,
-		.enable = (1<<22) | 0x0000 | 0x0000,
-		.disable = 0
-	};
-	uncore_init_box(&cbox);
-	uncore_enable_box(&cbox);
-	uncore_enable_event(&cbox, &event);
-	uncore_disable_event(&cbox, &event);
-	uncore_disable_box(&cbox);
-*/	
-
 static void uncore_exit(void)
 {
 	uncore_pci_exit();
@@ -458,7 +452,8 @@ static void uncore_exit(void)
 	if (pci_driver_registered)
 		pci_unregister_driver(uncore_pci_driver);
 	
-	pr_info("EXIT ON CPU %2d", smp_processor_id());
+	pr_info("EXIT ON CPU %2d (NODE %2d)",
+		smp_processor_id(), numa_node_id());
 }
 
 module_init(uncore_init);
