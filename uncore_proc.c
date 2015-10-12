@@ -15,3 +15,40 @@
  *	with this program; if not, write to the Free Software Foundation, Inc.,
  *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
+
+#include "uncore_pmu.h"
+#include <linux/types.h>
+#include <linux/proc_fs.h>
+
+static int pmu_proc_show(struct seq_file *file, void *v)
+{
+	seq_printf(file, "UNCORE PMU %d", 2333);
+	
+	return 0;
+}
+
+static int uncore_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, pmu_proc_show, NULL);
+}
+
+const struct file_operations uncore_proc_fops = {
+	.open		= uncore_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release
+};
+
+static bool is_proc_registed = false;
+
+void uncore_proc_create(void)
+{
+	if (proc_create("uncore", 0, NULL, &uncore_proc_fops))
+		is_proc_registed = true;
+}
+
+void uncore_proc_remove(void)
+{
+	if (is_proc_registed)
+		remove_proc_entry("uncore", NULL);
+}

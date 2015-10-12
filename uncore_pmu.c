@@ -239,15 +239,15 @@ static void uncore_cpu_exit(void)
 static int __must_check uncore_cpu_init(void)
 {
 	struct uncore_box_type *type;
-	int i, j, ret;
+	int n, idx, ret;
 
 	hswep_cpu_init();
 	uncore_types_init(uncore_msr_type);
 	
-	for (i = 0; uncore_msr_type[i]; i++) {
-		type = uncore_msr_type[i];
-		for (j = 0; j < type->num_boxes; j++) {
-			ret = uncore_msr_new_box(type, j);
+	for (n = 0; uncore_msr_type[n]; n++) {
+		type = uncore_msr_type[n];
+		for (idx = 0; idx < type->num_boxes; idx++) {
+			ret = uncore_msr_new_box(type, idx);
 			if (ret)
 				goto error;
 		}
@@ -320,18 +320,18 @@ static void _test(void)
 	int nodeid, mapping;
 	u32 config;
 
-while(1) {
-	config=0;
-	dev = pci_get_device(PCI_VENDOR_ID_INTEL, 0x2f1e, dev);
-	if (!dev)
-		break;
-	
-	pr_info("BusNo: %d", dev->bus->number);
-	pci_read_config_dword(dev, 0x40, &config);
-	pr_info("Nodeid:  %x", config);
-	pci_read_config_dword(dev, 0x54, &config);
-	pr_info("Mapping: %x", config);
-}
+	while(1) {
+		config=0;
+		dev = pci_get_device(PCI_VENDOR_ID_INTEL, 0x2f1e, dev);
+		if (!dev)
+			break;
+
+		pr_info("BusNo: %d", dev->bus->number);
+		pci_read_config_dword(dev, 0x40, &config);
+		pr_info("Nodeid:  %x", config);
+		pci_read_config_dword(dev, 0x54, &config);
+		pr_info("Mapping: %x", config);
+	}
 	pci_dev_put(dev);
 }
 
@@ -346,7 +346,9 @@ static int uncore_init(void)
 	ret = uncore_cpu_init();
 	if (ret)
 		goto cpuerr;
-	
+
+	uncore_proc_create();
+
 	uncore_pci_print_boxes();
 	uncore_msr_print_boxes();
 	pr_info("INIT ON CPU %2d", smp_processor_id());
@@ -383,6 +385,7 @@ static void uncore_exit(void)
 {
 	uncore_pci_exit();
 	uncore_cpu_exit();
+	uncore_proc_remove();
 
 	if (pci_driver_registered)
 		pci_unregister_driver(uncore_pci_driver);
