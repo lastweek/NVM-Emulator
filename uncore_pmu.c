@@ -45,10 +45,10 @@ int uncore_pcibus_to_nodeid[256] = { [0 ... 255] = -1, };
  */
 struct pci_driver *uncore_pci_driver;
 static bool pci_driver_registered = false;
-static int __always_unused
-uncore_pci_probe(struct pci_dev *dev, const struct pci_device_id *id) {return -EIO;}
-static void __always_unused
-uncore_pci_remove(struct pci_dev *dev) {}
+static void __always_unused uncore_pci_remove(struct pci_dev *dev) {}
+static int __always_unused uncore_pci_probe(struct pci_dev *dev,
+					    const struct pci_device_id *id)
+{return -EIO;}
 
 static void uncore_event_show(struct uncore_event *event)
 {
@@ -63,30 +63,63 @@ static void uncore_event_show(struct uncore_event *event)
 }
 
 /**
+ * uncore_get_box	-	Get a uncore PMU box
+ * @type:	Pointer to box_type
+ * @idx:	idx of the box in this box_type
+ * @nodeid:	which NUMA node to get this box
+ * Return:	%NULL on failure
+ *
+ * Get a uncore PMU box to perform tasks. Note that each box of its type has
+ * its dedicated idx number, and belongs to a specific NUMA node. Therefore, to
+ * get a PMU box you have to offer all these three parameters.
+ */
+struct uncore_box *uncore_get_box(struct uncore_box_type *type,
+				  int idx, int nodeid)
+{
+	struct uncore_box *box;
+
+	if (!type)
+		return NULL;
+
+	if (idx < 0 || idx >= type->num_boxes ||
+	    nodeid < 0 || nodeid >= UNCORE_MAX_SOCKET)
+		return NULL;
+	
+	list_for_each_entry(box, &type->box_list, next) {
+		if (box->idx == idx && box->nodeid == nodeid)
+			return box;
+	}
+
+	return NULL;
+}
+
+/**
  * uncore_types_init
  * @types:	box_type to init
+ * Return:	Non-zero on failure
  *
- * Init the array of uncore_box_type. Specially, the list_head.
- * This function should be called *after* CPU-specific init
- * function.
+ * Init the array of **uncore_box_type. Specially, the list_head.
+ * This function should be called *after* CPU-specific init function.
  */
-static void uncore_types_init(struct uncore_box_type **types)
+static int uncore_types_init(struct uncore_box_type **types)
 {
 	int i;
 
 	for (i = 0; types[i]; i++) {
 		INIT_LIST_HEAD(&types[i]->box_list);
 	}
+
+	return 0;
 }
 
 /**
  * uncore_pci_new_box
  * @pdev:	the pci device of this box
  * @id:		the device id of this box
- * Return 0 on success, otherwise return error number.
+ * Return:	Non-zero on failure
  *
- * Malloc a new box of PCI type, and then insert it into the tail
- * of box_list of its uncore_box_type.
+ * Malloc a new box of PCI type, initilize all the fields. And then insert it
+ * into the tail of box_list of its uncore_box_type.
  */
 static int __must_check uncore_pci_new_box(struct pci_dev *pdev,
 					   const struct pci_device_id *id)
@@ -111,6 +144,7 @@ static int __must_check uncore_pci_new_box(struct pci_dev *pdev,
 		type->num_boxes++;
 	}
 	
+	box->nodeid = uncore_pcibus_to_nodeid[pdev->bus->number];
 	box->box_type = type;
 	box->pdev = pdev;
 	list_add_tail(&box->next, &type->box_list);
@@ -118,7 +152,7 @@ static int __must_check uncore_pci_new_box(struct pci_dev *pdev,
 	return 0;
 }
 
-/* Free PCI type boxes */
+/* Free all PCI type boxes */
 static void uncore_pci_exit(void)
 {
 	struct uncore_box_type *type;
@@ -129,21 +163,16 @@ static void uncore_pci_exit(void)
 	for (i = 0; uncore_pci_type[i]; i++) {
 		type = uncore_pci_type[i];
 		head = &type->box_list;
-
 		while (!list_empty(head)) {
 			box = list_first_entry(head, struct uncore_box, next);
 			list_del(&box->next);
-			
-			/* Put PCI device */
 			pci_dev_put(box->pdev);
-			
-			/* Let it go */
 			kfree(box);
 		}
 	}
 }
 
-/* Malloc PCI type boxes */
+/* Malloc all PCI type boxes */
 static int __must_check uncore_pci_init(void)
 {
 	const struct pci_device_id *ids;
@@ -162,31 +191,29 @@ static int __must_check uncore_pci_init(void)
 	if (ret)
 		return ret;
 
-	uncore_types_init(uncore_pci_type);
+	ret = uncore_types_init(uncore_pci_type);
+	if (ret)
+		return ret;
 
 	ids = uncore_pci_driver->id_table;
 	if (!ids)
 		return -EFAULT;
 
-	while (ids->vendor || ids->device) {
-		pdev = pci_get_device(ids->vendor, ids->device, NULL);
-		if (!pdev) {
-			/*
-			 * DO NOT ABORT!
-			 * Not all SKUs support all PCI devices.
-			 */
-			ids++;
-			continue;
+	for (; ids->vendor || ids->device; ids++) {
+		/* Iterate over all PCI buses */
+		pdev = NULL;
+		while (1) {
+			pdev = pci_get_device(ids->vendor, ids->device, pdev);
+			if (!pdev)
+				break;
+			
+			ret = uncore_pci_new_box(pdev, ids);
+			if (ret)
+				goto error;
 		}
-
-		ret = uncore_pci_new_box(pdev, ids);
-		if (ret)
-			goto error;
-
-		ids++;
 	}
 
-	/* Register uncore PMU PCI driver*/
+	/* Register PCI driver*/
 	uncore_pci_driver->probe = uncore_pci_probe;
 	uncore_pci_driver->remove = uncore_pci_remove;
 	ret = pci_register_driver(uncore_pci_driver);
@@ -222,6 +249,7 @@ static int __must_check uncore_msr_new_box(struct uncore_box_type *type,
 	if (!box)
 		return -ENOMEM;
 
+	box->nodeid = 0;
 	box->idx = idx;
 	box->box_type = type;
 	list_add_tail(&box->next, &type->box_list);
@@ -266,7 +294,9 @@ static int __must_check uncore_cpu_init(void)
 	if (ret)
 		return ret;
 
-	uncore_types_init(uncore_msr_type);
+	ret = uncore_types_init(uncore_msr_type);
+	if (ret)
+		return ret;
 	
 	for (n = 0; uncore_msr_type[n]; n++) {
 		type = uncore_msr_type[n];
@@ -300,12 +330,14 @@ static void uncore_pci_print_boxes(void)
 	for (i = 0; uncore_pci_type[i]; i++) {
 		type = uncore_pci_type[i];
 		pr_info("\n");
-		pr_info("PCI Type: %s Boxes: %d", type->name,
-			list_empty(&type->box_list)?0:type->num_boxes);
+		pr_info("PCI Type: %s Boxes: %d",
+			type->name,
+			list_empty(&type->box_list)? 0: type->num_boxes);
 
 		list_for_each_entry(box, &type->box_list, next) {
-			pr_info("......Box%d  %x:%x:%x",
+			pr_info("......Box%d, in node%d, %x:%x:%x",
 			box->idx,
+			box->nodeid,
 			box->pdev->bus->number,
 			box->pdev->vendor,
 			box->pdev->device);
@@ -346,9 +378,21 @@ static void uncore_msr_print_boxes(void)
 			list_empty(&type->box_list)?0:type->num_boxes);
 
 		list_for_each_entry(box, &type->box_list, next) {
-			pr_info("......Box%d", box->idx);
+			pr_info("......Box%d, in node%d",
+			box->idx,
+			box->nodeid);
 		}
 	}
+}
+
+static void test(void)
+{
+	struct uncore_box *box;
+
+	box = uncore_get_box(uncore_pci_type[1], 0, 1);
+	if (!box)
+		return;
+	
 }
 
 static int uncore_init(void)
@@ -372,6 +416,8 @@ static int uncore_init(void)
 	uncore_pci_print_boxes();
 	uncore_pci_print_mapping();
 	
+	test();
+
 	return 0;
 
 cpuerr:
@@ -388,17 +434,11 @@ pcierr:
 		.enable = (1<<22) | 0x0000 | 0x0000,
 		.disable = 0
 	};
-	
-	uncore_event_show(&event);
-
 	uncore_init_box(&cbox);
 	uncore_enable_box(&cbox);
 	uncore_enable_event(&cbox, &event);
-	udelay(100);
 	uncore_disable_event(&cbox, &event);
 	uncore_disable_box(&cbox);
-
-	uncore_event_show(&event);
 */	
 
 static void uncore_exit(void)

@@ -54,7 +54,7 @@ struct uncore_event {
 /**
  * struct uncore_box
  * @idx:	Index of this box
- * @node_id	NUMA node id of this box
+ * @nodeid	NUMA node id of this box
  * @box_type:	Pointer to the type of this box
  * @pdev:	PCI device of this box (For PCI type box)
  * @next:	List of the same type boxes
@@ -66,7 +66,7 @@ struct uncore_event {
  */
 struct uncore_box {
 	int			idx;
-	int			node_id;
+	int			nodeid;
 	struct uncore_box_type	*box_type;
 	struct pci_dev		*pdev;
 	struct list_head	next;
