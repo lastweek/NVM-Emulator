@@ -71,14 +71,16 @@ struct uncore_box {
 
 /**
  * struct uncore_box_ops
+ * @show_box:
  * @init_box:
  * @enable_box:
  * @disable_box:
  * @enable_event:
  * @disable_event:
- * @show_event:
+ * @write_counter:
+ * @read_counter:
  *
- * Describe methods for manipulating a uncore pmu box
+ * Describe methods for manipulating a uncore PMU box
  */
 struct uncore_box_ops {
 	void (*show_box)(struct uncore_box *box);
@@ -87,6 +89,8 @@ struct uncore_box_ops {
 	void (*disable_box)(struct uncore_box *box);
 	void (*enable_event)(struct uncore_box *box, struct uncore_event *event);
 	void (*disable_event)(struct uncore_box *box, struct uncore_event *event);
+	void (*write_counter)(struct uncore_box *box, u64 value);
+	void (*read_counter)(struct uncore_box *box, u64 *value);
 };
 
 /**
@@ -136,6 +140,11 @@ extern struct uncore_box_type **uncore_msr_type;
 extern struct uncore_box_type **uncore_pci_type;
 extern struct pci_driver *uncore_pci_driver;
 extern int uncore_pcibus_to_nodeid[256];
+
+static inline u64 uncore_box_ctr_mask(struct uncore_box *box)
+{
+	return (1ULL << box->box_type->perf_ctr_bits) - 1;
+}
 
 static inline unsigned int uncore_pci_box_status(struct uncore_box *box)
 {
@@ -263,6 +272,16 @@ static inline void uncore_disable_event(struct uncore_box *box,
 					struct uncore_event *event)
 {
 	box->box_type->ops->disable_event(box, event);
+}
+
+static inline void uncore_write_counter(struct uncore_box *box, u64 value)
+{
+	box->box_type->ops->write_counter(box, value);
+}
+
+static inline void uncore_read_counter(struct uncore_box *box, u64 *value)
+{
+	box->box_type->ops->read_counter(box, value);
 }
 
 /* Haswell-EP */

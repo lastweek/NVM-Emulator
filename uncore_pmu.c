@@ -346,6 +346,7 @@ static void uncore_pci_print_mapping(void)
 {
 	int bus;
 
+	pr_info("\n");
 	pr_info("BUS2Node Mapping");
 	for (bus = 0; bus < 256; bus++) {
 		if (uncore_pcibus_to_nodeid[bus] != -1) {
@@ -382,18 +383,16 @@ static void uncore_msr_print_boxes(void)
 	}
 }
 
-/*
- * init_box
- */
 static void uncore_main(void)
 {
 	int i;
 	struct uncore_box *box;
 	struct uncore_event event = {
-		.enable = (1<<22) | 0x0000 | 0x0000,
+		.enable = (1<<22) | (1<<20) | 0x0000 | 0x0000,
 		.disable = 0
 	};
 
+	/* Home Agent, Box0, Node1 */
 	box = uncore_get_box(uncore_pci_type[0], 0, 1);
 	if (!box)
 		return;
@@ -401,12 +400,12 @@ static void uncore_main(void)
 	for (i = 1; i < 4; i++) {
 		uncore_init_box(box); /* Clear all */
 		uncore_enable_event(box, &event);
+		uncore_write_counter(box, 0xFFFFFFFFFFF0);
 		uncore_enable_box(box); /* Start counting */
 		udelay(10*i);
+		uncore_show_box(box);
 		uncore_disable_event(box, &event);
 		uncore_disable_box(box);
-		
-		uncore_show_box(box);
 	}
 }
 
