@@ -20,6 +20,8 @@
 #include <linux/types.h>
 #include <linux/compiler.h>
 
+#define UNCORE_MAX_SOCKET		8
+
 /* PCI Driver Data <--> Box Type and IDX */
 #define UNCORE_PCI_DEV_DATA(type, idx)	(((type) << 8) | (idx))
 #define UNCORE_PCI_DEV_TYPE(data)	(((data) >> 8) & 0xFF)
@@ -135,6 +137,7 @@ struct uncore_box_type {
 extern struct uncore_box_type **uncore_msr_type;
 extern struct uncore_box_type **uncore_pci_type;
 extern struct pci_driver *uncore_pci_driver;
+extern int uncore_pcibus_to_nodeid[256];
 
 /**
  * uncore_pci_box_ctl
@@ -229,9 +232,9 @@ static inline void uncore_disable_event(struct uncore_box *box,
 }
 
 /* Haswell-EP */
-void hswep_cpu_init(void);
+int hswep_cpu_init(void);
 int hswep_pci_init(void);
 
 /* User-Space Interface /proc */
-void uncore_proc_create(void);
+int uncore_proc_create(void);
 void uncore_proc_remove(void);

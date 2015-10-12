@@ -556,14 +556,14 @@ static const struct pci_device_id HSWEP_UNCORE_PCI_IDS[] = {
  */
 static int hswep_pcibus_to_nodeid(int devid)
 {
-	struct pci_dev *ubox;
+	struct pci_dev *ubox = NULL;
 	int err, nodeid, mapping, bus, i;
 
 	while (1) {
 		ubox = pci_get_device(PCI_VENDOR_ID_INTEL, devid, ubox);
 		if (!ubox)
 			break;
-		bus = ubox->bux->number;
+		bus = ubox->bus->number;
 
 		/* Read Node ID Configuration Resgister */
 		err = pci_read_config_dword(ubox, 0x40, &nodeid);
@@ -578,7 +578,7 @@ static int hswep_pcibus_to_nodeid(int devid)
 		/* Every 3-bit maps a node */
 		for (i = 0; i < 8; i++) {
 			if (nodeid == ((mapping >> (i * 3)) & 0x7)) {
-				pcibus_to_nodeid[bus] = i;
+				uncore_pcibus_to_nodeid[bus] = i;
 				break;
 			}
 		}

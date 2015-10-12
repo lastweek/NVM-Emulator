@@ -214,7 +214,6 @@ static int __must_check uncore_msr_new_box(struct uncore_box_type *type,
 					   unsigned int idx)
 {
 	struct uncore_box *box;
-	int ret;
 
 	if (!type)
 		return -EINVAL;
@@ -255,7 +254,18 @@ static int __must_check uncore_cpu_init(void)
 	struct uncore_box_type *type;
 	int n, idx, ret;
 
-	hswep_cpu_init();
+	switch (boot_cpu_data.x86_model) {
+		case 63: /* Haswell-EP */
+			ret = hswep_cpu_init();
+			break;
+		default:
+			pr_err("Not an E5-v3");
+			return -ENXIO;
+	};
+
+	if (ret)
+		return ret;
+
 	uncore_types_init(uncore_msr_type);
 	
 	for (n = 0; uncore_msr_type[n]; n++) {
@@ -303,6 +313,19 @@ static void uncore_pci_print_boxes(void)
 	}
 }
 
+static void uncore_pci_print_mapping(void)
+{
+	int bus;
+
+	pr_info("\n");
+	for (bus = 0; bus < 256; bus++) {
+		if (uncore_pcibus_to_nodeid[bus] != -1) {
+			pr_info("PCI BUS %d(0x%x) <---> NODE %d",
+				bus, bus, uncore_pcibus_to_nodeid[bus]);
+		}
+	}
+}
+
 /**
  * uncore_msr_print_boxes
  * 
@@ -328,27 +351,6 @@ static void uncore_msr_print_boxes(void)
 	}
 }
 
-static void _test(void)
-{
-	struct pci_dev *dev;
-	int nodeid, mapping;
-	u32 config;
-
-	while(1) {
-		config=0;
-		dev = pci_get_device(PCI_VENDOR_ID_INTEL, 0x2f1e, dev);
-		if (!dev)
-			break;
-
-		pr_info("BusNo: %d", dev->bus->number);
-		pci_read_config_dword(dev, 0x40, &config);
-		pr_info("Nodeid:  %x", config);
-		pci_read_config_dword(dev, 0x54, &config);
-		pr_info("Mapping: %x", config);
-	}
-	pci_dev_put(dev);
-}
-
 static int uncore_init(void)
 {
 	int ret;
@@ -361,12 +363,15 @@ static int uncore_init(void)
 	if (ret)
 		goto cpuerr;
 
-	uncore_proc_create();
+	ret = uncore_proc_create();
+	if (ret)
+		goto cpuerr;
 
-	uncore_pci_print_boxes();
-	uncore_msr_print_boxes();
 	pr_info("INIT ON CPU %2d", smp_processor_id());
-	_test();
+	uncore_msr_print_boxes();
+	uncore_pci_print_boxes();
+	uncore_pci_print_mapping();
+	
 	return 0;
 
 cpuerr:

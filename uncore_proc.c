@@ -17,8 +17,10 @@
  */
 
 #include "uncore_pmu.h"
+#include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 
 static int pmu_proc_show(struct seq_file *file, void *v)
 {
@@ -41,10 +43,14 @@ const struct file_operations uncore_proc_fops = {
 
 static bool is_proc_registed = false;
 
-void uncore_proc_create(void)
+int uncore_proc_create(void)
 {
-	if (proc_create("uncore", 0, NULL, &uncore_proc_fops))
+	if (proc_create("uncore", 0, NULL, &uncore_proc_fops)) {
 		is_proc_registed = true;
+		return 0;
+	}
+
+	return -ENOENT;
 }
 
 void uncore_proc_remove(void)
