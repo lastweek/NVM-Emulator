@@ -196,6 +196,15 @@ static int __must_check uncore_pci_init(void)
 			if (!pdev)
 				break;
 			
+			/* BIG FAT NOTE
+			 * pci_get_device will call pci_dev_put to put pdev.
+			 * As a consequence, every pdev actually does *NOT*
+			 * increase its kref at all! So we have to manually
+			 * increase pdev's kref counter in case these pdevs
+			 * are released! (we will put pdev when pci_exit)
+			 */
+			get_device(&pdev->dev);
+
 			ret = uncore_pci_new_box(pdev, ids);
 			if (ret)
 				goto error;
@@ -320,12 +329,16 @@ static void uncore_pci_print_boxes(void)
 			list_empty(&type->box_list)? 0: type->num_boxes);
 
 		list_for_each_entry(box, &type->box_list, next) {
-			pr_info("......Box%d, in node%d, %x:%x:%x",
+			pr_info("......Box%d, in Node%d, %x:%x:%x, %d:%d:%d, Kref = %d",
 			box->idx,
 			box->nodeid,
 			box->pdev->bus->number,
 			box->pdev->vendor,
-			box->pdev->device);
+			box->pdev->device,
+			box->pdev->bus->number,
+			(box->pdev->devfn >> 3) & 0x1f,
+			(box->pdev->devfn) & 0x7,
+			box->pdev->dev.kobj.kref.refcount.counter);
 		}
 	}
 }
@@ -335,7 +348,7 @@ static void uncore_pci_print_mapping(void)
 	int bus;
 
 	pr_info("\n");
-	pr_info("BUS2Node Mapping");
+	pr_info("BUS to Node Mapping");
 	for (bus = 0; bus < 256; bus++) {
 		if (uncore_pcibus_to_nodeid[bus] != -1) {
 			pr_info("PCI BUS %d(0x%x) <---> NODE %d",
@@ -364,7 +377,7 @@ static void uncore_msr_print_boxes(void)
 			list_empty(&type->box_list)?0:type->num_boxes);
 
 		list_for_each_entry(box, &type->box_list, next) {
-			pr_info("......Box%d, in node%d",
+			pr_info("......Box%d, in Node%d",
 			box->idx,
 			box->nodeid);
 		}
