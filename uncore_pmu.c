@@ -32,6 +32,7 @@
 #include <linux/module.h>
 
 /* CPU Independent Data */
+struct uncore_pmu uncore_pmu;
 struct uncore_box_type *dummy_xxx_type[] = { NULL, };
 struct uncore_box_type **uncore_msr_type = dummy_xxx_type;
 struct uncore_box_type **uncore_pci_type = dummy_xxx_type;
@@ -46,11 +47,11 @@ int uncore_pcibus_to_nodeid[256] = { [0 ... 255] = -1, };
  */
 struct pci_driver *uncore_pci_driver;
 static bool pci_driver_registered = false;
-static void __always_unused
-uncore_pci_remove(struct pci_dev *dev) {}
+static void __always_unused uncore_pci_remove(struct pci_dev *dev) {}
 static int __always_unused
 uncore_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 {return -EIO;}
+
 
 /**
  * uncore_get_box
@@ -202,14 +203,6 @@ static int __must_check uncore_pci_init(void)
 				goto error;
 		}
 	}
-
-	/* Register PCI driver*/
-	uncore_pci_driver->probe = uncore_pci_probe;
-	uncore_pci_driver->remove = uncore_pci_remove;
-	ret = pci_register_driver(uncore_pci_driver);
-	if (ret)
-		goto error;
-	pci_driver_registered = true;
 
 	return 0;
 
@@ -380,63 +373,42 @@ static void uncore_msr_print_boxes(void)
 	}
 }
 
-struct uncore_event ha_requests_reads_local = {
-	.enable = (1<<22) | (1<<20) | 0x0100 | 0x0001,
-	.disable = 0
-};
-
-struct uncore_event ha_requests_reads_remote = {
-	.enable = (1<<22) | (1<<20) | 0x0200 | 0x0001,
-	.disable = 0
-};
-
-struct uncore_event ha_requests_reads = {
-	.enable = (1<<22) | (1<<20) | 0x0300 | 0x0001,
-	.disable = 0
-};
-
-struct uncore_event ha_requests_writes_local = {
-	.enable = (1<<22) | (1<<20) | 0x0400 | 0x0001,
-	.disable = 0
-};
-
-struct uncore_event ha_requests_writes_remote = {
-	.enable = (1<<22) | (1<<20) | 0x0800 | 0x0001,
-	.disable = 0
-};
-
-struct uncore_event ha_requests_writes = {
-	.enable = (1<<22) | (1<<20) | 0x0B00 | 0x0001,
-	.disable = 0
-};
+extern struct uncore_event ha_requests_reads;
 
 /*
  * Set a uncore PMU session
  */
 static void uncore_main(void)
 {
-	struct uncore_box *habox, *ubox;
+	struct uncore_box *habox;
 	struct uncore_event *event;
 
 	/* Home Agent, Box0, Node1 */
-	/* UBOX, Box0, Node1 */
 	habox = uncore_get_box(uncore_pci_type[0], 0, 1);
-	ubox = uncore_get_box(uncore_msr_type[0], 0, 1);
-	if (!habox || !ubox) {
+	if (!habox) {
 		pr_err("Get box error");
 		return;
 	}
 
-	uncore_init_box(habox); /* Clear all */
-	//uncore_enable_event(box, &event);
+	event = &ha_requests_reads;
 	
-	uncore_write_counter(box, 0xfffffffffff0);
-	uncore_show_box(box);
-	//uncore_enable_box(box); /* Start counting */
-	udelay(1*i);
-	uncore_show_box(box);
-	uncore_disable_event(box, &event);
-	uncore_disable_box(box);
+	/* Init and clear box */
+	uncore_init_box(habox);
+	uncore_enable_event(habox, event);
+	
+	uncore_write_counter(habox, 0xfffffffffff0);
+	uncore_show_box(habox);
+
+	/* Start counting */
+	uncore_enable_box(habox);
+	
+	udelay(1);
+	
+	/* Stop counting */
+	uncore_disable_event(habox, event);
+	uncore_disable_box(habox);
+
+	uncore_show_box(habox);
 }
 
 static int uncore_init(void)
@@ -480,9 +452,6 @@ static void uncore_exit(void)
 	uncore_cpu_exit();
 	uncore_proc_remove();
 
-	if (pci_driver_registered)
-		pci_unregister_driver(uncore_pci_driver);
-	
 	pr_info("EXIT ON CPU %2d (NODE %2d)",
 		smp_processor_id(), numa_node_id());
 }

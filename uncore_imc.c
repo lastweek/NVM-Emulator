@@ -28,3 +28,10 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 
+/*
+ * Device 20, 21, 22 Function 0, 1
+ * IMC0, Channel 0-1 --> 20:0 20:1 (2fb4 2fb5)
+ * IMC0, Channel 2-3 --> 21:0 21:1 (2fb0 2fb1)
+ * IMC1, Channel 0-1 --> 23:0 23:1 (2fd4 2fd5)
+ */
+struct pci_dev *imc;

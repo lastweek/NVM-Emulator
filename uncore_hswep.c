@@ -327,16 +327,15 @@ static void hswep_uncore_pci_show_box(struct uncore_box *box)
 	unsigned int config, low, high;
 
 	pci_read_config_dword(pdev, uncore_pci_box_status(box), &config);
-	pr_info("Box Status: 0x%llx", config);
+	pr_info("Box Status: 0x%x", config);
 
 	pci_read_config_dword(pdev, uncore_pci_perf_ctl(box), &config);
-	pr_info("Control: 0x%llx", config);
+	pr_info("Control: 0x%x", config);
 
-	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box), &config);
-	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box)+4, &hehe);
-	pr_info("Counter: 0x%x 0x%x", hehe, config);
-	pr_info("Counter: %lld", ((u64)hehe << 32) | (u64)config);
-	pr_info("Counter: 0x%llx", ((u64)hehe << 32) | (u64)config);
+	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box), &low);
+	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box)+4, &high);
+	pr_info("Counter: 0x%x 0x%x", high, low);
+	pr_info("Counter: %lld", ((u64)high << 32) | (u64)low);
 }
 
 static void hswep_uncore_pci_init_box(struct uncore_box *box)
@@ -662,11 +661,6 @@ static int hswep_pcibus_to_nodeid(int devid)
 	return err? pcibios_err_to_errno(err) : 0;
 }
 
-static struct pci_driver HSWEP_UNCORE_PCI_DRIVER = {
-	.name		= "HSWEP-UNCORE",
-	.id_table	= HSWEP_UNCORE_PCI_IDS
-};
-
 int hswep_cpu_init(void)
 {
 	if (HSWEP_UNCORE_CBOX.num_boxes > boot_cpu_data.x86_max_cores)
@@ -674,26 +668,40 @@ int hswep_cpu_init(void)
 
 	uncore_msr_type = HSWEP_UNCORE_MSR_TYPE;
 	
+	/* Init the global uncore_pmu */
+	uncore_pmu.msr_type		= HSWEP_UNCORE_MSR_TYPE;
+	uncore_pmu.global_ctl		= HSWEP_MSR_PMON_GLOBAL_CTL;
+	uncore_pmu.global_status	= HSWEP_MSR_PMON_GLOBAL_STATUS;
+	uncore_pmu.global_config	= HSWEP_MSR_PMON_GLOBAL_CONFIG;
+
 	return 0;
 }
+
+static struct pci_driver HSWEP_UNCORE_PCI_DRIVER = {
+	.name		= "HSWEP-UNCORE",
+	.id_table	= HSWEP_UNCORE_PCI_IDS
+};
 
 int hswep_pci_init(void)
 {
 	int ret;
 	
-	/* Xeon E5-v3 Datasheet Volume2 */
+	/* Xeon E5-v3 Datasheet Volume 2 */
 	ret = hswep_pcibus_to_nodeid(0x2F1E);
 	if (ret)
 		return ret;
 
-	uncore_pci_type = HSWEP_UNCORE_PCI_TYPE;
-	uncore_pci_driver = &HSWEP_UNCORE_PCI_DRIVER;
+	uncore_pci_driver	= HSWEP_UNCORE_PCI_DRIVER;
+	uncore_pci_type		= HSWEP_UNCORE_PCI_TYPE;
+
+	/* Init the global uncore_pmu */
+	uncore_pmu.pci_type	= HSWEP_UNCORE_PCI_TYPE;
 
 	return 0;
 }
 
 /*
- * Hmm, ugh
+ * ugh
  */
 
 /*

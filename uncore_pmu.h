@@ -131,10 +131,34 @@ struct uncore_box_type {
 	const struct uncore_box_ops *ops;
 };
 
+/**
+ * struct uncore_pmu
+ * @name:		Name for uncore PMU
+ * @pci_type:		PCI type boxes (NULL if absent)
+ * @msr_type:		MSR type boxes (can NOT be NULL)
+ * @global_ctl:		MSR address of global control register (per socket)
+ * @global_status:	MSR address of global status register (per socket)
+ * @global_config:	MSR address of global config register (per socket)
+ *
+ * This structure is the top description about uncore PMU. The main reason to
+ * have such a global description structure is sometimes we need the global MSR
+ * registers, since the scope of these MSRs is per-socket. Almost every micro-
+ * architecture has its global MSRs.
+ */
+struct uncore_pmu {
+	const char		*name;
+	struct uncore_box_type	**pci_type;
+	struct uncore_box_type	**msr_type;
+	unsigned int		global_ctl;
+	unsigned int		global_status;
+	unsigned int		global_config;
+};
+
 extern struct uncore_box_type **uncore_msr_type;
 extern struct uncore_box_type **uncore_pci_type;
 extern struct pci_driver *uncore_pci_driver;
 extern int uncore_pcibus_to_nodeid[256];
+extern struct uncore_pmu uncore_pmu;
 
 static inline u64 uncore_box_ctr_mask(struct uncore_box *box)
 {
