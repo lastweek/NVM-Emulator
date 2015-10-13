@@ -16,6 +16,8 @@
  *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#define pr_fmt(fmt) "UNCORE PMU: " fmt
+
 /*
  * Support:
  * O	Platform:		Xeon E5 v3, Xeon E7 v3
@@ -325,17 +327,22 @@ static void hswep_uncore_pci_show_box(struct uncore_box *box)
 {
 	struct pci_dev *pdev = box->pdev;
 	unsigned int config, low, high;
+	
+	pr_info("\n");
+
+	pci_read_config_dword(pdev, uncore_pci_box_ctl(box), &config);
+	pr_info("Box Control: 0x%x", config);
 
 	pci_read_config_dword(pdev, uncore_pci_box_status(box), &config);
 	pr_info("Box Status: 0x%x", config);
 
 	pci_read_config_dword(pdev, uncore_pci_perf_ctl(box), &config);
-	pr_info("Control: 0x%x", config);
+	pr_info(".... PMON_CTL: 0x%x", config);
 
 	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box), &low);
 	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box)+4, &high);
-	pr_info("Counter: 0x%x 0x%x", high, low);
-	pr_info("Counter: %lld", ((u64)high << 32) | (u64)low);
+	pr_info(".... PMON_CTR: 0x%x 0x%x", high, low);
+	pr_info("....           %Ld", ((u64)high << 32) | (u64)low);
 }
 
 static void hswep_uncore_pci_init_box(struct uncore_box *box)
@@ -343,6 +350,10 @@ static void hswep_uncore_pci_init_box(struct uncore_box *box)
 	pci_write_config_dword(box->pdev,
 			       uncore_pci_box_ctl(box),
 			       HSWEP_PCI_BOX_CTL_INIT);
+
+	pci_write_config_dword(box->pdev,
+			       uncore_pci_box_status(box),
+			       0xf);
 }
 
 static void hswep_uncore_pci_enable_box(struct uncore_box *box)
@@ -691,7 +702,7 @@ int hswep_pci_init(void)
 	if (ret)
 		return ret;
 
-	uncore_pci_driver	= HSWEP_UNCORE_PCI_DRIVER;
+	uncore_pci_driver	= &HSWEP_UNCORE_PCI_DRIVER;
 	uncore_pci_type		= HSWEP_UNCORE_PCI_TYPE;
 
 	/* Init the global uncore_pmu */

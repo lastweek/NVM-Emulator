@@ -46,10 +46,8 @@ int uncore_pcibus_to_nodeid[256] = { [0 ... 255] = -1, };
  * I leave pci driver and these two methods here for future usage.
  */
 struct pci_driver *uncore_pci_driver;
-static bool pci_driver_registered = false;
 static void __always_unused uncore_pci_remove(struct pci_dev *dev) {}
-static int __always_unused
-uncore_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
+static int __always_unused uncore_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
 {return -EIO;}
 
 
@@ -374,6 +372,20 @@ static void uncore_msr_print_boxes(void)
 }
 
 extern struct uncore_event ha_requests_reads;
+extern struct uncore_event ha_requests_writes;
+
+static void uncore_show_global(struct uncore_pmu *pmu)
+{
+	unsigned int config;
+
+	pr_info("\n");
+	rdmsrl(pmu->global_ctl, config);
+	pr_info("Global Control: 0x%x", config);
+	rdmsrl(pmu->global_status, config);
+	pr_info("Global Status:  0x%x", config);
+	rdmsrl(pmu->global_config, config);
+	pr_info("Global Config:  0x%x", config);
+}
 
 /*
  * Set a uncore PMU session
@@ -390,24 +402,22 @@ static void uncore_main(void)
 		return;
 	}
 
-	event = &ha_requests_reads;
-	
-	/* Init and clear box */
-	uncore_init_box(habox);
-	uncore_enable_event(habox, event);
-	
-	uncore_write_counter(habox, 0xfffffffffff0);
-	uncore_show_box(habox);
+	uncore_show_global(&uncore_pmu);
 
-	/* Start counting */
+	event = &ha_requests_writes;
+	
+	/* Step 1: Init and clear box */
+	uncore_init_box(habox);
 	uncore_enable_box(habox);
 	
-	udelay(1);
+	/* Step 2: Start counting */
+	uncore_enable_event(habox, event);
 	
-	/* Stop counting */
+	/* Step 3: Stop counting */
 	uncore_disable_event(habox, event);
 	uncore_disable_box(habox);
 
+	/* Step 4: Print info */
 	uncore_show_box(habox);
 }
 
