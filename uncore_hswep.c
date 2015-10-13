@@ -341,8 +341,8 @@ static void hswep_uncore_pci_show_box(struct uncore_box *box)
 
 	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box), &low);
 	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box)+4, &high);
-	pr_info(".... PMON_CTR: 0x%x 0x%x", high, low);
-	pr_info("....           %Ld", ((u64)high << 32) | (u64)low);
+	pr_info(".... PMON_CTR: 0x%x 0x%x -> %Ld", high, low,
+		((u64)high << 32) | (u64)low);
 }
 
 static void hswep_uncore_pci_init_box(struct uncore_box *box)

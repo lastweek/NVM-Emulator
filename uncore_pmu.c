@@ -53,7 +53,7 @@ static int __always_unused uncore_pci_probe(struct pci_dev *dev, const struct pc
 
 /**
  * uncore_get_box
- * @type:	Pointer to box_type
+ * @type:	pointer to box_type
  * @idx:	idx of the box in this box_type
  * @nodeid:	which NUMA node to get this box
  * Return:	%NULL on failure
@@ -352,7 +352,7 @@ static void uncore_pci_print_mapping(void)
 	pr_info("PCI BUS Number to NodeID Mapping:");
 	for (bus = 0; bus < 256; bus++) {
 		if (uncore_pcibus_to_nodeid[bus] != -1) {
-			pr_info("PCI BUS %d(0x%x) <---> NODE %d",
+			pr_info("......BUS %d (0x%x) <---> NODE %d",
 				bus, bus, uncore_pcibus_to_nodeid[bus]);
 		}
 	}
@@ -420,15 +420,16 @@ static void uncore_main(void)
 
 	event = &ha_requests_writes;
 	
-	/* Step 1: Init and clear box */
+	/* Step 1: Init */
 	uncore_init_box(habox);
-	uncore_enable_box(habox);
-	
+
 	/* Step 2: Start counting */
+	uncore_enable_box(habox);
 	uncore_enable_event(habox, event);
+
+	udelay(10);
 	
 	/* Step 3: Stop counting */
-	uncore_disable_event(habox, event);
 	uncore_disable_box(habox);
 
 	/* Step 4: Print info */
