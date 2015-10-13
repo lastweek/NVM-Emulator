@@ -151,6 +151,7 @@ static void uncore_pci_exit(void)
 		while (!list_empty(head)) {
 			box = list_first_entry(head, struct uncore_box, next);
 			list_del(&box->next);
+			/* Since we have get_device manually */
 			pci_dev_put(box->pdev);
 			kfree(box);
 		}
@@ -222,7 +223,7 @@ error:
  * uncore_msr_new_box
  * @type:	the MSR box_type
  * @idx:	the idx of the new box
- * Return 0 on success, otherwise return error number
+ * Return:	Non-zero on failure
  *
  * Malloc a new box of MSR type, and then insert it into the tail
  * of box_list of its uncore_box_type.
@@ -282,7 +283,7 @@ static int __must_check uncore_cpu_init(void)
 			ret = hswep_cpu_init();
 			break;
 		default:
-			pr_err("Not an E5-v3");
+			pr_err("Buy an E5-v3");
 	};
 
 	if (ret)
@@ -348,7 +349,7 @@ static void uncore_pci_print_mapping(void)
 	int bus;
 
 	pr_info("\n");
-	pr_info("BUS to Node Mapping");
+	pr_info("PCI BUS Number to NodeID Mapping:");
 	for (bus = 0; bus < 256; bus++) {
 		if (uncore_pcibus_to_nodeid[bus] != -1) {
 			pr_info("PCI BUS %d(0x%x) <---> NODE %d",
