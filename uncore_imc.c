@@ -25,14 +25,12 @@
 #include "uncore_pmu.h"
 
 #include <asm/setup.h>
-#include <linux/errno.h>
+#include <linux/bug.h>
 #include <linux/pci.h>
 #include <linux/list.h>
 #include <linux/slab.h>
-#include <linux/types.h>
-#include <linux/init.h>
+#include <linux/errno.h>
 #include <linux/kernel.h>
-#include <linux/module.h>
 
 /*
  * (The same PCI devices with UNOCRE IMC PMON)
@@ -48,12 +46,21 @@ LIST_HEAD(uncore_imc_devices);
 
 void uncore_imc_exit(void)
 {
+	struct list_head *imc, *head;
 
+	head = &uncore_imc_devices;
+	while (!list_empty(head)) {
+		imc = list_first_entry(head, struct uncore_imc, next);
+		list_del(&imc->next);
+		pci_dev_put(imc->pdev);
+		kfree(imc);
+	}
 }
 
 static int __must_check uncore_imc_new_device(struct pci_dev *pdev)
 {
 	struct uncore_imc *imc;
+	int nodeid;
 
 	if (!pdev)
 		return -EINVAL;
@@ -62,8 +69,13 @@ static int __must_check uncore_imc_new_device(struct pci_dev *pdev)
 	if (!imc)
 		return -ENOMEM;
 	
+	nodeid = uncore_pcibus_to_nodeid[pdev->bus->number];
+	WARN_ON((nodeid < 0) || (nodeid > UNCORE_MAX_SOCKET));
+
+	imc->nodeid = nodeid;
 	imc->pdev = pdev;
-	list_add_tail(&imc->list, &uncore_imc_devices);
+	list_add_tail(&imc->next, &uncore_imc_devices);
+
 	return 0;
 }
 
@@ -90,14 +102,14 @@ int __must_check uncore_imc_init(void)
 		return ret;
 	
 	ids = uncore_imc_device_ids;
-	for (; ids->vendor || ids->device; ids++) {
+	for (; ids->vendor; ids++) {
 		pdev = NULL;
 		while (1) {
 			pdev = pci_get_device(ids->vendor, ids->device, pdev);
 			if (!pdev)
 				break;
 			
-			/* Increase kref */
+			/* Increase kref manually */
 			get_device(&pdev->dev);
 			ret = uncore_imc_new_device(pdev);
 			if (ret)
@@ -114,4 +126,10 @@ out:
 
 void uncore_imc_print_devices(void)
 {
+	struct uncore_imc *imc;
+
+	for_each_list_entry(imc, &uncore_imc_devices, next) {
+	
+	}
+
 }

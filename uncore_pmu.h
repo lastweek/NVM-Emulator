@@ -41,7 +41,8 @@ struct uncore_box_type;
  * @desc:	Description about this event
  */
 struct uncore_event {
-	unsigned long long enable, disable;
+	unsigned long long enable;
+	unsigned long long disable;
 	const char *desc;
 };
 
@@ -339,9 +340,20 @@ void uncore_proc_remove(void);
  * IMC Part
  */
 
+/**
+ * struct uncore_imc
+ * @nodeid:	Physcial node this imc on
+ * @list:	Point to next imc device
+ * @pdev:	the pci device instance
+ *
+ * This structure describes the imc device used in uncore. We have this struct
+ * mainly because we want to control the bandwith more convenient. The pdev has
+ * all the information we want.
+ */
 struct uncore_imc {
-	struct pci_dev *pdev;
-	struct list_head list;
+	int			nodeid;
+	struct list_head	next;
+	struct pci_dev		*pdev;
 };
 
 extern const struct pci_device_id *uncore_imc_device_ids;
