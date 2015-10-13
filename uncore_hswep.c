@@ -776,3 +776,27 @@ struct uncore_event ha_imc_writes_partial = {
 	.disable = 0,
 	.desc = "HA to IMC partial line write requests"
 };
+
+/*
+ * IMC Part
+ */
+
+static const struct pci_device_id HSWEP_E5_IMC[] = {
+	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2FB4), },
+	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2FB5), },
+	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2FB0), },
+	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2FB1), },
+	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2FD0), },
+	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2FD1), },
+	{ 0, }
+};
+
+static const struct pci_device_id HSWEX_E7_IMC[] = {
+	{ 0, }
+};
+
+int hswep_imc_init(void)
+{
+	uncore_imc_device_ids = HSWEP_E5_IMC;
+	return 0;
+}

@@ -154,6 +154,7 @@ struct uncore_pmu {
 	unsigned int		global_config;
 };
 
+extern int uncore_socket_number;
 extern struct uncore_box_type **uncore_msr_type;
 extern struct uncore_box_type **uncore_pci_type;
 extern struct pci_driver *uncore_pci_driver;
@@ -328,7 +329,24 @@ static inline void uncore_read_counter(struct uncore_box *box, u64 *value)
 /* Haswell-EP */
 int hswep_cpu_init(void);
 int hswep_pci_init(void);
+int hswep_imc_init(void);
 
 /* User-Space Interface /proc */
 int uncore_proc_create(void);
 void uncore_proc_remove(void);
+
+/*
+ * IMC Part
+ */
+
+struct uncore_imc {
+	struct pci_dev *pdev;
+	struct list_head list;
+};
+
+extern const struct pci_device_id *uncore_imc_device_ids;
+extern struct list_head uncore_imc_devices;
+
+int uncore_imc_init(void);
+void uncore_imc_exit(void);
+void uncore_imc_print_devices(void);

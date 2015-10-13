@@ -20,18 +20,98 @@
  * This file describes methods to manipulate Integrated Memory Controller (IMC)
  */
 
+#define pr_fmt(fmt) "UNCORE IMC: " fmt
+
+#include "uncore_pmu.h"
+
+#include <asm/setup.h>
 #include <linux/errno.h>
 #include <linux/pci.h>
 #include <linux/list.h>
+#include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 
 /*
- * Device 20, 21, 22 Function 0, 1
+ * (The same PCI devices with UNOCRE IMC PMON)
+ *
  * IMC0, Channel 0-1 --> 20:0 20:1 (2fb4 2fb5)
- * IMC0, Channel 2-3 --> 21:0 21:1 (2fb0 2fb1)
- * IMC1, Channel 0-1 --> 23:0 23:1 (2fd4 2fd5)
+ * IMC1, Channel 2-3 --> 21:0 21:1 (2fb0 2fb1)
+ *
+ * IMC1, Channel 2-3 --> 23:0 23:1 (2fd0 2fd1)
  */
-struct pci_dev *imc;
+
+const struct pci_device_id *uncore_imc_device_ids;
+LIST_HEAD(uncore_imc_devices);
+
+void uncore_imc_exit(void)
+{
+
+}
+
+static int __must_check uncore_imc_new_device(struct pci_dev *pdev)
+{
+	struct uncore_imc *imc;
+
+	if (!pdev)
+		return -EINVAL;
+	
+	imc = kzalloc(sizeof(struct uncore_imc), GFP_KERNEL);
+	if (!imc)
+		return -ENOMEM;
+	
+	imc->pdev = pdev;
+	list_add_tail(&imc->list, &uncore_imc_devices);
+	return 0;
+}
+
+int __must_check uncore_imc_init(void)
+{
+	const struct pci_device_id *ids;
+	struct pci_dev *pdev;
+	int ret;
+	
+	ret = -ENXIO;
+	switch (boot_cpu_data.x86_model) {
+		case 45: /* Sandy Bridge-EP*/
+			break;
+		case 62: /* Ivy Bridge-EP */
+			break;
+		case 63: /* Haswell-EP */
+			ret = hswep_imc_init();
+			break;
+		default:
+			pr_err("Buy an E5-v3");
+	};
+
+	if (ret)
+		return ret;
+	
+	ids = uncore_imc_device_ids;
+	for (; ids->vendor || ids->device; ids++) {
+		pdev = NULL;
+		while (1) {
+			pdev = pci_get_device(ids->vendor, ids->device, pdev);
+			if (!pdev)
+				break;
+			
+			/* Increase kref */
+			get_device(&pdev->dev);
+			ret = uncore_imc_new_device(pdev);
+			if (ret)
+				goto out;
+		}
+	}
+
+	return 0;
+
+out:
+	uncore_imc_exit();
+	return ret;
+}
+
+void uncore_imc_print_devices(void)
+{
+}

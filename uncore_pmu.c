@@ -37,6 +37,9 @@ struct uncore_box_type *dummy_xxx_type[] = { NULL, };
 struct uncore_box_type **uncore_msr_type = dummy_xxx_type;
 struct uncore_box_type **uncore_pci_type = dummy_xxx_type;
 
+/* Socket(node) numbers */
+int uncore_socket_number;
+
 /* PCI Bus Number <---> NUMA Node ID */
 int uncore_pcibus_to_nodeid[256] = { [0 ... 255] = -1, };
 
@@ -448,6 +451,12 @@ static int uncore_init(void)
 	if (ret)
 		goto out;
 
+	/* uncore_imc.c */
+	ret = uncore_imc_init();
+	if (ret)
+		goto out;
+
+	/* uncore_proc.c */
 	ret = uncore_proc_create();
 	if (ret)
 		goto out;
@@ -458,9 +467,10 @@ static int uncore_init(void)
 	uncore_msr_print_boxes();
 	uncore_pci_print_boxes();
 	uncore_pci_print_mapping();
+	uncore_imc_print_devices();
 	
 	/* Show time */
-	uncore_main();
+	//uncore_main();
 
 	return 0;
 
@@ -473,9 +483,10 @@ pcierr:
 
 static void uncore_exit(void)
 {
-	uncore_pci_exit();
-	uncore_cpu_exit();
 	uncore_proc_remove();
+	uncore_imc_exit();
+	uncore_cpu_exit();
+	uncore_pci_exit();
 
 	pr_info("EXIT ON CPU %2d (NODE %2d)",
 		smp_processor_id(), numa_node_id());
