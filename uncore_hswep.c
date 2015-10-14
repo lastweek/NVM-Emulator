@@ -811,9 +811,24 @@ static int hswep_imc_set_threshold(struct pci_dev *pdev, int threshold)
 	return 0;
 }
 
+#define HSWEP_E5_IMC_THRT_PWR_EN	(1<<15)
+
 static int hswep_imc_enable_throttle(struct pci_dev *pdev, int threshold)
 {
-	pr_info("hello! enable");
+	unsigned int config, offset;
+	int i;
+	
+	/* 3 DIMM Per Channel at most */
+	for (i = 0; i < 3; i++) {
+		offset = 0x190 + 2 * i;
+		pci_read_config_word(pdev, offset, &config);
+		//config ~= HSWEP_E5_IMC_THRT_PWR_EN;
+		config = 0x8fff;
+		pci_write_config_word(pdev, offset, config);
+	}
+	
+	pci_read_config_word(pdev, 0x194, &config);
+	pr_info("%x", config);
 
 	return 0;
 }

@@ -45,6 +45,7 @@ void uncore_imc_exit(void)
 	while (!list_empty(head)) {
 		imc = list_first_entry(head, struct uncore_imc, next);
 		list_del(&imc->next);
+		/* Since we have get_device manually */
 		pci_dev_put(imc->pdev);
 		kfree(imc);
 	}
