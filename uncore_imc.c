@@ -46,7 +46,8 @@ LIST_HEAD(uncore_imc_devices);
 
 void uncore_imc_exit(void)
 {
-	struct list_head *imc, *head;
+	struct list_head *head;
+	struct uncore_imc *imc;
 
 	head = &uncore_imc_devices;
 	while (!list_empty(head)) {
@@ -57,6 +58,13 @@ void uncore_imc_exit(void)
 	}
 }
 
+/**
+ * uncore_imc_new_device
+ * @pdev:		the pci device instance
+ * Return:		Non-zero on failure
+ *
+ * Add a new IMC struct to the list.
+ */
 static int __must_check uncore_imc_new_device(struct pci_dev *pdev)
 {
 	struct uncore_imc *imc;
@@ -70,7 +78,8 @@ static int __must_check uncore_imc_new_device(struct pci_dev *pdev)
 		return -ENOMEM;
 	
 	nodeid = uncore_pcibus_to_nodeid[pdev->bus->number];
-	WARN_ON((nodeid < 0) || (nodeid > UNCORE_MAX_SOCKET));
+	WARN_ONCE((nodeid < 0) || (nodeid > UNCORE_MAX_SOCKET), 
+		"Invalid Node ID: %d, check pci-node mapping", nodeid);
 
 	imc->nodeid = nodeid;
 	imc->pdev = pdev;
@@ -109,14 +118,13 @@ int __must_check uncore_imc_init(void)
 			if (!pdev)
 				break;
 			
-			/* Increase kref manually */
+			/* See uncore_pmu.c for why */
 			get_device(&pdev->dev);
 			ret = uncore_imc_new_device(pdev);
 			if (ret)
 				goto out;
 		}
 	}
-
 	return 0;
 
 out:
@@ -128,8 +136,18 @@ void uncore_imc_print_devices(void)
 {
 	struct uncore_imc *imc;
 
-	for_each_list_entry(imc, &uncore_imc_devices, next) {
-	
+	pr_info("\n");
+	pr_info("IMC Devices:");
+	list_for_each_entry(imc, &uncore_imc_devices, next) {
+		pr_info("......Node %d, %x:%x:%x, %d:%d:%d, Kref = %d",
+		imc->nodeid,
+		imc->pdev->bus->number,
+		imc->pdev->vendor,
+		imc->pdev->device,
+		imc->pdev->bus->number,
+		(imc->pdev->devfn >> 3) & 0x1f,
+		(imc->pdev->devfn) & 0x7,
+		imc->pdev->dev.kobj.kref.refcount.counter);
 	}
 
 }

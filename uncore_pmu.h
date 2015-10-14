@@ -21,6 +21,10 @@
  * See comments of each structures or functions for details.
  */
 
+#ifndef pr_fmt
+#define pr_fmt(fmt) "UNCORE_PMU: " fmt
+#endif
+
 #include <linux/pci.h>
 #include <linux/types.h>
 #include <linux/compiler.h>

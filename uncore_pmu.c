@@ -449,7 +449,7 @@ static int uncore_init(void)
 
 	ret = uncore_cpu_init();
 	if (ret)
-		goto out;
+		goto cpuerr;
 
 	/* uncore_imc.c */
 	ret = uncore_imc_init();
@@ -475,6 +475,8 @@ static int uncore_init(void)
 	return 0;
 
 out:
+	uncore_imc_exit();
+cpuerr:
 	uncore_cpu_exit();
 pcierr:
 	uncore_pci_exit();
