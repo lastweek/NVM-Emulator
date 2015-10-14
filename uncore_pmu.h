@@ -166,6 +166,10 @@ extern struct pci_driver *uncore_pci_driver;
 extern int uncore_pcibus_to_nodeid[256];
 extern struct uncore_pmu uncore_pmu;
 
+/*
+ * PCI & MSR Type Box
+ */
+
 static inline u64 uncore_box_ctr_mask(struct uncore_box *box)
 {
 	return (1ULL << box->box_type->perf_ctr_bits) - 1;
@@ -352,7 +356,7 @@ void uncore_proc_remove(void);
  */
 struct uncore_imc_ops {
 	int	(*set_threshold)(struct pci_dev *pdev, int threshold);
-	int	(*enable_throttle)(struct pci_dev *pdev, int threshold);
+	int	(*enable_throttle)(struct pci_dev *pdev);
 	void	(*disable_throttle)(struct pci_dev *pdev);
 };
 
@@ -380,11 +384,13 @@ extern struct list_head uncore_imc_devices;
 int uncore_imc_init(void);
 void uncore_imc_exit(void);
 void uncore_imc_print_devices(void);
-int uncore_imc_set_threshold(int nodeid, int threshold);
-int uncore_imc_enable_throttle(int nodeid, int threshold);
-void uncore_imc_disable_throttle(int nodeid);
+int uncore_imc_set_threshold(unsigned int nodeid, unsigned int threshold);
+int uncore_imc_enable_throttle(unsigned int nodeid);
+void uncore_imc_disable_throttle(unsigned int nodeid);
 
-/* Haswell-EP */
+/*
+ * Haswell-EP
+ */
 int hswep_cpu_init(void);
 int hswep_pci_init(void);
 int hswep_imc_init(void);

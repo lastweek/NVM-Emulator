@@ -804,38 +804,91 @@ static const struct pci_device_id HSWEX_E7_IMC[] = {
 	{ 0, }
 };
 
-static int hswep_imc_set_threshold(struct pci_dev *pdev, int threshold)
-{
-	pr_info("hello! set");
-
-	return 0;
-}
-
-#define HSWEP_E5_IMC_THRT_PWR_EN	(1<<15)
-
-static int hswep_imc_enable_throttle(struct pci_dev *pdev, int threshold)
+/*
+ * This test wants to use [dimm_temp_thrt_lmt_[0:2]] to throttle
+ * bandwidth. After some tests, it turns out that: THRT_CRIT and
+ * THRT_MID has very very little impact on bandwidth(critical only?).
+ * So, what do they mean? what is critical or middle transactions?
+ *
+ * THRT_HI can throttle the memory bandwidth. But it is weird.
+ */
+__always_unused static void __test2(struct pci_dev *pdev)
 {
 	unsigned int config, offset;
 	int i;
+
+	for (i = 0; i < 3; i++) {
+		offset = 0x130 + 4 * i;
+		pci_read_config_dword(pdev, offset, &config);
+		config = 0x00ffff;
+		pci_write_config_dword(pdev, offset, config);
+	}
+	pci_read_config_dword(pdev, 0x134, &config);
+	pr_info("%x", config);
+}
+
+/*
+ * This test wants to use [chn_tmp_cfg] to throttle bandwidth.
+ * According to datasheet, some fields seems like be able to
+ * throttle the bandwidth. After some tests, it turns out this
+ * register has *no* impact on bandwidth.
+ */
+__always_unused static void __test3(struct pci_dev *pdev)
+{
+	unsigned int config;
+
+	pci_read_config_dword(pdev, 0x108, &config);
+	config |= 0x3ff;
+	config |= 0x0f0000;
+	pci_write_config_dword(pdev, 0x108, config);
+	pci_read_config_dword(pdev, 0x108, &config);
+	pr_info("%x", config);
+}
+
+/*
+ * Use [thrt_pwr_dimm_[0:2]] to throttle bandwidth.
+ */
+static int hswep_imc_set_threshold(struct pci_dev *pdev, int threshold)
+{
+	u32 offset, i;
+	u16 config;
 	
 	/* 3 DIMM Per Channel at most */
 	for (i = 0; i < 3; i++) {
 		offset = 0x190 + 2 * i;
 		pci_read_config_word(pdev, offset, &config);
-		//config ~= HSWEP_E5_IMC_THRT_PWR_EN;
-		config = 0x8fff;
+		config = 0x007f;
 		pci_write_config_word(pdev, offset, config);
 	}
-	
-	pci_read_config_word(pdev, 0x194, &config);
-	pr_info("%x", config);
 
+	return 0;
+}
+
+static int hswep_imc_enable_throttle(struct pci_dev *pdev)
+{
+	u32 offset, i;
+	u16 config;
+
+	for (i = 0; i < 3; i++) {
+		offset = 0x190 + 2 * i;
+		pci_read_config_word(pdev, offset, &config);
+		config |= (1 << 15);
+		pci_write_config_word(pdev, offset, config);
+	}
 	return 0;
 }
 
 static void hswep_imc_disable_throttle(struct pci_dev *pdev)
 {
-	pr_info("hello! disable");
+	u32 offset, i;
+	u16 config;
+
+	for (i = 0; i < 3; i++) {
+		offset = 0x190 + 2 * i;
+		pci_read_config_word(pdev, offset, &config);
+		config &= ~(1 << 15);
+		pci_write_config_word(pdev, offset, config);
+	}
 }
 
 static const struct uncore_imc_ops HSWEP_E5_IMC_OPS = {

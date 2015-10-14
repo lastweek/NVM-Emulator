@@ -469,8 +469,9 @@ static int uncore_init(void)
 	uncore_pci_print_mapping();
 	uncore_imc_print_devices();
 	
-	uncore_imc_enable_throttle(1,1);
-	uncore_imc_enable_throttle(0,1);
+	uncore_imc_enable_throttle(1);
+	uncore_imc_disable_throttle(1);
+	//uncore_imc_enable_throttle(0,1);
 
 	/* Show time */
 	//uncore_main();

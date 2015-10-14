@@ -126,12 +126,24 @@ out:
 	return ret;
 }
 
-int uncore_imc_set_threshold(int nodeid, int threshold)
+/**
+ * uncore_imc_set_threshold
+ * @nodeid:	NUMA node to set threshold
+ * @threshold:	1/(threshold) to throttle memory bandwidth
+ * Return:	0 on success
+ *
+ * Let us say the original bandwidth is BW, then:
+ *   If @threshold = 1, the bandwidth after throttling is: BW
+ *   If @threshold = 2, the bandwidth after throttling is: BW/2
+ *
+ * The biggest @threshold depends on specific CPU.
+ */
+int uncore_imc_set_threshold(unsigned int nodeid, unsigned int threshold)
 {
 	struct uncore_imc *imc;
 	int ret = -ENXIO;
 
-	if (nodeid < 0 || nodeid > UNCORE_MAX_SOCKET)
+	if (nodeid > UNCORE_MAX_SOCKET)
 		return -EINVAL;
 
 	list_for_each_entry(imc, &uncore_imc_devices, next) {
@@ -144,11 +156,18 @@ int uncore_imc_set_threshold(int nodeid, int threshold)
 	return ret;
 }
 
-void uncore_imc_disable_throttle(int nodeid)
+/**
+ * uncore_imc_disable_throttle
+ * @nodeid:	NUMA node to disable throttling
+ *
+ * This method will disable memory bandwidth throttling in node @nodeid.
+ * It depends on CPU-specific method to disable each IMC device.
+ */
+void uncore_imc_disable_throttle(unsigned int nodeid)
 {
 	struct uncore_imc *imc;
 
-	if (nodeid < 0 || nodeid > UNCORE_MAX_SOCKET)
+	if (nodeid > UNCORE_MAX_SOCKET)
 		return;
 
 	list_for_each_entry(imc, &uncore_imc_devices, next) {
@@ -157,17 +176,26 @@ void uncore_imc_disable_throttle(int nodeid)
 	}
 }
 
-int uncore_imc_enable_throttle(int nodeid, int threshold)
+/**
+ * uncore_imc_enable_throttle
+ * @nodeid:	NUMA node to enable throttling
+ * Return:	0 on success
+ *
+ * This method will enable memory bandwidth throttling in node @nodeid.
+ * It depends on CPU-specific method to enable each IMC device. You
+ * should set threshold before enable throttling.
+ */
+int uncore_imc_enable_throttle(unsigned int nodeid)
 {
 	struct uncore_imc *imc;
 	int ret = -ENXIO;
 
-	if (nodeid < 0 || nodeid > UNCORE_MAX_SOCKET)
+	if (nodeid > UNCORE_MAX_SOCKET)
 		return -EINVAL;
 
 	list_for_each_entry(imc, &uncore_imc_devices, next) {
 		if (imc->nodeid == nodeid) {
-			ret = imc->ops->enable_throttle(imc->pdev, threshold);
+			ret = imc->ops->enable_throttle(imc->pdev);
 			if (ret) {
 				uncore_imc_disable_throttle(nodeid);
 				break;
