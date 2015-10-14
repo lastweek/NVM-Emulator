@@ -132,7 +132,7 @@ int uncore_imc_set_threshold(int nodeid, int threshold)
 
 	if (nodeid < 0 || nodeid > UNCORE_MAX_SOCKET)
 		return -EINVAL;
-	
+
 	list_for_each_entry(imc, &uncore_imc_devices, next) {
 		if (imc->nodeid == nodeid) {
 			ret = imc->ops->set_threshold(imc->pdev, threshold);
@@ -149,7 +149,7 @@ void uncore_imc_disable_throttle(int nodeid)
 
 	if (nodeid < 0 || nodeid > UNCORE_MAX_SOCKET)
 		return;
-	
+
 	list_for_each_entry(imc, &uncore_imc_devices, next) {
 		if (imc->nodeid == nodeid)
 			imc->ops->disable_throttle(imc->pdev);
@@ -163,7 +163,7 @@ int uncore_imc_enable_throttle(int nodeid, int threshold)
 
 	if (nodeid < 0 || nodeid > UNCORE_MAX_SOCKET)
 		return -EINVAL;
-	
+
 	list_for_each_entry(imc, &uncore_imc_devices, next) {
 		if (imc->nodeid == nodeid) {
 			ret = imc->ops->enable_throttle(imc->pdev, threshold);
@@ -173,7 +173,6 @@ int uncore_imc_enable_throttle(int nodeid, int threshold)
 			}
 		}
 	}
-	
 	return ret;
 }
 
@@ -194,5 +193,4 @@ void uncore_imc_print_devices(void)
 		(imc->pdev->devfn) & 0x7,
 		imc->pdev->dev.kobj.kref.refcount.counter);
 	}
-
 }
