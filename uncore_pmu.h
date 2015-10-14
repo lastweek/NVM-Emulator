@@ -225,7 +225,7 @@ static inline unsigned int uncore_msr_perf_ctr(struct uncore_box *box)
 }
 
 /*
- * Uncore PMU General APIs
+ * Uncore PMU APIs
  */
 
 /**
@@ -331,12 +331,10 @@ static inline void uncore_read_counter(struct uncore_box *box, u64 *value)
 	box->box_type->ops->read_counter(box, value);
 }
 
-/* Haswell-EP */
-int hswep_cpu_init(void);
-int hswep_pci_init(void);
-int hswep_imc_init(void);
+/*
+ * /proc Part
+ */
 
-/* User-Space Interface /proc */
 int uncore_proc_create(void);
 void uncore_proc_remove(void);
 
@@ -345,19 +343,34 @@ void uncore_proc_remove(void);
  */
 
 /**
+ * struct uncore_imc_ops
+ * @set_threshold:
+ * @enable_throttle:
+ * @disable_throttle:
+ *
+ * CPU specific methods to manipulate a single IMC.
+ */
+struct uncore_imc_ops {
+	int	(*set_threshold)(struct pci_dev *pdev, int threshold);
+	int	(*enable_throttle)(struct pci_dev *pdev, int threshold);
+	void	(*disable_throttle)(struct pci_dev *pdev);
+};
+
+/**
  * struct uncore_imc
  * @nodeid:	Physcial node this imc on
  * @list:	Point to next imc device
  * @pdev:	the pci device instance
+ * @ops:	Methods to manipulate IMC
  *
- * This structure describes the imc device used in uncore. We have this struct
- * mainly because we want to control the bandwith more convenient. The pdev has
- * all the information we want.
+ * This structure describes the IMC device used in uncore. We have this
+ * one mainly because we want to control the bandwith more convenient. 
  */
 struct uncore_imc {
-	int			nodeid;
-	struct list_head	next;
-	struct pci_dev		*pdev;
+	int nodeid;
+	struct list_head next;
+	struct pci_dev *pdev;
+	const struct uncore_imc_ops *ops;
 };
 
 extern const struct pci_device_id *uncore_imc_device_ids;
@@ -366,3 +379,11 @@ extern struct list_head uncore_imc_devices;
 int uncore_imc_init(void);
 void uncore_imc_exit(void);
 void uncore_imc_print_devices(void);
+int uncore_imc_set_threshold(int nodeid, int threshold);
+int uncore_imc_enable_throttle(int nodeid, int threshold);
+void uncore_imc_disable_throttle(int nodeid);
+
+/* Haswell-EP */
+int hswep_cpu_init(void);
+int hswep_pci_init(void);
+int hswep_imc_init(void);

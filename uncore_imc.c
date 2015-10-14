@@ -132,6 +132,58 @@ out:
 	return ret;
 }
 
+int uncore_imc_set_threshold(int nodeid, int threshold)
+{
+	struct uncore_imc *imc;
+	int ret = -ENXIO;
+
+	if (nodeid < 0 || nodeid > UNCORE_MAX_SOCKET)
+		return -EINVAL;
+	
+	list_for_each_entry(imc, &uncore_imc_devices, next) {
+		if (imc->nodeid == nodeid) {
+			ret = imc->ops->set_threshold(imc->pdev, threshold);
+			if (ret)
+				break;
+		}
+	}
+	return ret;
+}
+
+void uncore_imc_disable_throttle(int nodeid)
+{
+	struct uncore_imc *imc;
+
+	if (nodeid < 0 || nodeid > UNCORE_MAX_SOCKET)
+		return;
+	
+	list_for_each_entry(imc, &uncore_imc_devices, next) {
+		if (imc->nodeid == nodeid)
+			imc->ops->disable_throttle(imc->pdev);
+	}
+}
+
+int uncore_imc_enable_throttle(int nodeid, int threshold)
+{
+	struct uncore_imc *imc;
+	int ret = -ENXIO;
+
+	if (nodeid < 0 || nodeid > UNCORE_MAX_SOCKET)
+		return -EINVAL;
+	
+	list_for_each_entry(imc, &uncore_imc_devices, next) {
+		if (imc->nodeid == nodeid) {
+			ret = imc->ops->enable_throttle(imc->pdev, threshold);
+			if (ret) {
+				uncore_imc_disable_throttle(nodeid);
+				break;
+			}
+		}
+	}
+	
+	return ret;
+}
+
 void uncore_imc_print_devices(void)
 {
 	struct uncore_imc *imc;
