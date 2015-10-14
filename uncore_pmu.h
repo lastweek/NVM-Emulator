@@ -374,6 +374,7 @@ struct uncore_imc {
 };
 
 extern const struct pci_device_id *uncore_imc_device_ids;
+extern const struct uncore_imc_ops *uncore_imc_ops;
 extern struct list_head uncore_imc_devices;
 
 int uncore_imc_init(void);

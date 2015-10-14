@@ -32,16 +32,8 @@
 #include <linux/errno.h>
 #include <linux/kernel.h>
 
-/*
- * (The same PCI devices with UNOCRE IMC PMON)
- *
- * IMC0, Channel 0-1 --> 20:0 20:1 (2fb4 2fb5)
- * IMC1, Channel 2-3 --> 21:0 21:1 (2fb0 2fb1)
- *
- * IMC1, Channel 2-3 --> 23:0 23:1 (2fd0 2fd1)
- */
-
 const struct pci_device_id *uncore_imc_device_ids;
+const struct uncore_imc_ops *uncore_imc_ops;
 LIST_HEAD(uncore_imc_devices);
 
 void uncore_imc_exit(void)
@@ -83,6 +75,7 @@ static int __must_check uncore_imc_new_device(struct pci_dev *pdev)
 
 	imc->nodeid = nodeid;
 	imc->pdev = pdev;
+	imc->ops = uncore_imc_ops;
 	list_add_tail(&imc->next, &uncore_imc_devices);
 
 	return 0;

@@ -781,6 +781,15 @@ struct uncore_event ha_imc_writes_partial = {
  * IMC Part
  */
 
+/*
+ * (The same PCI devices as imc pmon)
+ *
+ * IMC0, Channel 0-1 --> 20:0 20:1 (2fb4 2fb5)
+ * IMC1, Channel 2-3 --> 21:0 21:1 (2fb0 2fb1)
+ *
+ * IMC1, Channel 2-3 --> 23:0 23:1 (2fd0 2fd1)
+ */
+
 static const struct pci_device_id HSWEP_E5_IMC[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2FB4), },
 	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x2FB5), },
@@ -795,8 +804,35 @@ static const struct pci_device_id HSWEX_E7_IMC[] = {
 	{ 0, }
 };
 
+static int hswep_imc_set_threshold(struct pci_dev *pdev, int threshold)
+{
+	pr_info("hello! set");
+
+	return 0;
+}
+
+static int hswep_imc_enable_throttle(struct pci_dev *pdev, int threshold)
+{
+	pr_info("hello! enable");
+
+	return 0;
+}
+
+static void hswep_imc_disable_throttle(struct pci_dev *pdev)
+{
+	pr_info("hello! disable");
+}
+
+static const struct uncore_imc_ops HSWEP_E5_IMC_OPS = {
+	.set_threshold		= hswep_imc_set_threshold,
+	.enable_throttle	= hswep_imc_enable_throttle,
+	.disable_throttle	= hswep_imc_disable_throttle
+};
+
 int hswep_imc_init(void)
 {
 	uncore_imc_device_ids = HSWEP_E5_IMC;
+	uncore_imc_ops = &HSWEP_E5_IMC_OPS;
+
 	return 0;
 }
