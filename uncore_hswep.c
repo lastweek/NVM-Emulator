@@ -16,7 +16,7 @@
  *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#define pr_fmt(fmt) "UNCORE PMU: " fmt
+#define pr_fmt(fmt) "UNCORE HSWEP: " fmt
 
 /*
  * Support:
@@ -846,29 +846,36 @@ __always_unused static void __test3(struct pci_dev *pdev)
 }
 
 /*
- * Use [thrt_pwr_dimm_[0:2]] to throttle bandwidth.
+ * Use [thrt_pwr_dimm_[0:2]].THRT_PWR to throttle bandwidth.
+ * Bit 11:0, default value after hardware reset: 0xfff
  */
 static int hswep_imc_set_threshold(struct pci_dev *pdev, int threshold)
 {
 	u32 offset, i;
 	u16 config;
 	
-	/* 3 DIMM Per Channel at most */
+	/* 3 DIMMs Per Channel are populated at most */
 	for (i = 0; i < 3; i++) {
 		offset = 0x190 + 2 * i;
 		pci_read_config_word(pdev, offset, &config);
-		config = 0x007f;
+		config &= (1 << 15);
+		config |= 0x07f;
 		pci_write_config_word(pdev, offset, config);
 	}
 
 	return 0;
 }
 
+/*
+ * Use [thrt_pwr_dimm_[0:2]].THRT_PER_EN bit to enable throttling
+ * Bit 15:15, default value after hardware reset: 0x1 (Enable)
+ */
 static int hswep_imc_enable_throttle(struct pci_dev *pdev)
 {
 	u32 offset, i;
 	u16 config;
 
+	/* 3 DIMMs Per Channel are populated at most */
 	for (i = 0; i < 3; i++) {
 		offset = 0x190 + 2 * i;
 		pci_read_config_word(pdev, offset, &config);
@@ -883,6 +890,7 @@ static void hswep_imc_disable_throttle(struct pci_dev *pdev)
 	u32 offset, i;
 	u16 config;
 
+	/* 3 DIMMs Per Channel are populated at most */
 	for (i = 0; i < 3; i++) {
 		offset = 0x190 + 2 * i;
 		pci_read_config_word(pdev, offset, &config);

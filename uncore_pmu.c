@@ -469,9 +469,11 @@ static int uncore_init(void)
 	uncore_pci_print_mapping();
 	uncore_imc_print_devices();
 	
+	/* Throttle Memory Bandwidth */
+	uncore_imc_set_threshold(1, 2);
+	uncore_imc_set_threshold(0, 2);
 	uncore_imc_enable_throttle(1);
-	uncore_imc_disable_throttle(1);
-	//uncore_imc_enable_throttle(0,1);
+	uncore_imc_enable_throttle(0);
 
 	/* Show time */
 	//uncore_main();
@@ -489,6 +491,8 @@ pcierr:
 
 static void uncore_exit(void)
 {
+	uncore_imc_disable_throttle(1);
+	uncore_imc_disable_throttle(0);
 	uncore_proc_remove();
 	uncore_imc_exit();
 	uncore_cpu_exit();
