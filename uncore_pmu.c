@@ -38,10 +38,10 @@ struct uncore_box_type **uncore_msr_type = dummy_xxx_type;
 struct uncore_box_type **uncore_pci_type = dummy_xxx_type;
 
 /* Socket(node) numbers */
-int uncore_socket_number;
+unsigned int uncore_socket_number;
 
 /* PCI Bus Number <---> NUMA Node ID */
-int uncore_pcibus_to_nodeid[256] = { [0 ... 255] = -1, };
+unsigned int uncore_pcibus_to_nodeid[256] = { [0 ... 255] = -1, };
 
 /*
  * Since kernel has a uncore PMU module which has claimed all the PCI boxes
@@ -66,11 +66,14 @@ static int __always_unused uncore_pci_probe(struct pci_dev *dev, const struct pc
  * get a PMU box you have to offer all these three parameters.
  */
 struct uncore_box *uncore_get_box(struct uncore_box_type *type,
-				  int idx, int nodeid)
+				  unsigned int idx, unsigned int nodeid)
 {
 	struct uncore_box *box;
 
 	if (!type)
+		return NULL;
+
+	if (nodeid > UNCORE_MAX_SOCKET)
 		return NULL;
 
 	list_for_each_entry(box, &type->box_list, next) {
@@ -274,7 +277,8 @@ static void uncore_cpu_exit(void)
 static int __must_check uncore_cpu_init(void)
 {
 	struct uncore_box_type *type;
-	int n, idx, ret;
+	unsigned int idx;
+	int n, ret;
 
 	ret = -ENXIO;
 	switch (boot_cpu_data.x86_model) {

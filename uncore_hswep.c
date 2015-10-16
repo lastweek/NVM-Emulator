@@ -102,6 +102,8 @@
 #define HSWEP_MSR_C_PMON_BOX_STATUS		0xE07
 #define HSWEP_MSR_C_PMON_EVNTSEL0		0xE01
 #define HSWEP_MSR_C_PMON_CTR0			0xE08
+#define HSWEP_MSR_C_PMON_BOX_FILTER0		0xE05
+#define HSWEP_MSR_C_PMON_BOX_FILTER1		0xE06
 #define HSWEP_MSR_C_MSR_OFFSET			0x10
 #define HSWEP_MSR_C_EVENTSEL_MASK		(HSWEP_MSR_RAW_EVNTSEL_MASK | \
 						 HSWEP_MSR_EVNTSEL_TID_EN)
@@ -273,6 +275,7 @@ struct uncore_box_type HSWEP_UNCORE_PCUBOX = {
 	.event_mask	= 0,
 	.box_ctl	= HSWEP_MSR_PCU_PMON_BOX_CTL,
 	.box_status	= HSWEP_MSR_PCU_PMON_BOX_STATUS,
+	.box_filter0	= HSWEP_MSR_PCU_PMON_BOX_FILTER,
 	.ops		= &HSWEP_UNCORE_PCUBOX_OPS
 };
 
@@ -299,6 +302,8 @@ struct uncore_box_type HSWEP_UNCORE_CBOX = {
 	.event_mask	= HSWEP_MSR_C_EVENTSEL_MASK,
 	.box_ctl	= HSWEP_MSR_C_PMON_BOX_CTL,
 	.box_status	= HSWEP_MSR_C_PMON_BOX_STATUS,
+	.box_filter0	= HSWEP_MSR_C_PMON_BOX_FILTER0,
+	.box_filter1	= HSWEP_MSR_C_PMON_BOX_FILTER1,
 	.msr_offset	= HSWEP_MSR_C_MSR_OFFSET,
 	.ops		= &HSWEP_UNCORE_CBOX_OPS
 };
@@ -640,7 +645,8 @@ static const struct pci_device_id HSWEP_UNCORE_PCI_IDS[] = {
 static int hswep_pcibus_to_nodeid(int devid)
 {
 	struct pci_dev *ubox = NULL;
-	int err, nodeid, mapping, bus, i;
+	unsigned int nodeid;
+	int err, mapping, bus, i;
 
 	while (1) {
 		ubox = pci_get_device(PCI_VENDOR_ID_INTEL, devid, ubox);
