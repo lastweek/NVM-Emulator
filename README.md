@@ -11,7 +11,9 @@ binding to prevent cross-talk of event counts from different uncore PMU.
 
 The programming interface of the counter registers and control registers fall
 into two address spaces:
+ 
  • Accessed by MSR are PMON registers within the Cbo units, SBo, PCU, and U-Box
+ 
  • Access by PCI device configuration space are PMON registers within the HA,
    IMC, Intel QPI, R2PCIe and R3QPI units.
 
