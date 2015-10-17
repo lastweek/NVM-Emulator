@@ -104,6 +104,14 @@ int __must_check uncore_imc_init(void)
 	if (ret)
 		return ret;
 	
+	/* IMC part need all low-level CPU-specific methods. */
+	if (!uncore_imc_ops			||
+	    !uncore_imc_ops->set_threshold	||
+	    !uncore_imc_ops->enable_throttle	||
+	    !uncore_imc_ops->disable_throttle)
+		return -EINVAL;
+	
+	/* Now initialize all IMCs on all sockets */
 	ids = uncore_imc_device_ids;
 	for (; ids->vendor; ids++) {
 		pdev = NULL;
