@@ -867,6 +867,7 @@ static int hswep_imc_set_threshold(struct pci_dev *pdev, unsigned int threshold)
 		pci_read_config_word(pdev, offset, &config);
 		config &= (1 << 15);
 		
+		/* XXX */
 		switch (threshold) {
 			case 2: /* 1/2 */
 				config |= 0x00ff;
