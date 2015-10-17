@@ -16,9 +16,7 @@
  *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#define pr_fmt(fmt) "UNCORE PROC: " fmt
-
-#include "uncore_pmu.h"
+#define pr_fmt(fmt) "CORE PROC: " fmt
 
 #include <asm/uaccess.h>
 #include <linux/errno.h>
@@ -26,26 +24,45 @@
 #include <linux/mutex.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#include <linux/mutex.h>
+#include <linux/percpu.h>
 
-static DEFINE_MUTEX(uncore_proc_mutex);
+extern u64 pre_event_init_value;
+DECLARE_PER_CPU(u64, PMU_EVENT_COUNT);
 
-static int pmu_proc_show(struct seq_file *file, void *v)
+const char pmu_proc_format[] = "CPU %2d, NMI times = %lld\n";
+
+static int pmu_proc_show(struct seq_file *m, void *v)
 {
-	seq_printf(file, "UNCORE PMU %d", 2333);
+	int cpu;
+	for_each_online_cpu(cpu) {
+		seq_printf(m, pmu_proc_format, cpu,
+			per_cpu(PMU_EVENT_COUNT, cpu));
+	}
 	
 	return 0;
 }
 
-static int uncore_proc_open(struct inode *inode, struct file *file)
+static int core_pmu_proc_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, pmu_proc_show, NULL);
 }
 
+void core_pmu_clear_counter(void)
+{
+	int cpu;
+	for_each_online_cpu(cpu) {
+		*per_cpu_ptr(&PMU_EVENT_COUNT, cpu) = 0;
+	}
+}
+
+static DEFINE_MUTEX(core_pmu_proc_mutex);
+
 /*
- * Control behaviour of the underlying module in a predefined manner
+ * Control overflow threshold in a ugly way
  */
-static ssize_t uncore_proc_write(struct file *file, const char __user *buf,
-				 size_t count,  loff_t *offs)
+static ssize_t core_pmu_proc_write(struct file *file, const char __user *buf,
+				   size_t count, loff_t *offs)
 {
 	char ctl[2];
 	
@@ -55,41 +72,44 @@ static ssize_t uncore_proc_write(struct file *file, const char __user *buf,
 	if (copy_from_user(ctl, buf, count))
 		return -EFAULT;
 	
-	mutex_lock(&uncore_proc_mutex);
+	mutex_lock(&core_pmu_proc_mutex);
 	switch (ctl[0]) {
-		case '1':/* 1/1 Bandwidth */
-			uncore_imc_set_threshold(0, 1);
-			uncore_imc_set_threshold(1, 1);
+		case '0': /* Clear per-cpu counter */
+			core_pmu_clear_counter();
 			break;
-		case '2':/* 1/2 Bandwidth */
-			uncore_imc_set_threshold(0, 2);
-			uncore_imc_set_threshold(1, 2);
+		case '1': /* -32 */
+			pre_event_init_value = -32;
 			break;
-		case '4':/* 1/4 Bandwidth */
-			uncore_imc_set_threshold(0, 4);
-			uncore_imc_set_threshold(1, 4);
+		case '2': /* -64 */
+			pre_event_init_value = -64;
+			break;
+		case '3': /* -128 */
+			pre_event_init_value = -128;
+			break;
+		case '4': /* -256 */
+			pre_event_init_value = -256;
 			break;
 		default:
 			count = -EINVAL;
 	}
-	mutex_unlock(&uncore_proc_mutex);
+	mutex_unlock(&core_pmu_proc_mutex);
 
 	return count;
 }
 
-const struct file_operations uncore_proc_fops = {
-	.open		= uncore_proc_open,
+const struct file_operations core_pmu_proc_fops = {
+	.open		= core_pmu_proc_open,
 	.read		= seq_read,
-	.write		= uncore_proc_write,
+	.write		= core_pmu_proc_write,
 	.llseek		= seq_lseek,
 	.release	= single_release
 };
 
 static bool is_proc_registed = false;
 
-int uncore_proc_create(void)
+int core_pmu_proc_create(void)
 {
-	if (proc_create("uncore", 0644, NULL, &uncore_proc_fops)) {
+	if (proc_create("core_pmu", 0644, NULL, &core_pmu_proc_fops)) {
 		is_proc_registed = true;
 		return 0;
 	}
@@ -97,8 +117,8 @@ int uncore_proc_create(void)
 	return -ENOENT;
 }
 
-void uncore_proc_remove(void)
+void core_pmu_proc_remove(void)
 {
 	if (is_proc_registed)
-		remove_proc_entry("uncore", NULL);
+		remove_proc_entry("core_pmu", NULL);
 }

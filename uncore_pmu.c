@@ -474,10 +474,10 @@ static int uncore_init(void)
 	uncore_imc_print_devices();
 	
 	/* Throttle Memory Bandwidth */
-	uncore_imc_set_threshold(1, 2);
-	uncore_imc_enable_throttle(1);
-	uncore_imc_set_threshold(0, 2);
+	uncore_imc_set_threshold(0, 1);	/* Node 0, full bandwidth */
+	uncore_imc_set_threshold(1, 1);	/* Node 1, full bandwidth */
 	uncore_imc_enable_throttle(0);
+	uncore_imc_enable_throttle(1);
 
 	/* Show time */
 	//uncore_main();

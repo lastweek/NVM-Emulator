@@ -32,6 +32,8 @@
  *	not shared between logical processors that sharing a processor core.
  */
 
+#define pr_fmt(fmt) "CORE PMU: " fmt
+
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -41,11 +43,12 @@
 #include <linux/percpu.h>
 #include <linux/cpumask.h>
 #include <linux/delay.h>
-#include <linux/proc_fs.h>
-#include <linux/seq_file.h>
 
 #include <asm/nmi.h>
 #include <asm/msr.h>
+
+int core_pmu_proc_create(void);
+void core_pmu_proc_remove(void);
 
 #define __MSR_IA32_PMC0				0x0C1
 #define __MSR_IA32_PERFEVTSEL0			0x186
@@ -100,6 +103,18 @@ const static u64 predefined_event_map[EVENT_COUNT_MAX] =
 	[BRANCH_MISSES_RETIRED]		= 0x00c5,
 };
 
+/* PMU information from cpuid */
+static u32  PERF_VERSION;
+static u32  PC_PER_CPU;
+static u32  PC_BIT_WIDTH;
+static u32  LEN_EBX_TOENUM;
+static u32  PRE_EVENT_MASK;
+
+/* Module global variables */
+static u64  PMU_LATENCY;
+static u64  CPU_BASE_FREQUENCY;
+static char CPU_BRAND[48];
+
 struct pre_event {
 	int event;
 	u64 threshold;
@@ -110,21 +125,10 @@ static struct pre_event pre_event_info = {
 	.threshold = 0
 };
 
-/* PMU information from cpuid */
-static u32  PERF_VERSION;
-static u32  PC_PER_CPU;
-static u32  PC_BIT_WIDTH;
-static u32  LEN_EBX_TOENUM;
-static u32  PRE_EVENT_MASK;
+u64 pre_event_init_value;
 
-/* Module global variables */
-static u64  PMU_LATENCY;
-static u64  PMU_PMC0_INIT_VALUE;
-static u64  CPU_BASE_FREQUENCY;
-static char CPU_BRAND[48];
-
-/* Show in /proc/pmu_info */
-DEFINE_PER_CPU(unsigned long long, PMU_EVENT_COUNT);
+/* Show in /proc/cor_pmu */
+DEFINE_PER_CPU(u64, PMU_EVENT_COUNT);
 
 //#################################################
 //	Assembly Helper Functions
@@ -190,7 +194,7 @@ static void cpu_facility_test(void)
 
 	msr = pmu_rdmsr(__MSR_IA32_MISC_ENABLE);
 	if (!(msr & __MSR_IA32_MISC_PERFMON_ENABLE)) {
-		printk(KERN_INFO"MSR_IA32_MISC: PERFMON_ENABLE=0, PMU Disabled\n");
+		pr_info("MSR_IA32_MISC: PERFMON_ENABLE=0, PMU Disabled\n");
 	}
 }
 
@@ -208,7 +212,7 @@ static void cpu_brand_frequency(void)
 	pmu_cpuid(&eax, &ebx, &ecx, &edx);
 
 	if (eax < 0x80000004U)
-		printk(KERN_INFO"CPUID Extended Function Not Supported.\n");
+		pr_info("CPUID Extended Function Not Supported.\n");
 	
 	s = CPU_BRAND;
 	for (i = 0; i < 3; i++) {
@@ -249,11 +253,11 @@ static void cpu_print_info(void)
 	cpu_brand_frequency();
 	cpu_perf_info();
 	
-	printk(KERN_INFO"PMU %s\n", CPU_BRAND);
-	printk(KERN_INFO"PMU PMU Version: %u\n", PERF_VERSION);
-	printk(KERN_INFO"PMU PC per CPU: %u\n", PC_PER_CPU);
-	printk(KERN_INFO"PMU PC bit width: %u\n", PC_BIT_WIDTH);
-	printk(KERN_INFO"PMU Predefined events mask: %x\n", PRE_EVENT_MASK);
+	pr_info("PMU %s\n", CPU_BRAND);
+	pr_info("PMU PMU Version: %u\n", PERF_VERSION);
+	pr_info("PMU PC per CPU: %u\n", PC_PER_CPU);
+	pr_info("PMU PC bit width: %u\n", PC_BIT_WIDTH);
+	pr_info("PMU Predefined events mask: %x\n", PRE_EVENT_MASK);
 }
 
 
@@ -287,13 +291,13 @@ static void __pmu_show_msrs(void *info)
 	
 	tmsr1 = pmu_rdmsr(__MSR_IA32_PMC0);
 	tmsr2 = pmu_rdmsr(__MSR_IA32_PERFEVTSEL0);
-	printk(KERN_INFO "PMU CPU %d: PMC0=%llx PERFEVTSEL0=%llx\n",
+	pr_info("PMU CPU %d: PMC0=%llx PERFEVTSEL0=%llx\n",
 					smp_processor_id(), tmsr1, tmsr2);
 
 	tmsr1 = pmu_rdmsr(__MSR_CORE_PERF_GLOBAL_CTRL);
 	tmsr2 = pmu_rdmsr(__MSR_CORE_PERF_GLOBAL_STATUS);
 	tmsr3 = pmu_rdmsr(__MSR_CORE_PERF_GLOBAL_OVF_CTRL);
-	printk(KERN_INFO "PMU CPU %d: G_CTRL=%llx G_STATUS=%llx OVF_CTRL=%llx\n",
+	pr_info("PMU CPU %d: G_CTRL=%llx G_STATUS=%llx OVF_CTRL=%llx\n",
 					smp_processor_id(), tmsr1, tmsr2, tmsr3);
 }
 
@@ -338,11 +342,13 @@ static void __pmu_enable_predefined_event(void *info)
 	if (!info)
 		return;
 
-	val = ((struct pre_event *)info)->threshold;
+	/* TODO for core_proc */
+	//val = ((struct pre_event *)info)->threshold;
+	val = pre_event_init_value;
 	evt = ((struct pre_event *)info)->event;
 	
-	/* 48-bit */
-	val &= 0xffffffffffff;
+	/* 48-bit Mask, in case #GP occurs */
+	val &= (1ULL<<48)-1;
 	
 	pmu_wrmsr(__MSR_IA32_PMC0, val);
 	pmu_wrmsr(__MSR_IA32_PERFEVTSEL0,
@@ -425,7 +431,7 @@ static void pmu_lapic_init(void)
 
 //#define PMU_DEBUG
 
-int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
+static int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
 	u64 tmsr;
 	
@@ -434,7 +440,7 @@ int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 		return NMI_DONE;
 	
 #ifdef PMU_DEBUG
-	printk(KERN_INFO"PMU NMI CPU %d", smp_processor_id());
+	pr_info("PMU NMI CPU %d", smp_processor_id());
 #endif
 	
 	/* Restart counting on *this* cpu. */
@@ -450,22 +456,21 @@ static void pmu_regitser_nmi_handler(void)
 {
 	register_nmi_handler(NMI_LOCAL, pmu_nmi_handler,
 		NMI_FLAG_FIRST, "PMU_NMI_HANDLER");
-	printk(KERN_INFO "PMU NMI handler registed...");
+	pr_info("PMU NMI handler registed...");
 }
 
 static void pmu_unregister_nmi_handler(void)
 {
 	unregister_nmi_handler(NMI_LOCAL, "PMU_NMI_HANDLER");
-	printk(KERN_INFO "PMU NMI handler unregisted...");
+	pr_info("PMU NMI handler unregisted...");
 }
 
 static void pmu_main(void)
 {
 	/*
-	 * FIXME
 	 * It seems that we do NOT need pmu_latency
 	 */
-	PMU_PMC0_INIT_VALUE	= -128;
+	pre_event_init_value	= -32;
 	PMU_LATENCY		= CPU_BASE_FREQUENCY*10;
 
 	/*
@@ -482,48 +487,15 @@ static void pmu_main(void)
 	 * Enable every cpus PMU
 	 */
 	pmu_clear_msrs();
-	pmu_enable_predefined_event(LLC_MISSES, PMU_PMC0_INIT_VALUE);
+	pmu_enable_predefined_event(LLC_MISSES, pre_event_init_value);
 	pmu_enable_counting();
 }
-
-const char pmu_proc_format[] = "CPU %2d, PMU_EVENT_COUNT = %lld\n";
-static int pmu_proc_show(struct seq_file *m, void *v)
-{
-	int cpu;
-	for_each_online_cpu(cpu) {
-		seq_printf(m, pmu_proc_format, cpu,
-			per_cpu(PMU_EVENT_COUNT, cpu));
-	}
-	
-	/* Reset each counter.
-	 * So it will be easy to use: cat /proc/pmu_info 
-	 * to store count numbers */
-	get_cpu();
-	for_each_online_cpu(cpu) {
-		*per_cpu_ptr(&PMU_EVENT_COUNT, cpu) = 0;
-	}
-	put_cpu();
-	
-	return 0;
-}
-
-static int pmu_proc_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, pmu_proc_show, NULL);
-}
-
-const struct file_operations pmu_proc_fops = {
-	.open		= pmu_proc_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= single_release
-};
 
 static int pmu_init(void)
 {
 	int this_cpu = get_cpu();
 
-	printk(KERN_INFO "PMU init on CPU %2d\n", this_cpu);
+	pr_info( "PMU init on CPU %2d\n", this_cpu);
 	
 	/*
 	 * A processor that supports architectural performance
@@ -532,13 +504,10 @@ static int pmu_init(void)
 	 * indicate that the events are not available.
 	 */
 	cpu_print_info();
-	
-	/*
-	 * Create /proc/pmu_info file
-	 * User-Kernel space interface
-	 */
-	proc_create("pmu_info", 0, NULL, &pmu_proc_fops);
 
+	/* Create proc file */
+	core_pmu_proc_create();
+	
 	pmu_main();
 	put_cpu();
 	
@@ -547,13 +516,13 @@ static int pmu_init(void)
 
 static void pmu_exit(void)
 {
-	/* Remove proc/pmu_info */
-	remove_proc_entry("pmu_info", NULL);
-	
+	/* Remove proc file*/
+	core_pmu_proc_remove();
+
 	/* Clear PMU of all CPUs */
 	pmu_clear_msrs();
 	pmu_unregister_nmi_handler();
-	printk(KERN_INFO "PMU exit on CPU %2d\n", smp_processor_id());
+	pr_info( "PMU exit on CPU %2d\n", smp_processor_id());
 }
 
 module_init(pmu_init);

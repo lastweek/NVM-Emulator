@@ -855,7 +855,7 @@ __always_unused static void __test3(struct pci_dev *pdev)
  * Use [thrt_pwr_dimm_[0:2]].THRT_PWR to throttle bandwidth.
  * Bit 11:0, default value after hardware reset: 0xfff
  */
-static int hswep_imc_set_threshold(struct pci_dev *pdev, int threshold)
+static int hswep_imc_set_threshold(struct pci_dev *pdev, unsigned int threshold)
 {
 	u32 offset, i;
 	u16 config;
@@ -863,9 +863,20 @@ static int hswep_imc_set_threshold(struct pci_dev *pdev, int threshold)
 	/* 3 DIMMs Per Channel are populated at most */
 	for (i = 0; i < 3; i++) {
 		offset = 0x190 + 2 * i;
+		
 		pci_read_config_word(pdev, offset, &config);
 		config &= (1 << 15);
-		config |= 0x07f;
+		
+		switch (threshold) {
+			case 2: /* 1/2 */
+				config |= 0x00ff;
+				break;
+			case 4: /* 1/4 */
+				config |= 0x007f;
+				break;
+			default:
+				config |= 0x0fff;
+		}
 		pci_write_config_word(pdev, offset, config);
 	}
 

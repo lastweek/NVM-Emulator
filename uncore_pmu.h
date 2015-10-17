@@ -362,7 +362,7 @@ void uncore_proc_remove(void);
  * CPU specific methods to manipulate a single IMC.
  */
 struct uncore_imc_ops {
-	int	(*set_threshold)(struct pci_dev *pdev, int threshold);
+	int	(*set_threshold)(struct pci_dev *pdev, unsigned int threshold);
 	int	(*enable_throttle)(struct pci_dev *pdev);
 	void	(*disable_throttle)(struct pci_dev *pdev);
 };
