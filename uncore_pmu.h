@@ -27,6 +27,7 @@
 
 #include <linux/pci.h>
 #include <linux/types.h>
+#include <linux/hrtimer.h>
 #include <linux/compiler.h>
 
 #define UNCORE_MAX_SOCKET 8
@@ -64,8 +65,10 @@ struct uncore_event {
  * lay in different nodes.
  */
 struct uncore_box {
-	int			idx;
-	int			nodeid;
+	unsigned int		idx;
+	unsigned int		nodeid;
+	unsigned int		interval;
+	struct hrtimer		timer;
 	struct uncore_box_type	*box_type;
 	struct pci_dev		*pdev;
 	struct list_head	next;
@@ -109,6 +112,8 @@ struct uncore_box_ops {
  * @fixed_ctl:		Fixed EventSel address
  * @box_ctl:		Box-level Control address
  * @box_status:		Box-level Status address
+ * @box_filter0:	Box-level Filter0 address
+ * @box_filter1:	Box-level Filter1 address
  * @msr_offset:		MSR address offset of next box
  * @box_list:		List of all avaliable boxes of this type
  * @ops:		Box manipulation functions
@@ -130,6 +135,8 @@ struct uncore_box_type {
 	unsigned int	fixed_ctl;
 	unsigned int	box_ctl;
 	unsigned int	box_status;
+	unsigned int	box_filter0;
+	unsigned int	box_filter1;
 	unsigned int	msr_offset;
 	
 	struct list_head box_list;
@@ -163,7 +170,7 @@ extern int uncore_socket_number;
 extern struct uncore_box_type **uncore_msr_type;
 extern struct uncore_box_type **uncore_pci_type;
 extern struct pci_driver *uncore_pci_driver;
-extern int uncore_pcibus_to_nodeid[256];
+extern unsigned int uncore_pcibus_to_nodeid[256];
 extern struct uncore_pmu uncore_pmu;
 
 /*
@@ -371,7 +378,7 @@ struct uncore_imc_ops {
  * one mainly because we want to control the bandwith more convenient. 
  */
 struct uncore_imc {
-	int nodeid;
+	unsigned int nodeid;
 	struct list_head next;
 	struct pci_dev *pdev;
 	const struct uncore_imc_ops *ops;
