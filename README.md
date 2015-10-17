@@ -2,7 +2,7 @@
 
 Copyright (C) 2015 Yizhou Shan <shanyizhou@ict.ac.cn>
 
-# Intel Uncore Performance Monitoring Unit
+## Intel Uncore Performance Monitoring Unit
 
 Uncore performance monitors represent a per-socket resource that is not meant
 to be affected by context switches and thread migration performed by the OS,
@@ -23,7 +23,7 @@ the GID offset of the Ubox in a specific pattern to get the busno for the
 package. This busno can then be used with the given D:F (device:function)
 listed witheach box’s counters that are accessed through PCI config space.
 
-# Intel Core Performance Monitoring Unit
+## Intel Core Performance Monitoring Unit
 
 It is impossible to illustrate the Intel PMU in such a readme file. For more
 information about Core PMU or Uncore PMU, please consult Intel SDM and some
