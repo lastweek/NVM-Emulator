@@ -127,8 +127,8 @@ static struct pre_event pre_event_info = {
 
 u64 pre_event_init_value;
 
-/* Show in /proc/cor_pmu */
-DEFINE_PER_CPU(u64, PMU_EVENT_COUNT);
+/* Show in /proc/core_pmu */
+DEFINE_PER_CPU(u64, PERCPU_NMI_TIMES);
 
 //#################################################
 //	Assembly Helper Functions
@@ -429,8 +429,6 @@ static void core_pmu_lapic_init(void)
 //	PMU NMI Handler
 //#################################################
 
-//#define PMU_DEBUG
-
 static int core_pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
 	u64 tmsr;
@@ -439,7 +437,7 @@ static int core_pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	if (!(tmsr & 0x1)) /* No overflow on *this* CPU */
 		return NMI_DONE;
 	
-#ifdef PMU_DEBUG
+#ifdef CORE_PMU_DEBUG
 	pr_info("NMI CPU %d", smp_processor_id());
 #endif
 	
@@ -448,7 +446,7 @@ static int core_pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	__core_pmu_enable_predefined_event(&pre_event_info);
 	__core_pmu_enable_counting(NULL);
 
-	this_cpu_inc(PMU_EVENT_COUNT);
+	this_cpu_inc(PERCPU_NMI_TIMES);
 	return NMI_HANDLED;
 }
 
@@ -467,10 +465,10 @@ static void core_pmu_unregister_nmi_handler(void)
 
 static void core_pmu_main(void)
 {
-	/* Initial value of counter
-	 * the init value can be changed via /proc interface
+	/* Initial value of counter: -256
+	 * The init value can be changed via /proc interface
 	 */
-	pre_event_init_value	= -32;
+	pre_event_init_value	= -256;
 	PMU_LATENCY		= CPU_BASE_FREQUENCY*10;
 
 	/* We must *avoid* walking kernel code path as much as possiable.

@@ -28,16 +28,20 @@
 #include <linux/percpu.h>
 
 extern u64 pre_event_init_value;
-DECLARE_PER_CPU(u64, PMU_EVENT_COUNT);
+DECLARE_PER_CPU(u64, PERCPU_NMI_TIMES);
 
 const char pmu_proc_format[] = "CPU %2d, NMI times = %lld\n";
 
 static int core_pmu_proc_show(struct seq_file *m, void *v)
 {
 	int cpu;
+
+	seq_printf(m, "Counter init value: %lld 0x%llx\n",
+		(s64)pre_event_init_value, pre_event_init_value);
+
 	for_each_online_cpu(cpu) {
 		seq_printf(m, pmu_proc_format, cpu,
-			per_cpu(PMU_EVENT_COUNT, cpu));
+			per_cpu(PERCPU_NMI_TIMES, cpu));
 	}
 	
 	return 0;
@@ -52,7 +56,7 @@ static void core_pmu_clear_counter(void)
 {
 	int cpu;
 	for_each_online_cpu(cpu) {
-		*per_cpu_ptr(&PMU_EVENT_COUNT, cpu) = 0;
+		*per_cpu_ptr(&PERCPU_NMI_TIMES, cpu) = 0;
 	}
 }
 
