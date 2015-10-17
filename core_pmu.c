@@ -20,7 +20,7 @@
  *	core_pmu.c - Using LLC_MISS to emulate NVM latency
  *
  *	Intel PMU can interrupt CPU in NMI manner when it overflows.
- *	This module inserts a pmu_nmi_handler to the NMI ISR list,
+ *	This module inserts a core_pmu_nmi_handler to the NMI ISR list,
  *	in which we can do something everytime PMU overflows.
  *
  *	Performance monitoring events are architectural when they behave
@@ -134,7 +134,7 @@ DEFINE_PER_CPU(u64, PMU_EVENT_COUNT);
 //	Assembly Helper Functions
 //#################################################
 
-static inline void pmu_cpuid(u32 *eax, u32 *ebx, u32 *ecx, u32 *edx)
+static inline void core_pmu_cpuid(u32 *eax, u32 *ebx, u32 *ecx, u32 *edx)
 {
 	unsigned int op = *eax;
 	asm volatile (
@@ -144,7 +144,7 @@ static inline void pmu_cpuid(u32 *eax, u32 *ebx, u32 *ecx, u32 *edx)
 	);
 }
 
-static inline u64 pmu_rdtsc(void)
+static inline u64 core_pmu_rdtsc(void)
 {
 	u32 edx, eax;
 	u64 retval = 0;
@@ -157,7 +157,7 @@ static inline u64 pmu_rdtsc(void)
 	return retval;
 }
 
-static inline u64 pmu_rdmsr(u32 addr)
+static inline u64 core_pmu_rdmsr(u32 addr)
 {
 	u32 edx, eax;
 	u64 retval = 0;
@@ -171,7 +171,7 @@ static inline u64 pmu_rdmsr(u32 addr)
 	return retval;
 }
 
-static inline void pmu_wrmsr(u32 addr, u64 value)
+static inline void core_pmu_wrmsr(u32 addr, u64 value)
 {
 	asm volatile (
 		"wrmsr"
@@ -190,9 +190,9 @@ static void cpu_facility_test(void)
 	u32 eax, ebx, ecx, edx;
 	
 	eax = 0x01;
-	pmu_cpuid(&eax, &ebx, &ecx, &edx);
+	core_pmu_cpuid(&eax, &ebx, &ecx, &edx);
 
-	msr = pmu_rdmsr(__MSR_IA32_MISC_ENABLE);
+	msr = core_pmu_rdmsr(__MSR_IA32_MISC_ENABLE);
 	if (!(msr & __MSR_IA32_MISC_PERFMON_ENABLE)) {
 		pr_info("MSR_IA32_MISC: PERFMON_ENABLE=0, PMU Disabled\n");
 	}
@@ -209,7 +209,7 @@ static void cpu_brand_frequency(void)
 	u32 eax, ebx, ecx, edx;
 
 	eax = 0x80000000;
-	pmu_cpuid(&eax, &ebx, &ecx, &edx);
+	core_pmu_cpuid(&eax, &ebx, &ecx, &edx);
 
 	if (eax < 0x80000004U)
 		pr_info("CPUID Extended Function Not Supported.\n");
@@ -217,7 +217,7 @@ static void cpu_brand_frequency(void)
 	s = CPU_BRAND;
 	for (i = 0; i < 3; i++) {
 		eax = 0x80000002U + i;
-		pmu_cpuid(&eax, &ebx, &ecx, &edx);
+		core_pmu_cpuid(&eax, &ebx, &ecx, &edx);
 		memcpy(s, &eax, 4); s += 4;
 		memcpy(s, &ebx, 4); s += 4;
 		memcpy(s, &ecx, 4); s += 4;
@@ -238,7 +238,7 @@ static void cpu_perf_info(void)
 	u32 eax, ebx, ecx, edx;
 	
 	eax = 0x0A;
-	pmu_cpuid(&eax, &ebx, &ecx, &edx);
+	core_pmu_cpuid(&eax, &ebx, &ecx, &edx);
 	
 	PERF_VERSION	= (eax & 0xFFU);
 	PC_PER_CPU	= (eax & 0xFF00U)>>8;
@@ -253,11 +253,11 @@ static void cpu_print_info(void)
 	cpu_brand_frequency();
 	cpu_perf_info();
 	
-	pr_info("PMU %s\n", CPU_BRAND);
-	pr_info("PMU PMU Version: %u\n", PERF_VERSION);
-	pr_info("PMU PC per CPU: %u\n", PC_PER_CPU);
-	pr_info("PMU PC bit width: %u\n", PC_BIT_WIDTH);
-	pr_info("PMU Predefined events mask: %x\n", PRE_EVENT_MASK);
+	pr_info("%s\n", CPU_BRAND);
+	pr_info("PMU Version: %u\n", PERF_VERSION);
+	pr_info("PC per CPU: %u\n", PC_PER_CPU);
+	pr_info("PC bit width: %u\n", PC_BIT_WIDTH);
+	pr_info("Predefined events mask: %x\n", PRE_EVENT_MASK);
 }
 
 
@@ -266,13 +266,13 @@ static void cpu_print_info(void)
 //#################################################
 
 /**
- * pmu_cpu_function_call - Call a function on specific CPU
+ * core_pmu_cpu_function_call - Call a function on specific CPU
  * @func:	the function to be called
  * @info:	the function call argument
  *
  * Wait until function has completed on other CPUs.
  */
-static void pmu_cpu_function_call(int cpu, void (*func)(void *info), void *info)
+static void core_pmu_cpu_function_call(int cpu, void (*func)(void *info), void *info)
 {
 	int err;
 	err = smp_call_function_single(cpu, func, info, 1);
@@ -285,28 +285,28 @@ static void pmu_cpu_function_call(int cpu, void (*func)(void *info), void *info)
 /*
  * These set of functions are intended for a single CPU
  */
-static void __pmu_show_msrs(void *info)
+static void __core_pmu_show_msrs(void *info)
 {
 	u64 tmsr1, tmsr2, tmsr3;
 	
-	tmsr1 = pmu_rdmsr(__MSR_IA32_PMC0);
-	tmsr2 = pmu_rdmsr(__MSR_IA32_PERFEVTSEL0);
-	pr_info("PMU CPU %d: PMC0=%llx PERFEVTSEL0=%llx\n",
-					smp_processor_id(), tmsr1, tmsr2);
+	tmsr1 = core_pmu_rdmsr(__MSR_IA32_PMC0);
+	tmsr2 = core_pmu_rdmsr(__MSR_IA32_PERFEVTSEL0);
+	pr_info("CPU %d: PMC0=%llx PERFEVTSEL0=%llx\n",
+		smp_processor_id(), tmsr1, tmsr2);
 
-	tmsr1 = pmu_rdmsr(__MSR_CORE_PERF_GLOBAL_CTRL);
-	tmsr2 = pmu_rdmsr(__MSR_CORE_PERF_GLOBAL_STATUS);
-	tmsr3 = pmu_rdmsr(__MSR_CORE_PERF_GLOBAL_OVF_CTRL);
-	pr_info("PMU CPU %d: G_CTRL=%llx G_STATUS=%llx OVF_CTRL=%llx\n",
-					smp_processor_id(), tmsr1, tmsr2, tmsr3);
+	tmsr1 = core_pmu_rdmsr(__MSR_CORE_PERF_GLOBAL_CTRL);
+	tmsr2 = core_pmu_rdmsr(__MSR_CORE_PERF_GLOBAL_STATUS);
+	tmsr3 = core_pmu_rdmsr(__MSR_CORE_PERF_GLOBAL_OVF_CTRL);
+	pr_info("CPU %d: G_CTRL=%llx G_STATUS=%llx OVF_CTRL=%llx\n",
+		smp_processor_id(), tmsr1, tmsr2, tmsr3);
 }
 
-static void __pmu_clear_msrs(void *info)
+static void __core_pmu_clear_msrs(void *info)
 {
-	pmu_wrmsr(__MSR_IA32_PMC0, 0x0);
-	pmu_wrmsr(__MSR_IA32_PERFEVTSEL0, 0x0);
-	pmu_wrmsr(__MSR_CORE_PERF_GLOBAL_CTRL, 0x0);
-	pmu_wrmsr(__MSR_CORE_PERF_GLOBAL_OVF_CTRL, 0x0);
+	core_pmu_wrmsr(__MSR_IA32_PMC0, 0x0);
+	core_pmu_wrmsr(__MSR_IA32_PERFEVTSEL0, 0x0);
+	core_pmu_wrmsr(__MSR_CORE_PERF_GLOBAL_CTRL, 0x0);
+	core_pmu_wrmsr(__MSR_CORE_PERF_GLOBAL_OVF_CTRL, 0x0);
 }
 
 /*
@@ -319,22 +319,22 @@ static void __pmu_clear_msrs(void *info)
  * Bit 0 in __MSR_CORE_PERF_GLOBAL_CTRL is responsiable
  * for enable/disable __MSR_IA32_PMC0
  */
-static void __pmu_enable_counting(void *info)
+static void __core_pmu_enable_counting(void *info)
 {
-	pmu_wrmsr(__MSR_CORE_PERF_GLOBAL_CTRL, 1);
+	core_pmu_wrmsr(__MSR_CORE_PERF_GLOBAL_CTRL, 1);
 }
 
-static void __pmu_disable_counting(void *info)
+static void __core_pmu_disable_counting(void *info)
 {
-	pmu_wrmsr(__MSR_CORE_PERF_GLOBAL_CTRL, 0);
+	core_pmu_wrmsr(__MSR_CORE_PERF_GLOBAL_CTRL, 0);
 }
 
-static void __pmu_clear_ovf(void *info)
+static void __core_pmu_clear_ovf(void *info)
 {
-	pmu_wrmsr(__MSR_CORE_PERF_GLOBAL_OVF_CTRL, 1);
+	core_pmu_wrmsr(__MSR_CORE_PERF_GLOBAL_OVF_CTRL, 1);
 }
 
-static void __pmu_enable_predefined_event(void *info)
+static void __core_pmu_enable_predefined_event(void *info)
 {
 	int evt;
 	u64 val;
@@ -350,15 +350,15 @@ static void __pmu_enable_predefined_event(void *info)
 	/* 48-bit Mask, in case #GP occurs */
 	val &= (1ULL<<48)-1;
 	
-	pmu_wrmsr(__MSR_IA32_PMC0, val);
-	pmu_wrmsr(__MSR_IA32_PERFEVTSEL0,
+	core_pmu_wrmsr(__MSR_IA32_PMC0, val);
+	core_pmu_wrmsr(__MSR_IA32_PERFEVTSEL0,
 				predefined_event_map[evt]
 				| USR_MODE
 				| INT_ENABLE
 				| ENABLE );
 }
 
-static void __pmu_lapic_init(void *info)
+static void __core_pmu_lapic_init(void *info)
 {
 	apic_write(APIC_LVTPC, APIC_DM_NMI);
 }
@@ -367,61 +367,61 @@ static void __pmu_lapic_init(void *info)
 /*
  * These set of functions are intended to walk through all online CPUs
  */
-static void pmu_show_msrs(void)
+static void core_pmu_show_msrs(void)
 {
 	int cpu;
 	for_each_online_cpu(cpu) {
-		pmu_cpu_function_call(cpu, __pmu_show_msrs, NULL);
+		core_pmu_cpu_function_call(cpu, __core_pmu_show_msrs, NULL);
 	}
 }
 
-static void pmu_clear_msrs(void)
+static void core_pmu_clear_msrs(void)
 {
 	int cpu;
 	for_each_online_cpu(cpu) {
-		pmu_cpu_function_call(cpu, __pmu_clear_msrs, NULL);
+		core_pmu_cpu_function_call(cpu, __core_pmu_clear_msrs, NULL);
 	}
 }
 
-static void pmu_enable_counting(void)
+static void core_pmu_enable_counting(void)
 {
 	int cpu;
 	for_each_online_cpu(cpu) {
-		pmu_cpu_function_call(cpu, __pmu_enable_counting, NULL);
+		core_pmu_cpu_function_call(cpu, __core_pmu_enable_counting, NULL);
 	}
 }
 
-static void pmu_disable_counting(void)
+static void core_pmu_disable_counting(void)
 {
 	int cpu;
 	for_each_online_cpu(cpu) {
-		pmu_cpu_function_call(cpu, __pmu_disable_counting, NULL);
+		core_pmu_cpu_function_call(cpu, __core_pmu_disable_counting, NULL);
 	}
 }
 
-static void pmu_clear_ovf(void)
+static void core_pmu_clear_ovf(void)
 {
 	int cpu;
 	for_each_online_cpu(cpu) {
-		pmu_cpu_function_call(cpu, __pmu_clear_ovf, NULL);
+		core_pmu_cpu_function_call(cpu, __core_pmu_clear_ovf, NULL);
 	}
 }
 
-static void pmu_enable_predefined_event(int event, u64 threshold)
+static void core_pmu_enable_predefined_event(int event, u64 threshold)
 {
 	int cpu;
 	pre_event_info.event = event;
 	pre_event_info.threshold = threshold;
 	for_each_online_cpu(cpu) {
-		pmu_cpu_function_call(cpu, __pmu_enable_predefined_event, &pre_event_info);
+		core_pmu_cpu_function_call(cpu, __core_pmu_enable_predefined_event, &pre_event_info);
 	}
 }
 
-static void pmu_lapic_init(void)
+static void core_pmu_lapic_init(void)
 {
 	int cpu;
 	for_each_online_cpu(cpu) {
-		pmu_cpu_function_call(cpu, __pmu_lapic_init, NULL);
+		core_pmu_cpu_function_call(cpu, __core_pmu_lapic_init, NULL);
 	}
 }
 
@@ -431,73 +431,76 @@ static void pmu_lapic_init(void)
 
 //#define PMU_DEBUG
 
-static int pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
+static int core_pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
 	u64 tmsr;
 	
-	tmsr = pmu_rdmsr(__MSR_CORE_PERF_GLOBAL_STATUS);
+	tmsr = core_pmu_rdmsr(__MSR_CORE_PERF_GLOBAL_STATUS);
 	if (!(tmsr & 0x1)) /* No overflow on *this* CPU */
 		return NMI_DONE;
 	
 #ifdef PMU_DEBUG
-	pr_info("PMU NMI CPU %d", smp_processor_id());
+	pr_info("NMI CPU %d", smp_processor_id());
 #endif
 	
 	/* Restart counting on *this* cpu. */
-	__pmu_clear_msrs(NULL);
-	__pmu_enable_predefined_event(&pre_event_info);
-	__pmu_enable_counting(NULL);
+	__core_pmu_clear_msrs(NULL);
+	__core_pmu_enable_predefined_event(&pre_event_info);
+	__core_pmu_enable_counting(NULL);
 
 	this_cpu_inc(PMU_EVENT_COUNT);
 	return NMI_HANDLED;
 }
 
-static void pmu_regitser_nmi_handler(void)
+static void core_pmu_regitser_nmi_handler(void)
 {
-	register_nmi_handler(NMI_LOCAL, pmu_nmi_handler,
-		NMI_FLAG_FIRST, "PMU_NMI_HANDLER");
-	pr_info("PMU NMI handler registed...");
+	register_nmi_handler(NMI_LOCAL, core_pmu_nmi_handler,
+		NMI_FLAG_FIRST, "CORE_PMU_NMI_HANDLER");
+	pr_info("NMI handler registed...");
 }
 
-static void pmu_unregister_nmi_handler(void)
+static void core_pmu_unregister_nmi_handler(void)
 {
-	unregister_nmi_handler(NMI_LOCAL, "PMU_NMI_HANDLER");
-	pr_info("PMU NMI handler unregisted...");
+	unregister_nmi_handler(NMI_LOCAL, "CORE_PMU_NMI_HANDLER");
+	pr_info("NMI handler unregisted...");
 }
 
-static void pmu_main(void)
+static void core_pmu_main(void)
 {
-	/*
-	 * It seems that we do NOT need pmu_latency
+	/* Initial value of counter
+	 * the init value can be changed via /proc interface
 	 */
 	pre_event_init_value	= -32;
 	PMU_LATENCY		= CPU_BASE_FREQUENCY*10;
 
-	/*
-	 * We must *avoid* walking kernel code path as much as possiable.
-	 * [NMI_FLAG_FIRST] tells kernel to put our pmu_nmi_handler
-	 * to the head of nmiaction list. Therefore, whenever kernel receives
-	 * NMI interrupts, our pmu_nmi_handler will be called first!
-	 * Please see arch/x86/kernel/nmi.c for more information.
+	/* We must *avoid* walking kernel code path as much as possiable.
+	 * [NMI_FLAG_FIRST] tells kernel to put our core_pmu_nmi_handler to the head
+	 * of nmiaction list. Therefore, whenever kernel receives NMI
+	 * interrupts, our core_pmu_nmi_handler will be called first!
 	 */
-	pmu_lapic_init();
-	pmu_regitser_nmi_handler();
+	core_pmu_lapic_init();
+	core_pmu_regitser_nmi_handler();
 
-	/*
-	 * Enable every cpus PMU
-	 */
-	pmu_clear_msrs();
-	pmu_enable_predefined_event(LLC_MISSES, pre_event_init_value);
-	pmu_enable_counting();
+	/* Enable PMU on all online CPUs */
+	core_pmu_clear_msrs();
+	core_pmu_enable_predefined_event(LLC_MISSES, pre_event_init_value);
+	core_pmu_enable_counting();
 }
 
-static int pmu_init(void)
+static int core_pmu_init(void)
 {
-	int this_cpu = get_cpu();
+	int ret;
 
-	pr_info( "PMU init on CPU %2d\n", this_cpu);
+	pr_info("INIT ON CPU %2d (NODE %2d)",
+		smp_processor_id(), numa_node_id());
+	
+	/* We rely on this proc file */
+	ret = core_pmu_proc_create();
+	if (ret)
+		return ret;
 	
 	/*
+	 * Pay attention to the output messages:
 	 * A processor that supports architectural performance
 	 * monitoring may not support all the predefined architectural
 	 * performance events. The non-zero bits in CPUID.0AH:EBX
@@ -505,27 +508,26 @@ static int pmu_init(void)
 	 */
 	cpu_print_info();
 
-	/* Create proc file */
-	core_pmu_proc_create();
-	
-	pmu_main();
-	put_cpu();
+	/* Start core PMU */
+	core_pmu_main();
 	
 	return 0;
 }
 
-static void pmu_exit(void)
+static void core_pmu_exit(void)
 {
 	/* Remove proc file*/
 	core_pmu_proc_remove();
 
 	/* Clear PMU of all CPUs */
-	pmu_clear_msrs();
-	pmu_unregister_nmi_handler();
-	pr_info( "PMU exit on CPU %2d\n", smp_processor_id());
+	core_pmu_clear_msrs();
+	core_pmu_unregister_nmi_handler();
+	
+	pr_info("EXIT ON CPU %2d (NODE %2d)",
+		smp_processor_id(), numa_node_id());
 }
 
-module_init(pmu_init);
-module_exit(pmu_exit);
+module_init(core_pmu_init);
+module_exit(core_pmu_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("shanyizhou@ict.ac.cn");

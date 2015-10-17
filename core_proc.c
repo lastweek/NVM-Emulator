@@ -32,7 +32,7 @@ DECLARE_PER_CPU(u64, PMU_EVENT_COUNT);
 
 const char pmu_proc_format[] = "CPU %2d, NMI times = %lld\n";
 
-static int pmu_proc_show(struct seq_file *m, void *v)
+static int core_pmu_proc_show(struct seq_file *m, void *v)
 {
 	int cpu;
 	for_each_online_cpu(cpu) {
@@ -45,10 +45,10 @@ static int pmu_proc_show(struct seq_file *m, void *v)
 
 static int core_pmu_proc_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, pmu_proc_show, NULL);
+	return single_open(file, core_pmu_proc_show, NULL);
 }
 
-void core_pmu_clear_counter(void)
+static void core_pmu_clear_counter(void)
 {
 	int cpu;
 	for_each_online_cpu(cpu) {
@@ -107,7 +107,7 @@ const struct file_operations core_pmu_proc_fops = {
 
 static bool is_proc_registed = false;
 
-int core_pmu_proc_create(void)
+int __must_check core_pmu_proc_create(void)
 {
 	if (proc_create("core_pmu", 0644, NULL, &core_pmu_proc_fops)) {
 		is_proc_registed = true;
