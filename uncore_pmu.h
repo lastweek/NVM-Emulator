@@ -166,7 +166,7 @@ struct uncore_pmu {
 	unsigned int		global_config;
 };
 
-extern int uncore_socket_number;
+extern unsigned int uncore_socket_number;
 extern struct uncore_box_type **uncore_msr_type;
 extern struct uncore_box_type **uncore_pci_type;
 extern struct pci_driver *uncore_pci_driver;
