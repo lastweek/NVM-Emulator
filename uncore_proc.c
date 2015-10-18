@@ -27,11 +27,12 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 
+static int bw_ratio = 1;
 static DEFINE_MUTEX(uncore_proc_mutex);
 
 static int pmu_proc_show(struct seq_file *file, void *v)
 {
-	seq_printf(file, "UNCORE PMU %d", 2333);
+	seq_printf(file, "Bandwidth Throttling Ratio: 1/%d", bw_ratio);
 	
 	return 0;
 }
@@ -58,14 +59,17 @@ static ssize_t uncore_proc_write(struct file *file, const char __user *buf,
 	mutex_lock(&uncore_proc_mutex);
 	switch (ctl[0]) {
 		case '0':/* 1/1 Bandwidth */
+			bw_ratio = 1;
 			uncore_imc_set_threshold(0, 1);
 			uncore_imc_set_threshold(1, 1);
 			break;
 		case '2':/* 1/2 Bandwidth */
+			bw_ratio = 2;
 			uncore_imc_set_threshold(0, 2);
 			uncore_imc_set_threshold(1, 2);
 			break;
 		case '4':/* 1/4 Bandwidth */
+			bw_ratio = 4;
 			uncore_imc_set_threshold(0, 4);
 			uncore_imc_set_threshold(1, 4);
 			break;

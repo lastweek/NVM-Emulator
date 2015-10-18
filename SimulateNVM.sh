@@ -44,16 +44,6 @@ End_simulating()
 	${REMOVE_MOD} ${UNCORE_PMU_MODULE}
 }
 
-# GCC		403
-# BZIP		401
-# MCF		429
-# BWAVES	410
-# MILC		433
-Test_spec2006()
-{
-	runspec --config=mytest.cfg --noreportable --iteration=1
-}
-
 declare -i bw
 declare -i latency
 
@@ -63,9 +53,32 @@ Start_simulating
 for ((latency = 0; latency <= 4; latency++)); do
 	# Full bw, 1/2 bw, 1/4 bw
 	for ((bw = 0; bw <= 4; bw += 2)); do
+
+		#
+		# Step I: Change the configuration of simulation
+		#
+
 		echo ${latency} > ${CORE_IOCTL}
 		echo ${bw} > ${UNCORE_IOCTL}
+
+		#
+		# Step II: Customized NVM application evaluation
+		#
 		
+		dir_name=spec_${latency}_${bw}
+		if [ ! -d ${dir_name} ]; then
+			mkdir -p ${dir_name}
+		fi
+		
+		# GCC BZIP MCF BWAVES MILC
+		SPEC_BENCH="403 401 429 410 433"
+		SPEC_FLAGS="--config=mytest.cfg --noreportable --iteration=1"
+		for i in ${SPEC_BENCH}; do
+			file_name=${PWD}/${dir_name}/${latency}_${bw}_${i}
+			runspec ${SPEC_FLAGS} ${i} > ${file_name} 2 > ${file_name}_errorLog
+			cat ${CORE_IOCTL} >> ${file_name}
+			cat ${UNCORE_IOCTL} >> ${file_name}
+		done
 	done
 done
 
