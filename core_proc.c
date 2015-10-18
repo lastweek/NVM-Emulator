@@ -79,18 +79,22 @@ static ssize_t core_pmu_proc_write(struct file *file, const char __user *buf,
 			break;
 		case '1': /* -32 */
 			pre_event_init_value = -32;
+			core_pmu_clear_counter();
 			core_pmu_start_sampling();
 			break;
 		case '2': /* -64 */
 			pre_event_init_value = -64;
+			core_pmu_clear_counter();
 			core_pmu_start_sampling();
 			break;
 		case '3': /* -128 */
 			pre_event_init_value = -128;
+			core_pmu_clear_counter();
 			core_pmu_start_sampling();
 			break;
 		case '4': /* -256 */
 			pre_event_init_value = -256;
+			core_pmu_clear_counter();
 			core_pmu_start_sampling();
 			break;
 		default:

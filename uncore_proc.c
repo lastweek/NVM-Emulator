@@ -57,7 +57,7 @@ static ssize_t uncore_proc_write(struct file *file, const char __user *buf,
 	
 	mutex_lock(&uncore_proc_mutex);
 	switch (ctl[0]) {
-		case '1':/* 1/1 Bandwidth */
+		case '0':/* 1/1 Bandwidth */
 			uncore_imc_set_threshold(0, 1);
 			uncore_imc_set_threshold(1, 1);
 			break;
@@ -89,7 +89,7 @@ static bool is_proc_registed = false;
 
 int uncore_proc_create(void)
 {
-	if (proc_create("uncore", 0644, NULL, &uncore_proc_fops)) {
+	if (proc_create("uncore_pmu", 0644, NULL, &uncore_proc_fops)) {
 		is_proc_registed = true;
 		return 0;
 	}
@@ -100,5 +100,5 @@ int uncore_proc_create(void)
 void uncore_proc_remove(void)
 {
 	if (is_proc_registed)
-		remove_proc_entry("uncore", NULL);
+		remove_proc_entry("uncore_pmu", NULL);
 }

@@ -26,6 +26,9 @@ set -e
 CORE_PMU_MODULE=core.ko
 UNCORE_PMU_MODULE=uncore.ko
 
+CORE_IOCTL=/proc/core_pmu
+UNCORE_IOCTL=/proc/uncore_pmu
+
 INSTALL_MOD=insmod
 REMOVE_MOD=rmmod
 
@@ -41,15 +44,29 @@ End_simulating()
 	${REMOVE_MOD} ${UNCORE_PMU_MODULE}
 }
 
-#Start_simulating
+# GCC		403
+# BZIP		401
+# MCF		429
+# BWAVES	410
+# MILC		433
+Test_spec2006()
+{
+	runspec --config=mytest.cfg --noreportable --iteration=1
+}
 
 declare -i bw
 declare -i latency
 
+Start_simulating
+
+# Disbale, -32, -64, -128, -256
 for ((latency = 0; latency <= 4; latency++)); do
+	# Full bw, 1/2 bw, 1/4 bw
 	for ((bw = 0; bw <= 4; bw += 2)); do
-		echo $latency and $bw
+		echo ${latency} > ${CORE_IOCTL}
+		echo ${bw} > ${UNCORE_IOCTL}
+		
 	done
 done
 
-#End_simulating
+End_simulating
