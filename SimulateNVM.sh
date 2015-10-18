@@ -1,7 +1,10 @@
 #!/bin/bash
-#
-# Script to emulate NVM latency and bandwidth with core and uncore PMU modules
-#
+##
+# Script to emulate NVM latency and bandwidth with PMU modules.
+# Default configuration:
+# o Every core will recieve NMI interrupts in an interval of -256 LLC misses.
+# o Memory throttling are enabled at all nodes, defaults to 1/1 full bandwidth.
+##
 # Copyright (C) 2015 Yizhou Shan <shanyizhou@ict.ac.cn>
 #
 # This program is free software; you can redistribute it and/or modify
@@ -23,7 +26,7 @@ set -e
 CORE_PMU_MODULE=core.ko
 UNCORE_PMU_MODULE=uncore.ko
 
-INSTALL_MOD=echo
+INSTALL_MOD=insmod
 REMOVE_MOD=rmmod
 
 Start_simulating()
@@ -38,15 +41,15 @@ End_simulating()
 	${REMOVE_MOD} ${UNCORE_PMU_MODULE}
 }
 
-# By default:
-#
-# o Every core will recieve NMI interrupts in an interval of -256 LLC misses.
-# o Memory throttling are enabled at all nodes, defaults to 1/1 full bandwidth.
-#
 #Start_simulating
 
-# Do customized things...
-echo WTFWTF
+declare -i bw
+declare -i latency
 
-# Back to real world
+for ((latency = 0; latency <= 4; latency++)); do
+	for ((bw = 0; bw <= 4; bw += 2)); do
+		echo $latency and $bw
+	done
+done
+
 #End_simulating

@@ -18,6 +18,8 @@
 
 #define pr_fmt(fmt) "CORE PROC: " fmt
 
+#include "core_pmu.h"
+
 #include <asm/uaccess.h>
 #include <linux/errno.h>
 #include <linux/types.h>
@@ -26,9 +28,6 @@
 #include <linux/seq_file.h>
 #include <linux/mutex.h>
 #include <linux/percpu.h>
-
-extern u64 pre_event_init_value;
-DECLARE_PER_CPU(u64, PERCPU_NMI_TIMES);
 
 const char pmu_proc_format[] = "CPU %2d, NMI times = %lld\n";
 
@@ -52,18 +51,13 @@ static int core_pmu_proc_open(struct inode *inode, struct file *file)
 	return single_open(file, core_pmu_proc_show, NULL);
 }
 
-static void core_pmu_clear_counter(void)
-{
-	int cpu;
-	for_each_online_cpu(cpu) {
-		*per_cpu_ptr(&PERCPU_NMI_TIMES, cpu) = 0;
-	}
-}
-
 static DEFINE_MUTEX(core_pmu_proc_mutex);
 
 /*
- * Control overflow threshold in a ugly way
+ * Control core pmu behaviour in a ugly way
+ *
+ * This is the most important interface between user and kernel space,
+ * we rely on this.
  */
 static ssize_t core_pmu_proc_write(struct file *file, const char __user *buf,
 				   size_t count, loff_t *offs)
@@ -78,20 +72,26 @@ static ssize_t core_pmu_proc_write(struct file *file, const char __user *buf,
 	
 	mutex_lock(&core_pmu_proc_mutex);
 	switch (ctl[0]) {
-		case '0': /* Clear per-cpu counter */
+		case '0': /* 0 = no overflow = disable */
+			pre_event_init_value = 0;
 			core_pmu_clear_counter();
+			core_pmu_clear_msrs();
 			break;
 		case '1': /* -32 */
 			pre_event_init_value = -32;
+			core_pmu_start_sampling();
 			break;
 		case '2': /* -64 */
 			pre_event_init_value = -64;
+			core_pmu_start_sampling();
 			break;
 		case '3': /* -128 */
 			pre_event_init_value = -128;
+			core_pmu_start_sampling();
 			break;
 		case '4': /* -256 */
 			pre_event_init_value = -256;
+			core_pmu_start_sampling();
 			break;
 		default:
 			count = -EINVAL;

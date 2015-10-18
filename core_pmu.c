@@ -17,8 +17,6 @@
  */
 
 /*
- *	core_pmu.c - Using LLC_MISS to emulate NVM latency
- *
  *	Intel PMU can interrupt CPU in NMI manner when it overflows.
  *	This module inserts a core_pmu_nmi_handler to the NMI ISR list,
  *	in which we can do something everytime PMU overflows.
@@ -34,6 +32,8 @@
 
 #define pr_fmt(fmt) "CORE PMU: " fmt
 
+#include "core_pmu.h"
+
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -46,9 +46,6 @@
 
 #include <asm/nmi.h>
 #include <asm/msr.h>
-
-int core_pmu_proc_create(void);
-void core_pmu_proc_remove(void);
 
 #define __MSR_IA32_PMC0				0x0C1
 #define __MSR_IA32_PERFEVTSEL0			0x186
@@ -103,82 +100,37 @@ const static u64 predefined_event_map[EVENT_COUNT_MAX] =
 	[BRANCH_MISSES_RETIRED]		= 0x00c5,
 };
 
-/* PMU information from cpuid */
+/* PMU information */
 static u32  PERF_VERSION;
 static u32  PC_PER_CPU;
 static u32  PC_BIT_WIDTH;
 static u32  LEN_EBX_TOENUM;
 static u32  PRE_EVENT_MASK;
 
-/* Module global variables */
-static u64  PMU_LATENCY;
+/* CPU information */
 static u64  CPU_BASE_FREQUENCY;
 static char CPU_BRAND[48];
 
-struct pre_event {
-	int event;
-	u64 threshold;
-};
+static u64  PMU_LATENCY;
 
 static struct pre_event pre_event_info = {
 	.event = 0,
 	.threshold = 0
 };
 
+/* The interface */
 u64 pre_event_init_value;
 
-/* Show in /proc/core_pmu */
 DEFINE_PER_CPU(u64, PERCPU_NMI_TIMES);
 
-//#################################################
-//	Assembly Helper Functions
-//#################################################
-
-static inline void core_pmu_cpuid(u32 *eax, u32 *ebx, u32 *ecx, u32 *edx)
+void core_pmu_clear_counter(void)
 {
-	unsigned int op = *eax;
-	asm volatile (
-		"cpuid"
-		: "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx)
-		: "a"(op)
-	);
+	int cpu;
+	for_each_online_cpu(cpu) {
+		*per_cpu_ptr(&PERCPU_NMI_TIMES, cpu) = 0;
+	}
 }
 
-static inline u64 core_pmu_rdtsc(void)
-{
-	u32 edx, eax;
-	u64 retval = 0;
-
-	asm volatile (
-		"rdtsc"
-		:"=a"(eax), "=d"(edx)
-	);
-	retval = (u64)edx << 32 | (u64)eax;
-	return retval;
-}
-
-static inline u64 core_pmu_rdmsr(u32 addr)
-{
-	u32 edx, eax;
-	u64 retval = 0;
-	
-	asm volatile (
-		"rdmsr"
-		:"=a"(eax), "=d"(edx)
-		:"c"(addr)
-	);
-	retval = (u64)edx << 32 | (u64)eax;
-	return retval;
-}
-
-static inline void core_pmu_wrmsr(u32 addr, u64 value)
-{
-	asm volatile (
-		"wrmsr"
-		:
-		:"c"(addr), "d"((u32)(value>>32)), "a"((u32)value)
-	);
-}
 
 //#################################################
 //	CPU General Infomation
@@ -224,8 +176,8 @@ static void cpu_brand_frequency(void)
 		memcpy(s, &edx, 4); s += 4;
 	}
 	
-	/* FIXME */
-	CPU_BASE_FREQUENCY = 2270000000ULL;
+	/* XXX */
+	CPU_BASE_FREQUENCY = 2400000000ULL;
 }
 
 
@@ -254,9 +206,9 @@ static void cpu_print_info(void)
 	cpu_perf_info();
 	
 	pr_info("%s\n", CPU_BRAND);
-	pr_info("PMU Version: %u\n", PERF_VERSION);
-	pr_info("PC per CPU: %u\n", PC_PER_CPU);
-	pr_info("PC bit width: %u\n", PC_BIT_WIDTH);
+	pr_info("PMU Version:            %u\n", PERF_VERSION);
+	pr_info("Counters per CPU:       %u\n", PC_PER_CPU);
+	pr_info("Counter bitwidth:       %u\n", PC_BIT_WIDTH);
 	pr_info("Predefined events mask: %x\n", PRE_EVENT_MASK);
 }
 
@@ -274,8 +226,7 @@ static void cpu_print_info(void)
  */
 static void core_pmu_cpu_function_call(int cpu, void (*func)(void *info), void *info)
 {
-	int err;
-	err = smp_call_function_single(cpu, func, info, 1);
+	int err = smp_call_function_single(cpu, func, info, 1);
 	
 	if (err) {
 		/* TODO why fail */
@@ -283,8 +234,9 @@ static void core_pmu_cpu_function_call(int cpu, void (*func)(void *info), void *
 }
 
 /*
- * These set of functions are intended for a single CPU
+ * These __core_pmu_xxx functions are intended for a single CPU
  */
+
 static void __core_pmu_show_msrs(void *info)
 {
 	u64 tmsr1, tmsr2, tmsr3;
@@ -365,9 +317,13 @@ static void __core_pmu_lapic_init(void *info)
 
 
 /*
- * These set of functions are intended to walk through all online CPUs
+ * These set of functions are intended for walking through all online CPUs.
+ * Since not all of them will be used during a session, so attach used
+ * attribute to squelch GCC warnings.
  */
-static void core_pmu_show_msrs(void)
+
+__used
+void core_pmu_show_msrs(void)
 {
 	int cpu;
 	for_each_online_cpu(cpu) {
@@ -375,7 +331,8 @@ static void core_pmu_show_msrs(void)
 	}
 }
 
-static void core_pmu_clear_msrs(void)
+__used
+void core_pmu_clear_msrs(void)
 {
 	int cpu;
 	for_each_online_cpu(cpu) {
@@ -383,7 +340,8 @@ static void core_pmu_clear_msrs(void)
 	}
 }
 
-static void core_pmu_enable_counting(void)
+__used
+void core_pmu_enable_counting(void)
 {
 	int cpu;
 	for_each_online_cpu(cpu) {
@@ -391,7 +349,8 @@ static void core_pmu_enable_counting(void)
 	}
 }
 
-static void core_pmu_disable_counting(void)
+__used
+void core_pmu_disable_counting(void)
 {
 	int cpu;
 	for_each_online_cpu(cpu) {
@@ -399,7 +358,8 @@ static void core_pmu_disable_counting(void)
 	}
 }
 
-static void core_pmu_clear_ovf(void)
+__used
+void core_pmu_clear_ovf(void)
 {
 	int cpu;
 	for_each_online_cpu(cpu) {
@@ -407,16 +367,21 @@ static void core_pmu_clear_ovf(void)
 	}
 }
 
-static void core_pmu_enable_predefined_event(int event, u64 threshold)
+__used
+void core_pmu_enable_predefined_event(int event, u64 threshold)
 {
 	int cpu;
+
 	pre_event_info.event = event;
 	pre_event_info.threshold = threshold;
+	
 	for_each_online_cpu(cpu) {
-		core_pmu_cpu_function_call(cpu, __core_pmu_enable_predefined_event, &pre_event_info);
+		core_pmu_cpu_function_call(cpu,
+			__core_pmu_enable_predefined_event, &pre_event_info);
 	}
 }
 
+__used
 static void core_pmu_lapic_init(void)
 {
 	int cpu;
@@ -431,15 +396,10 @@ static void core_pmu_lapic_init(void)
 
 static int core_pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 {
-	u64 tmsr;
+	u64 tmsr = core_pmu_rdmsr(__MSR_CORE_PERF_GLOBAL_STATUS);
 	
-	tmsr = core_pmu_rdmsr(__MSR_CORE_PERF_GLOBAL_STATUS);
 	if (!(tmsr & 0x1)) /* No overflow on *this* CPU */
 		return NMI_DONE;
-	
-#ifdef CORE_PMU_DEBUG
-	pr_info("NMI CPU %d", smp_processor_id());
-#endif
 	
 	/* Restart counting on *this* cpu. */
 	__core_pmu_clear_msrs(NULL);
@@ -447,11 +407,17 @@ static int core_pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	__core_pmu_enable_counting(NULL);
 
 	this_cpu_inc(PERCPU_NMI_TIMES);
+	
 	return NMI_HANDLED;
 }
 
 static void core_pmu_regitser_nmi_handler(void)
 {
+	/* We must *avoid* walking kernel code path as much as possiable.
+	 * [NMI_FLAG_FIRST] tells kernel to put our core_pmu_nmi_handler to the
+	 * head of nmiaction list. Therefore, whenever kernel receives NMI
+	 * interrupts, our core_pmu_nmi_handler will be called first!
+	 */
 	register_nmi_handler(NMI_LOCAL, core_pmu_nmi_handler,
 		NMI_FLAG_FIRST, "CORE_PMU_NMI_HANDLER");
 	pr_info("NMI handler registed...");
@@ -463,22 +429,15 @@ static void core_pmu_unregister_nmi_handler(void)
 	pr_info("NMI handler unregisted...");
 }
 
-static void core_pmu_main(void)
+/**
+ * core_pmu_start_sampling
+ *
+ * This function is a small wrapper for start counting/sampling on all cores.
+ * Called after user has changed pre_event_init_value, to make the user-defined
+ * value take effect immediately.
+ */
+void core_pmu_start_sampling(void)
 {
-	/* Initial value of counter: -256
-	 * The init value can be changed via /proc interface
-	 */
-	pre_event_init_value	= -256;
-	PMU_LATENCY		= CPU_BASE_FREQUENCY*10;
-
-	/* We must *avoid* walking kernel code path as much as possiable.
-	 * [NMI_FLAG_FIRST] tells kernel to put our core_pmu_nmi_handler to the head
-	 * of nmiaction list. Therefore, whenever kernel receives NMI
-	 * interrupts, our core_pmu_nmi_handler will be called first!
-	 */
-	core_pmu_lapic_init();
-	core_pmu_regitser_nmi_handler();
-
 	/* Enable PMU on all online CPUs */
 	core_pmu_clear_msrs();
 	core_pmu_enable_predefined_event(LLC_MISSES, pre_event_init_value);
@@ -488,17 +447,15 @@ static void core_pmu_main(void)
 static int core_pmu_init(void)
 {
 	int ret;
-
+	
 	pr_info("INIT ON CPU %2d (NODE %2d)",
 		smp_processor_id(), numa_node_id());
 	
-	/* We rely on this proc file */
 	ret = core_pmu_proc_create();
 	if (ret)
 		return ret;
 	
-	/*
-	 * Pay attention to the output messages:
+	/* Pay attention to the output messages:
 	 * A processor that supports architectural performance
 	 * monitoring may not support all the predefined architectural
 	 * performance events. The non-zero bits in CPUID.0AH:EBX
@@ -506,23 +463,41 @@ static int core_pmu_init(void)
 	 */
 	cpu_print_info();
 
-	/* Start core PMU */
-	core_pmu_main();
+	/*
+	 * Prepare for PMI
+	 */
+	core_pmu_lapic_init();
+	core_pmu_regitser_nmi_handler();
+	
+	/* Initial value of counter: (-256)
+	 * The init value can be changed via /proc interface, also it can be
+	 * changed to 0 to avoid overflow, which means disable latency simulation.
+	 */
+	pre_event_init_value	= -256;
+	PMU_LATENCY		= CPU_BASE_FREQUENCY*10;
+
+	/*
+	 * Start sampling using (-256) LLC misses interval
+	 */
+	core_pmu_start_sampling();
 	
 	return 0;
 }
 
 static void core_pmu_exit(void)
 {
-	/* Remove proc file*/
-	core_pmu_proc_remove();
-
-	/* Clear PMU of all CPUs */
-	core_pmu_clear_msrs();
-	core_pmu_unregister_nmi_handler();
-	
 	pr_info("EXIT ON CPU %2d (NODE %2d)",
 		smp_processor_id(), numa_node_id());
+
+	/* Remove proc file */
+	core_pmu_proc_remove();
+
+	/* Clear PMU of all CPU
+	 * We only walk through online CPUS, if someone offline some CPUs
+	 * before this call, then those CPUs will have residual PMU state.
+	 */
+	core_pmu_clear_msrs();
+	core_pmu_unregister_nmi_handler();
 }
 
 module_init(core_pmu_init);
