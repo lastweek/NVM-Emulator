@@ -2,6 +2,11 @@
 
 Copyright (C) 2015 Yizhou Shan <shanyizhou@ict.ac.cn>
 
+Here is a NVM simulator.
+
+Basically, NVM differs from DRAM from two things:
+	1)
+
 ## Intel Uncore Performance Monitoring Unit
 
 Uncore performance monitors represent a per-socket resource that is not meant
