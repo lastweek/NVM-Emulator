@@ -5,8 +5,6 @@ clear
 reset
 unset key
 
-set output "output.jpg"
-
 # Rotate x axis label
 set xtics nomirror rotate by -45
 
@@ -17,7 +15,6 @@ set auto y
 # Set each coluemn's title label
 set key top left outside horizontal autotitle columnhead
 
-#
 set key autotitle columnhead
 
 # Make some gap between the histogram boxes
@@ -32,7 +29,7 @@ set style data histogram
 # Select clustered histogram
 set style histogram clustered gap 1 title offset 2,0.25
 
-set title "SPEC Runtime (s) on various NVM model"
+set title "SPEC Runtime (s) on Various NVM Simulator Configurations"\
 
 #plot for [COL=2:16] 'spec_runtime.dat' using COL:xticlabels(1) title columnheader
 plot \

@@ -10,23 +10,39 @@ Basically, NVM differs from DRAM from two things:
 Since Intel uses write-back cache, so the write latency difference is not so
 important. The most crucial involved in simulation is the read latency.
 
-If a read evited from CPU hits L1, L2 or Last-Level Cache, the data is supplied
+If a read evicted from CPU hits L1, L2 or Last-Level Cache, the data is supplied
 from cache, CPU does not need to interact with memory, no wait time.
 But if a read misses all caches, which means there is a LLC miss, then CPU has
 to wait the underlying memory to supply the data.
 
 The wait time of CPU when there is a LLC miss depends on the underlying memory.
-If it is DRAM, then the wait time is normally 80ns (differs), if it is NVM, then
-the wait time is normally 150ns (differs).
+If it is DRAM, then the wait time is normally 80ns (In my platform). If it is NVM,
+then the wait time is normally 150ns (differs).
 
-This introduces an intuitive simulation method: Use LLC misses to add additional
+This introduces an intuitive simulation method: Use LLC_MISS to add additional
 read latency of NVM to each CPU. This simulator use Intel PMU to count LLC_MISS
 of each CPU core, then let each CPU core dry-run a period time calculated from
-LLC_MISS to simulate the impact of NVM.
+LLC_MISS.
 
 Intel Xeon E5 v2 or above has a feature to throttle transations per unit time.
 This fancy feature can be used to throttle memory bandwidth. Using this feature
 we can simulate the bandwidth of NVM.
+
+### What does this project has?
+
+Generally speaking, this project is not only a NVM simulator. The simulator is based
+on the underlying Core PMU module and Uncore PMU module. Specific configuration
+and LLC_MISS event sampling make the simulator.
+
+Besides using this project as a simulator, you can use it as a Core PMU module or
+Uncore PMU module to count or sample various events.
+
+Various Linux distribution has an easy-to-use command: perf
+
+### Caveat and TODO
+
+Sorry, i do not have enough description about the design and simulator.
+Also, some program interfaces are not user-friendly.
 
 
 ###About Intel Uncore Performance Monitoring Unit
