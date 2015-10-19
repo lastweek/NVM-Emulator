@@ -140,7 +140,7 @@ static void cpu_facility_test(void)
 {
 	u64 msr;
 	u32 eax, ebx, ecx, edx;
-	
+
 	eax = 0x01;
 	core_pmu_cpuid(&eax, &ebx, &ecx, &edx);
 
@@ -165,7 +165,7 @@ static void cpu_brand_frequency(void)
 
 	if (eax < 0x80000004U)
 		pr_info("CPUID Extended Function Not Supported.\n");
-	
+
 	s = CPU_BRAND;
 	for (i = 0; i < 3; i++) {
 		eax = 0x80000002U + i;
@@ -175,7 +175,7 @@ static void cpu_brand_frequency(void)
 		memcpy(s, &ecx, 4); s += 4;
 		memcpy(s, &edx, 4); s += 4;
 	}
-	
+
 	/* XXX */
 	CPU_BASE_FREQUENCY = 2400000000ULL;
 }
@@ -188,10 +188,10 @@ static void cpu_brand_frequency(void)
 static void cpu_perf_info(void)
 {
 	u32 eax, ebx, ecx, edx;
-	
+
 	eax = 0x0A;
 	core_pmu_cpuid(&eax, &ebx, &ecx, &edx);
-	
+
 	PERF_VERSION	= (eax & 0xFFU);
 	PC_PER_CPU	= (eax & 0xFF00U)>>8;
 	PC_BIT_WIDTH	= (eax & 0xFF0000U)>>16;
@@ -204,7 +204,7 @@ static void cpu_print_info(void)
 	cpu_facility_test();
 	cpu_brand_frequency();
 	cpu_perf_info();
-	
+
 	pr_info("%s\n", CPU_BRAND);
 	pr_info("PMU Version:            %u\n", PERF_VERSION);
 	pr_info("Counters per CPU:       %u\n", PC_PER_CPU);
@@ -240,7 +240,7 @@ static void core_pmu_cpu_function_call(int cpu, void (*func)(void *info), void *
 static void __core_pmu_show_msrs(void *info)
 {
 	u64 tmsr1, tmsr2, tmsr3;
-	
+
 	tmsr1 = core_pmu_rdmsr(__MSR_IA32_PMC0);
 	tmsr2 = core_pmu_rdmsr(__MSR_IA32_PERFEVTSEL0);
 	pr_info("CPU %d: PMC0=%llx PERFEVTSEL0=%llx\n",
@@ -298,10 +298,10 @@ static void __core_pmu_enable_predefined_event(void *info)
 	//val = ((struct pre_event *)info)->threshold;
 	val = pre_event_init_value;
 	evt = ((struct pre_event *)info)->event;
-	
+
 	/* 48-bit Mask, in case #GP occurs */
 	val &= (1ULL<<48)-1;
-	
+
 	core_pmu_wrmsr(__MSR_IA32_PMC0, val);
 	core_pmu_wrmsr(__MSR_IA32_PERFEVTSEL0,
 				predefined_event_map[evt]
@@ -374,7 +374,7 @@ void core_pmu_enable_predefined_event(int event, u64 threshold)
 
 	pre_event_info.event = event;
 	pre_event_info.threshold = threshold;
-	
+
 	for_each_online_cpu(cpu) {
 		core_pmu_cpu_function_call(cpu,
 			__core_pmu_enable_predefined_event, &pre_event_info);
@@ -400,14 +400,14 @@ static int core_pmu_nmi_handler(unsigned int type, struct pt_regs *regs)
 	
 	if (!(tmsr & 0x1)) /* No overflow on *this* CPU */
 		return NMI_DONE;
-	
+
 	/* Restart counting on *this* cpu. */
 	__core_pmu_clear_msrs(NULL);
 	__core_pmu_enable_predefined_event(&pre_event_info);
 	__core_pmu_enable_counting(NULL);
 
 	this_cpu_inc(PERCPU_NMI_TIMES);
-	
+
 	return NMI_HANDLED;
 }
 

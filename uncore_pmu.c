@@ -446,7 +446,10 @@ static void uncore_main(void)
 static int uncore_init(void)
 {
 	int ret;
-	
+
+	pr_info("INIT ON CPU %2d (NODE %2d)",
+		smp_processor_id(), numa_node_id());
+
 	ret = uncore_pci_init();
 	if (ret)
 		goto pcierr;
@@ -455,19 +458,17 @@ static int uncore_init(void)
 	if (ret)
 		goto cpuerr;
 
-	/* uncore_imc.c */
 	ret = uncore_imc_init();
 	if (ret)
 		goto out;
 
-	/* uncore_proc.c */
 	ret = uncore_proc_create();
 	if (ret)
 		goto out;
 
-	/* Pay attention to these messages */
-	pr_info("INIT ON CPU %2d (NODE %2d)",
-		smp_processor_id(), numa_node_id());
+	/* Pay attention to these messages
+	 * Check if everything goes as expected
+	 */
 	uncore_msr_print_boxes();
 	uncore_pci_print_boxes();
 	uncore_pci_print_mapping();
@@ -479,7 +480,6 @@ static int uncore_init(void)
 	uncore_imc_enable_throttle(0);
 	uncore_imc_enable_throttle(1);
 
-	/* Show time */
 	//uncore_main();
 
 	return 0;
@@ -495,16 +495,16 @@ pcierr:
 
 static void uncore_exit(void)
 {
+	pr_info("EXIT ON CPU %2d (NODE %2d)",
+		smp_processor_id(), numa_node_id());
+
 	uncore_imc_disable_throttle(1);
 	uncore_imc_disable_throttle(0);
-	
+
 	uncore_proc_remove();
 	uncore_imc_exit();
 	uncore_cpu_exit();
 	uncore_pci_exit();
-
-	pr_info("EXIT ON CPU %2d (NODE %2d)",
-		smp_processor_id(), numa_node_id());
 }
 
 module_init(uncore_init);
