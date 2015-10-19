@@ -5,6 +5,8 @@ clear
 reset
 unset key
 
+set output "output.jpg"
+
 # Rotate x axis label
 set xtics nomirror rotate by -45
 
