@@ -1,5 +1,5 @@
 #Non-Volatile Memory Related System
-####Copyright (C) 2015 Yizhou Shan <shanyizhou@ict.ac.cn>
+#####Copyright (C) 2015 Yizhou Shan <shanyizhou@ict.ac.cn>
 
 Here is a NVM simulator.
 
@@ -28,7 +28,7 @@ Intel Xeon E5 v2 or above has a feature to throttle transations per unit time.
 This fancy feature can be used to throttle memory bandwidth. Using this feature
 we can simulate the bandwidth of NVM.
 
-### What does this project has?
+## What does this project has?
 
 Generally speaking, this project is not only a NVM simulator. The simulator is based
 on the underlying Core PMU module and Uncore PMU module. Specific configuration
@@ -39,13 +39,13 @@ Uncore PMU module to count or sample various events.
 
 Various Linux distribution has an easy-to-use command: perf
 
-### Caveat and TODO
+## Caveat and TODO
 
 Sorry, i do not have enough description about the design and simulator.
 Also, some program interfaces are not user-friendly.
 
 
-###About Intel Uncore Performance Monitoring Unit
+## About Intel Uncore Performance Monitoring Unit
 
 Uncore performance monitors represent a per-socket resource that is not meant
 to be affected by context switches and thread migration performed by the OS,
@@ -66,7 +66,7 @@ the GID offset of the Ubox in a specific pattern to get the busno for the
 package. This busno can then be used with the given D:F (device:function)
 listed witheach box’s counters that are accessed through PCI config space.
 
-###About Intel Core Performance Monitoring Unit
+## About Intel Core Performance Monitoring Unit
 
 It is impossible to illustrate the Intel PMU in such a readme file. For more
 information about Core PMU or Uncore PMU, please consult Intel SDM and some
