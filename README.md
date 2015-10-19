@@ -33,3 +33,10 @@ listed witheach box’s counters that are accessed through PCI config space.
 It is impossible to illustrate the Intel PMU in such a readme file. For more
 information about Core PMU or Uncore PMU, please consult Intel SDM and some
 Intel PMU guides.
+
+## License
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.

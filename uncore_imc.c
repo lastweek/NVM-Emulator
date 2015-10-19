@@ -213,6 +213,38 @@ int uncore_imc_enable_throttle(unsigned int nodeid)
 	return ret;
 }
 
+int uncore_imc_set_threshold_all(unsigned int threshold)
+{
+
+}
+
+void uncore_imc_disable_throttle_all(void)
+{
+
+}
+
+/**
+ * uncore_imc_enable_throttle_all
+ * Return:	0 on success
+ *
+ * This method enables memory bandwidth throttling on all NUMA nodes.
+ * It walks through all online nodes to enable throttling.
+ */
+int uncore_imc_enable_throttle_all(void)
+{
+	int ret, node;
+
+	for_each_online_nodes(node) {
+		ret = uncore_imc_enable_throttle(node);
+		if (ret) {
+			uncore_imc_disable_throttle_all();
+			break;
+		}
+	}
+	
+	return ret;
+}
+
 void uncore_imc_print_devices(void)
 {
 	struct uncore_imc *imc;

@@ -391,13 +391,16 @@ extern struct list_head uncore_imc_devices;
 int uncore_imc_init(void);
 void uncore_imc_exit(void);
 void uncore_imc_print_devices(void);
+
 int uncore_imc_set_threshold(unsigned int nodeid, unsigned int threshold);
 int uncore_imc_enable_throttle(unsigned int nodeid);
 void uncore_imc_disable_throttle(unsigned int nodeid);
 
-/*
- * Haswell-EP
- */
+int uncore_imc_set_threshold_all(unsigned int threshold);
+int uncore_imc_enable_throttle_all(void);
+void uncore_imc_disable_throttle_all(void);
+
+/* Haswell-EP */
 int hswep_cpu_init(void);
 int hswep_pci_init(void);
 int hswep_imc_init(void);
