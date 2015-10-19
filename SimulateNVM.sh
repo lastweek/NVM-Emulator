@@ -23,8 +23,10 @@
 
 set -e
 
-CORE_PMU_MODULE=core.ko
-UNCORE_PMU_MODULE=uncore.ko
+_PREFIX=/home/syz/Github/NVM
+
+CORE_PMU_MODULE=${_PREFIX}/core.ko
+UNCORE_PMU_MODULE=${_PREFIX}/uncore.ko
 
 CORE_IOCTL=/proc/core_pmu
 UNCORE_IOCTL=/proc/uncore_pmu
@@ -75,7 +77,7 @@ for ((latency = 0; latency <= 4; latency++)); do
 		SPEC_FLAGS="--config=mytest.cfg --noreportable --iteration=1"
 		for i in ${SPEC_BENCH}; do
 			file_name=${PWD}/${dir_name}/${latency}_${bw}_${i}
-			runspec ${SPEC_FLAGS} ${i} > ${file_name} 2 > ${file_name}_errorLog
+			runspec ${SPEC_FLAGS} ${i} > ${file_name} 2> ${file_name}_errorLog
 			cat ${CORE_IOCTL} >> ${file_name}
 			cat ${UNCORE_IOCTL} >> ${file_name}
 		done
