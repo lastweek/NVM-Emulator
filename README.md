@@ -24,6 +24,15 @@ read latency of NVM to each CPU. This simulator use Intel PMU to count LLC_MISS
 of each CPU core, then let each CPU core dry-run a period time calculated from
 LLC_MISS.
 
+So far so good.
+
+But, we can not simulate latency in such a straight forward way. Since what
+we have is a Out-Of-Order CPU. We can *NOT* speculate how much time a LLC miss
+will take. Maybe CPU tolerate 0ns latency overhead from a LLC miss, or maybe 10ns.
+We just do *NOT* know.
+
+Estimate the average latency of a LLC_MISS is my TODO.
+
 Intel Xeon E5 v2 or above has a feature to throttle transations per unit time.
 This fancy feature can be used to throttle memory bandwidth. Using this feature
 we can simulate the bandwidth of NVM.
