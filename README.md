@@ -48,11 +48,17 @@ Uncore PMU module to count or sample various events.
 
 Various Linux distribution has an easy-to-use command: perf
 
-## Caveat and TODO
+## Important TODO
 
-Sorry, i do not have enough description about the design and simulator.
-Also, some program interfaces are not user-friendly.
+- Portability	-	Measure latency and bandwith throttling relevant parameters
+			automatically once the simulator is running on a new platform.
 
+- API1		-	We *must* have an API looks like this one:
+			set_read_latency(unsigned int time)
+			And API *must* be accurate on every platform.
+
+- API2		-	We have uncore_imc_set_threshold() to throttle memory bandwidth now.
+			We *must* make it accurate on every platform.
 
 ## About Intel Uncore Performance Monitoring Unit
 

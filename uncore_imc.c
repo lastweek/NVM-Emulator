@@ -215,12 +215,22 @@ int uncore_imc_enable_throttle(unsigned int nodeid)
 
 int uncore_imc_set_threshold_all(unsigned int threshold)
 {
+	int node, ret = -ENXIO;
 
+	for_each_online_node(node) {
+		ret = uncore_imc_set_threshold(node, threshold);
+		if (ret)
+			break;
+	}
+	return ret;
 }
 
 void uncore_imc_disable_throttle_all(void)
 {
+	int node;
 
+	for_each_online_node(node)
+		uncore_imc_disable_throttle();
 }
 
 /**
@@ -232,16 +242,15 @@ void uncore_imc_disable_throttle_all(void)
  */
 int uncore_imc_enable_throttle_all(void)
 {
-	int ret, node;
+	int node, ret = -ENXIO;
 
-	for_each_online_nodes(node) {
+	for_each_online_node(node) {
 		ret = uncore_imc_enable_throttle(node);
 		if (ret) {
 			uncore_imc_disable_throttle_all();
 			break;
 		}
 	}
-	
 	return ret;
 }
 
