@@ -27,7 +27,7 @@ LLC_MISS.
 So far so good.
 
 But, we can not simulate latency in such a straight forward way. Since what
-we have is a Out-Of-Order CPU. We can *NOT* speculate how much time a LLC miss
+we have is an Out-Of-Order CPU. We can *NOT* speculate how much time a LLC miss
 will take. Maybe CPU tolerate 0ns latency overhead from a LLC miss, or maybe 10ns.
 We just do *NOT* know.
 
@@ -54,11 +54,11 @@ Various Linux distribution has an easy-to-use command: perf
 			automatically once the simulator is running on a new platform.
 
 - API1		-	We *must* have an API looks like this one:
-			set_read_latency(unsigned int time)
-			And API *must* be accurate on every platform.
+			*set_read_latency(unsigned int time)*.
+			And it *must* be accurate on every platform.
 
-- API2		-	We have uncore_imc_set_threshold() to throttle memory bandwidth now.
-			We *must* make it accurate on every platform.
+- API2		-	Currently We have *uncore_imc_set_threshold()* to throttle
+			memory bandwidth. But we *must* make it accurate on every platform.
 
 ## About Intel Uncore Performance Monitoring Unit
 
