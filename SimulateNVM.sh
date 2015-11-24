@@ -1,6 +1,6 @@
 #!/bin/bash
 ##
-# Script to emulate NVM latency and bandwidth with PMU modules.
+# Script to simulate NVM latency and bandwidth with PMU modules.
 # Default configuration:
 # o Every core will recieve NMI interrupts in an interval of -256 LLC misses.
 # o Memory throttling are enabled at all nodes, defaults to 1/1 full bandwidth.

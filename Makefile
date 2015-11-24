@@ -37,6 +37,5 @@ all:
 	make -C $(KERNEL_VERSION) M=$(PWD) modules
 clean:
 	make -C $(KERNEL_VERSION) M=$(PWD) clean
-
 help:
 	make -C $(KERNEL_VERSION) M=$(PWD) help
