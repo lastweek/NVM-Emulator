@@ -253,8 +253,7 @@ static u64 nhm_uncore_event_map[NHM_UNCORE_EVENT_ID_MAX] =
 //  ASSEMBLY PART
 //#################################################
 
-static void
-uncore_cpuid(u32 *eax, u32 *ebx, u32 *ecx, u32 *edx)
+static void uncore_cpuid(u32 *eax, u32 *ebx, u32 *ecx, u32 *edx)
 {
 	u32 op = *eax;
 	asm volatile("cpuid"
@@ -470,8 +469,7 @@ static inline void nhm_uncore_clear_all(void)
  * @event:	pre-defined event id
  * @pmcval:	the initial value in pmc
  */
-static inline void
-nhm_uncore_set_event(int pmcid, int event, u64 pmcval)
+static inline void nhm_uncore_set_event(int pmcid, int event, u64 pmcval)
 {
 	u64 selval;
 	
