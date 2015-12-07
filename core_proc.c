@@ -54,10 +54,8 @@ static int core_pmu_proc_open(struct inode *inode, struct file *file)
 static DEFINE_MUTEX(core_pmu_proc_mutex);
 
 /*
- * Control core pmu behaviour in a ugly way
- *
- * This is the most important interface between user and kernel space,
- * we rely on this.
+ * Control core pmu behaviour in an ugly way. This is the most important
+ * interface between user and kernel space, we rely on this.
  */
 static ssize_t core_pmu_proc_write(struct file *file, const char __user *buf,
 				   size_t count, loff_t *offs)
