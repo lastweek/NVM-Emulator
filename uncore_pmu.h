@@ -18,7 +18,6 @@
 
 /*
  * This file describes data structures and APIs of Uncore PMU programming.
- * See comments of each structures or functions for details.
  */
 
 #ifndef pr_fmt
@@ -46,9 +45,9 @@ struct uncore_box_type;
  * @desc:	Description about this event
  */
 struct uncore_event {
-	unsigned long long enable;
-	unsigned long long disable;
-	const char *desc;
+	u64		enable;
+	u64		disable;
+	const char	*desc;
 };
 
 /**
@@ -239,9 +238,9 @@ static inline unsigned int uncore_msr_perf_ctr(struct uncore_box *box)
 	return box->box_type->perf_ctr + uncore_msr_box_offset(box);
 }
 
-/*
- * Uncore PMU APIs
- */
+/******************************************************************************
+ * Generic uncore PMU box's APIs
+ *****************************************************************************/
 
 /**
  * uncore_show_box
@@ -251,7 +250,8 @@ static inline unsigned int uncore_msr_perf_ctr(struct uncore_box *box)
  */
 static inline void uncore_show_box(struct uncore_box *box)
 {
-	box->box_type->ops->show_box(box);
+	if (box->box_type->ops->show_box)
+		box->box_type->ops->show_box(box);
 }
 
 /**
@@ -264,7 +264,8 @@ static inline void uncore_show_box(struct uncore_box *box)
  */
 static inline void uncore_init_box(struct uncore_box *box)
 {
-	box->box_type->ops->init_box(box);
+	if (box->box_type->ops->init_box)
+		box->box_type->ops->init_box(box);
 }
 
 /**
@@ -277,7 +278,8 @@ static inline void uncore_init_box(struct uncore_box *box)
  */
 static inline void uncore_enable_box(struct uncore_box *box)
 {
-	box->box_type->ops->enable_box(box);
+	if (box->box_type->ops->enable_box)
+		box->box_type->ops->enable_box(box);
 }
 
 /**
@@ -289,7 +291,8 @@ static inline void uncore_enable_box(struct uncore_box *box)
  */
 static inline void uncore_disable_box(struct uncore_box *box)
 {
-	box->box_type->ops->disable_box(box);
+	if (box->box_type->ops->disable_box)
+		box->box_type->ops->disable_box(box);
 }
 
 /**
@@ -303,7 +306,8 @@ static inline void uncore_disable_box(struct uncore_box *box)
 static inline void uncore_enable_event(struct uncore_box *box,
 				       struct uncore_event *event)
 {
-	box->box_type->ops->enable_event(box, event);
+	if (box->box_type->ops->enable_event)
+		box->box_type->ops->enable_event(box, event);
 }
 
 /**
@@ -317,7 +321,8 @@ static inline void uncore_enable_event(struct uncore_box *box,
 static inline void uncore_disable_event(struct uncore_box *box,
 					struct uncore_event *event)
 {
-	box->box_type->ops->disable_event(box, event);
+	if (box->box_type->ops->disable_event)
+		box->box_type->ops->disable_event(box, event);
 }
 
 /**
@@ -330,7 +335,8 @@ static inline void uncore_disable_event(struct uncore_box *box,
  */
 static inline void uncore_write_counter(struct uncore_box *box, u64 value)
 {
-	box->box_type->ops->write_counter(box, value);
+	if (box->box_type->ops->write_counter)
+		box->box_type->ops->write_counter(box, value);
 }
 
 /**
@@ -343,7 +349,8 @@ static inline void uncore_write_counter(struct uncore_box *box, u64 value)
  */
 static inline void uncore_read_counter(struct uncore_box *box, u64 *value)
 {
-	box->box_type->ops->read_counter(box, value);
+	if (box->box_type->ops->read_counter)
+		box->box_type->ops->read_counter(box, value);
 }
 
 /**
@@ -356,7 +363,8 @@ static inline void uncore_read_counter(struct uncore_box *box, u64 *value)
  */
 static inline void uncore_write_filter(struct uncore_box *box, u64 value)
 {
-	box->box_type->ops->write_filter(box, value);
+	if (box->box_type->ops->write_filter)
+		box->box_type->ops->write_filter(box, value);
 }
 
 /**
@@ -368,19 +376,20 @@ static inline void uncore_write_filter(struct uncore_box *box, u64 value)
  */
 static inline void uncore_read_filter(struct uncore_box *box, u64 *value)
 {
-	box->box_type->ops->read_filter(box, value);
+	if (box->box_type->ops->read_filter)
+		box->box_type->ops->read_filter(box, value);
 }
 
-/*
+/******************************************************************************
  * /proc Part
- */
+ *****************************************************************************/
 
 int uncore_proc_create(void);
 void uncore_proc_remove(void);
 
-/*
+/******************************************************************************
  * IMC Part
- */
+ *****************************************************************************/
 
 /**
  * struct uncore_imc_ops
@@ -429,7 +438,9 @@ int uncore_imc_set_threshold_all(unsigned int threshold);
 int uncore_imc_enable_throttle_all(void);
 void uncore_imc_disable_throttle_all(void);
 
-/* Haswell-EP */
+/* Sandy Bridge	TODO */
+/* Ivy Bridge	TODO */
+/* Haswell-EP	*/
 int hswep_cpu_init(void);
 int hswep_pci_init(void);
 int hswep_imc_init(void);
