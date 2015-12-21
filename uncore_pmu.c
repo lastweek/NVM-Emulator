@@ -16,6 +16,23 @@
  *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+/*
+ *	BASIC INFORMATION ABOUT INTEL UNCORE PMU:
+ *	For more information, please consult Intel PMU manuals.
+ *
+ *	Uncore performance monitors represent a per-socket resource that is not
+ *	meant to be affected by context switches and thread migration performed
+ *	by the OS, it is recommended that the monitoring software agent
+ *	establish a fixed affinity binding to prevent cross-talk of event count
+ *	from different uncore PMU.
+ *
+ *	The programming interface of the counter registers and control regiters
+ *	fall into two address spaces:
+ *	* Accessed by MSR are PMON registers within the CBo, SBo, PCU, U-Box.
+ *	* Accessed by PCI device configuration space are PMON registers within
+ *	  the HA, IMC, Intel QPI, R2PCIe and R3QPI units.
+ */
+
 #define pr_fmt(fmt) "UNCORE PMU: " fmt
 
 #include "uncore_pmu.h"

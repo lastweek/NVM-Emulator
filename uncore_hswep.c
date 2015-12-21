@@ -102,8 +102,6 @@
 #define HSWEP_MSR_C_PMON_BOX_STATUS		0xE07
 #define HSWEP_MSR_C_PMON_EVNTSEL0		0xE01
 #define HSWEP_MSR_C_PMON_CTR0			0xE08
-#define HSWEP_MSR_C_PMON_BOX_FILTER0		0xE05
-#define HSWEP_MSR_C_PMON_BOX_FILTER1		0xE06
 #define HSWEP_MSR_C_MSR_OFFSET			0x10
 #define HSWEP_MSR_C_EVENTSEL_MASK		(HSWEP_MSR_RAW_EVNTSEL_MASK | \
 						 HSWEP_MSR_EVNTSEL_TID_EN)
@@ -717,44 +715,87 @@ int hswep_pci_init(void)
 	return 0;
 }
 
+
+
 /*
- * ugh
+ * Yes, I know defining such events is ugly. Can you provide a pretty one?
+ * Anyway, I created such events descriptions just for document meaning.
+ * All of these descriptions are got from Ex-v3 Uncore PMU reference manual.
+ *
+ * In order to emulate NVM, we need to manipulate HA and Cbox only. Besides,
+ * we need only a few events only. Sigh, it is not an easy job to choose the
+ * rigth events. You know, it is about the whole architecture, the cache, the
+ * memory, the mc and so on. During the process of choosing proper events, I
+ * got deeper understanding about Intel processor/SoC's architecture.
+ *
+ * Oh, by the way, I need to look into ring interconnect deeply later!
+ * (Mon Dec 21 15:17:06 CST 2015)
  */
 
 /*
- * Home Agent Event
- * Read and Write requests made into HA
+ * Home Agent Events:	REQUESTS
+ * Event Code: 0x01
+ * Max. Inc/Cyc: 1
+ * Register Restrictions: 0-3
+ *
+ * Counts the total number of read requests made into the Home Agent. Reads
+ * include all read opcodes (including RFO). Writes include all writes (
+ * streaming, evictions, HitM, etc).
  */
-struct uncore_event ha_requests_reads_local = {
+
+/*
+ * LOCAL_READS: This filter includes only read requests coming from the local
+ * socket. This is a good proxy for LLC Read Misses (including RFOs) from the
+ * local socket.
+ */
+struct uncore_event ha_requests_local_reads = {
 	.enable = (1<<22) | (1<<20) | 0x0100 | 0x0001,
 	.disable = 0,
-	.desc = "Read requests coming from local socket"
+	.desc = "Read requests coming from the local socket"
 };
 
-struct uncore_event ha_requests_reads_remote = {
+/*
+ * REMOTE_READS: This filter includes only read requests coming from remote
+ * sockets. This is a good proxy for LLC Read Misses (including RFOs) from
+ * remote sockets.
+ */
+struct uncore_event ha_requests_remote_reads = {
 	.enable = (1<<22) | (1<<20) | 0x0200 | 0x0001,
 	.disable = 0,
-	.desc = "Read requests coming from remote socket"
+	.desc = "Read requests coming from remote sockets"
 };
 
+/*
+ * READS: Incoming read requests. This is a good proxy for LLC Read Misses (
+ * including RFOs).
+ */
 struct uncore_event ha_requests_reads = {
 	.enable = (1<<22) | (1<<20) | 0x0300 | 0x0001,
 	.disable = 0,
 	.desc = "Incoming read requests total"
 };
 
-struct uncore_event ha_requests_writes_local = {
+/*
+ * LOCAL_WRITES: This filter includes only writes coming from the local socket.
+ */
+struct uncore_event ha_requests_local_writes = {
 	.enable = (1<<22) | (1<<20) | 0x0400 | 0x0001,
 	.disable = 0,
 	.desc = "Write requests from local socket"
 };
 
-struct uncore_event ha_requests_writes_remote = {
+/*
+ * REMOTE_WRITES: This filter includes only writes coming from remote sockets.
+ */
+struct uncore_event ha_requests_remote_writes = {
 	.enable = (1<<22) | (1<<20) | 0x0800 | 0x0001,
 	.disable = 0,
 	.desc = "Write requests from remote socket"
 };
 
+/*
+ * WRITES: Incoming write requests.
+ */
 struct uncore_event ha_requests_writes = {
 	.enable = (1<<22) | (1<<20) | 0x0B00 | 0x0001,
 	.disable = 0,
@@ -762,8 +803,14 @@ struct uncore_event ha_requests_writes = {
 };
 
 /*
- * Home Agent Event
- * HA to IMC requests
+ * Home Agent Events:	IMC_READS
+ * Event Code: 0x17
+ * Max. Inc/Cyc: 4
+ * Register Restrictions: 0-3
+ *
+ * Count of the number of reads issued to any of the memory controller channels.
+ * This can be filtered by the priority of the reads. Note that, this event does
+ * not count reads the bypass path. That is counted separately in HA_IMC.BYPASS.
  */
 struct uncore_event ha_imc_reads = {
 	.enable = (1<<22) | (1<<20) | 0x0100 | 0x0017,
@@ -771,17 +818,29 @@ struct uncore_event ha_imc_reads = {
 	.desc = "HA to IMC normal priority read requests"
 };
 
+/*
+ * Home Agent Events:	IMC_WRITES
+ * Event Code: 0x1A
+ * Max. Inc/Cyc: 1
+ * Register Restrictions: 0-3
+ *
+ * Count the total number of full line writes issued from the HA into the memory
+ * controller. This counts for all four channels. It can be filtered by full/partial
+ * and ISOCH/non-ISOCH.
+ */
 struct uncore_event ha_imc_writes_full = {
 	.enable = (1<<22) | (1<<20) | 0x0100 | 0x001A,
 	.disable = 0,
-	.desc = "HA to IMC full line write requests"
+	.desc = "HA to IMC full-line Non-ISOCH write"
 };
 
 struct uncore_event ha_imc_writes_partial = {
 	.enable = (1<<22) | (1<<20) | 0x0200 | 0x001A,
 	.disable = 0,
-	.desc = "HA to IMC partial line write requests"
+	.desc = "HA to IMC partial-line Non-ISOCH write"
 };
+
+
 
 /*
  * IMC Part
