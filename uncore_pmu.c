@@ -483,7 +483,8 @@ static int uncore_init(void)
 	if (ret)
 		goto out;
 
-	/* Pay attention to these messages
+	/*
+	 * Pay attention to these messages
 	 * Check if everything goes as expected
 	 */
 	uncore_msr_print_boxes();
