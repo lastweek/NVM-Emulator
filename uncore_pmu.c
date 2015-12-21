@@ -492,11 +492,12 @@ static int uncore_init(void)
 	uncore_pci_print_mapping();
 	uncore_imc_print_devices();
 	
-	/* Throttle Memory Bandwidth */
-	uncore_imc_set_threshold(0, 1);	/* Node 0, full bandwidth */
-	uncore_imc_set_threshold(1, 1);	/* Node 1, full bandwidth */
-	uncore_imc_enable_throttle(0);
-	uncore_imc_enable_throttle(1);
+	/*
+	 * Throttle bandwidth for all nodes.
+	 * Default to full bandwidth
+	 */
+	uncore_imc_set_threshold_all(1);
+	uncore_imc_enable_throttle_all();
 
 	//uncore_main();
 
@@ -516,9 +517,7 @@ static void uncore_exit(void)
 	pr_info("EXIT ON CPU %2d (NODE %2d)",
 		smp_processor_id(), numa_node_id());
 
-	uncore_imc_disable_throttle(1);
-	uncore_imc_disable_throttle(0);
-
+	uncore_imc_disable_throttle_all();
 	uncore_proc_remove();
 	uncore_imc_exit();
 	uncore_cpu_exit();

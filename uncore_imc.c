@@ -213,6 +213,13 @@ int uncore_imc_enable_throttle(unsigned int nodeid)
 	return ret;
 }
 
+/**
+ * uncore_imc_set_threshold_all
+ * @threshold:	1/(threshold) to throttle memory bandwidth
+ * Return:	0 on success 
+ *
+ * This method will set memory bandwidth for all online nodes.
+ */
 int uncore_imc_set_threshold_all(unsigned int threshold)
 {
 	int node, ret = -ENXIO;
@@ -225,19 +232,11 @@ int uncore_imc_set_threshold_all(unsigned int threshold)
 	return ret;
 }
 
-void uncore_imc_disable_throttle_all(void)
-{
-	int node;
-
-	for_each_online_node(node)
-		uncore_imc_disable_throttle();
-}
-
 /**
  * uncore_imc_enable_throttle_all
  * Return:	0 on success
  *
- * This method enables memory bandwidth throttling on all NUMA nodes.
+ * This method enables memory bandwidth throttling on all online nodes.
  * It walks through all online nodes to enable throttling.
  */
 int uncore_imc_enable_throttle_all(void)
@@ -252,6 +251,14 @@ int uncore_imc_enable_throttle_all(void)
 		}
 	}
 	return ret;
+}
+
+void uncore_imc_disable_throttle_all(void)
+{
+	int node;
+
+	for_each_online_node(node)
+		uncore_imc_disable_throttle(node);
 }
 
 void uncore_imc_print_devices(void)
