@@ -84,8 +84,11 @@ struct uncore_box {
  * @disable_event:
  * @write_counter:
  * @read_counter:
+ * @write_filter:
+ * @read_filter:
  *
- * Describe methods for manipulating a uncore PMU box
+ * Describe methods for manipulating a uncore PMU box. The methods are
+ * microarchitecture specific. Some of them could be %NULL, e.g. read_filter.
  */
 struct uncore_box_ops {
 	void (*show_box)(struct uncore_box *box);
@@ -96,6 +99,8 @@ struct uncore_box_ops {
 	void (*disable_event)(struct uncore_box *box, struct uncore_event *event);
 	void (*write_counter)(struct uncore_box *box, u64 value);
 	void (*read_counter)(struct uncore_box *box, u64 *value);
+	void (*write_filter)(struct uncore_box *box, u64 value);
+	void (*read_filter)(struct uncore_box *box, u64 *value);
 };
 
 /**
@@ -118,9 +123,8 @@ struct uncore_box_ops {
  * @box_list:		List of all avaliable boxes of this type
  * @ops:		Box manipulation functions
  *
- * This struct describes a specific type of box. Not all box types
- * support all fields, it is up to the @ops to manipulate each
- * box properly.
+ * This struct describes a specific type of box. All box instances are linked
+ * together. Each box type has its specific functions.
  */
 struct uncore_box_type {
 	const char	*name;
@@ -146,16 +150,16 @@ struct uncore_box_type {
 /**
  * struct uncore_pmu
  * @name:		Name for uncore PMU
- * @pci_type:		PCI type boxes (NULL if absent)
+ * @pci_type:		PCI type boxes (%NULL if absent)
  * @msr_type:		MSR type boxes (can NOT be NULL)
  * @global_ctl:		MSR address of global control register (per socket)
  * @global_status:	MSR address of global status register (per socket)
  * @global_config:	MSR address of global config register (per socket)
  *
- * This structure is the top description about uncore PMU. The main reason to
- * have such a global description structure is sometimes we need the global MSR
- * registers, since the scope of these MSRs is per-socket. Almost every micro-
- * architecture has its global MSRs.
+ * This structure is the TOP description about UNCORE_PMU. The main reason to
+ * have such a global description structure is sometimes we need to manipulate
+ * the global MSR registers, since the scope of these MSRs is per-socket. Almost
+ * every microarchitecture has its global MSRs.
  */
 struct uncore_pmu {
 	const char		*name;
@@ -331,7 +335,7 @@ static inline void uncore_write_counter(struct uncore_box *box, u64 value)
 
 /**
  * uncore_read_counter
- * @box:	the box to 
+ * @box:	the box to read
  * @value:	place to hold value
  *
  * Read the counter of this box.
@@ -340,6 +344,31 @@ static inline void uncore_write_counter(struct uncore_box *box, u64 value)
 static inline void uncore_read_counter(struct uncore_box *box, u64 *value)
 {
 	box->box_type->ops->read_counter(box, value);
+}
+
+/**
+ * uncore_write_filter
+ * @box:	the box to write
+ * @value:	the value to write
+ *
+ * Write the filter register of this box. Make sure you got the proper filter
+ * opcode. Consulting the manual before you change the filter.
+ */
+static inline void uncore_write_filter(struct uncore_box *box, u64 value)
+{
+	box->box_type->ops->write_filter(box, value);
+}
+
+/**
+ * uncore_read_counter
+ * @box:	the box to read
+ * @value:	place to hold value
+ *
+ * Read the filter register of this box.
+ */
+static inline void uncore_read_filter(struct uncore_box *box, u64 *value)
+{
+	box->box_type->ops->read_filter(box, value);
 }
 
 /*
