@@ -145,24 +145,28 @@
 #define HSWEP_PCI_R3QPI_PMON_CTL0		0xD8
 #define HSWEP_PCI_R3QPI_PMON_CTR0		0xA0
 
-/*
- * MSR Box Part
- */
+/******************************************************************************
+ * MSR Type 
+ *****************************************************************************/
 
 static void hswep_uncore_msr_show_box(struct uncore_box *box)
 {
 	unsigned long long value;
 
-/*
+	pr_info("\n");
+	pr_info("MSR Box%d, in Node%d", box->idx, box->nodeid);
+
+	rdmsrl(uncore_msr_box_ctl(box), value);
+	pr_info("MSR Box-level Control: 0x%llx", value);
+
 	rdmsrl(uncore_msr_box_status(box), value);
-	pr_info("MSR Box Status: 0x%llx", value);
+	pr_info("MSR Box-level Status:  0x%llx", value);
 
 	rdmsrl(uncore_msr_perf_ctl(box), value);
-	pr_info("MSR Box Control: 0x%llx", value);
+	pr_info("........... PMON_CTL:  0x%llx", value);
 
 	rdmsrl(uncore_msr_perf_ctr(box), value);
-	pr_info("MSR Box Counter: 0x%llx", value);
-*/
+	pr_info("........... PMON_CTR:  0x%llx", value);
 }
 
 static void hswep_uncore_msr_init_box(struct uncore_box *box)
@@ -234,6 +238,12 @@ static void hswep_uncore_msr_read_counter(struct uncore_box *box, u64 *value)
 	.disable_event	= hswep_uncore_msr_disable_event,	\
 	.write_counter	= hswep_uncore_msr_write_counter,	\
 	.read_counter	= hswep_uncore_msr_read_counter
+
+/*
+ * Actually, some operations may differ among different box types. But we are
+ * not building a mature perf system, emulating NVM is the only client for now,
+ * so leave the holes. I thought I would not touch this code later. :)
+ */
 
 const struct uncore_box_ops HSWEP_UNCORE_UBOX_OPS = {
 	HSWEP_UNCORE_MSR_BOX_OPS()
@@ -311,13 +321,12 @@ struct uncore_box_type HSWEP_UNCORE_CBOX = {
 };
 
 enum {
-	HSWEP_UNCORE_UBOX_ID,
-	HSWEP_UNCORE_PCUBOX_ID,
-	HSWEP_UNCORE_SBOX_ID,
-	HSWEP_UNCORE_CBOX_ID
+	HSWEP_UNCORE_UBOX_ID	= UNCORE_UBOX_ID,
+	HSWEP_UNCORE_PCUBOX_ID	= UNCORE_PCUBOX_ID,
+	HSWEP_UNCORE_SBOX_ID	= UNCORE_SBOX_ID,
+	HSWEP_UNCORE_CBOX_ID	= UNCORE_CBOX_ID
 };
 
-/* MSR Types */
 struct uncore_box_type *HSWEP_UNCORE_MSR_TYPE[] = {
 	[HSWEP_UNCORE_UBOX_ID]   = &HSWEP_UNCORE_UBOX,
 	[HSWEP_UNCORE_PCUBOX_ID] = &HSWEP_UNCORE_PCUBOX,
@@ -326,9 +335,9 @@ struct uncore_box_type *HSWEP_UNCORE_MSR_TYPE[] = {
 	NULL
 };
 
-/*
- * PCI Box Part
- */
+/******************************************************************************
+ * PCI Type 
+ *****************************************************************************/
 
 static void hswep_uncore_pci_show_box(struct uncore_box *box)
 {
@@ -348,17 +357,17 @@ static void hswep_uncore_pci_show_box(struct uncore_box *box)
 		box->pdev->dev.kobj.kref.refcount.counter);
 
 	pci_read_config_dword(pdev, uncore_pci_box_ctl(box), &config);
-	pr_info("PCI Box Control: 0x%x", config);
+	pr_info("PCI Box-level Control: 0x%x", config);
 
 	pci_read_config_dword(pdev, uncore_pci_box_status(box), &config);
-	pr_info("PCI Box Status:  0x%x", config);
+	pr_info("PCI Box-level Status:  0x%x", config);
 
 	pci_read_config_dword(pdev, uncore_pci_perf_ctl(box), &config);
-	pr_info(".... PMON_CTL:   0x%x", config);
+	pr_info("........... PMON_CTL:  0x%x", config);
 
 	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box), &low);
 	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box)+4, &high);
-	pr_info(".... PMON_CTR:   0x%x<<32 | 0x%x ---> %Ld", high, low,
+	pr_info("........... PMON_CTR:  0x%x<<32 | 0x%x ---> %Ld", high, low,
 		((u64)high << 32) | (u64)low);
 }
 
@@ -547,15 +556,14 @@ struct uncore_box_type HSWEP_UNCORE_R3QPI = {
 };
 
 enum {
-	HSWEP_UNCORE_PCI_HA_ID,
-	HSWEP_UNCORE_PCI_IMC_ID,
-	HSWEP_UNCORE_PCI_IRP_ID,
-	HSWEP_UNCORE_PCI_QPI_ID,
-	HSWEP_UNCORE_PCI_R2PCIE_ID,
-	HSWEP_UNCORE_PCI_R3QPI_ID,
+	HSWEP_UNCORE_PCI_HA_ID		= UNCORE_PCI_HA_ID,
+	HSWEP_UNCORE_PCI_IMC_ID		= UNCORE_PCI_IMC_ID,
+	HSWEP_UNCORE_PCI_IRP_ID		= UNCORE_PCI_IRP_ID,
+	HSWEP_UNCORE_PCI_QPI_ID		= UNCORE_PCI_QPI_ID,
+	HSWEP_UNCORE_PCI_R2PCIE_ID	= UNCORE_PCI_R2PCIE_ID,
+	HSWEP_UNCORE_PCI_R3QPI_ID	= UNCORE_PCI_R3QPI_ID
 };
 
-/* PCI Types */
 struct uncore_box_type *HSWEP_UNCORE_PCI_TYPE[] = {
 	[HSWEP_UNCORE_PCI_HA_ID]     = &HSWEP_UNCORE_HA,
 	[HSWEP_UNCORE_PCI_IMC_ID]    = &HSWEP_UNCORE_IMC,
@@ -650,9 +658,9 @@ static const struct pci_device_id HSWEP_UNCORE_PCI_IDS[] = {
  * @devid:	The device id of PCI UBOX device
  * Return:	Non-zero on failure
  *
- * According to Intel CPU datasheet, get the configuration about the mapping
- * between PCI bus number and NUMA node ID from PCI UBOX device. After all,
- * the mapping is stored in a CPU-independent mapping array.
+ * Get the configuration mapping between PCI bus number and NUMA node ID.
+ * Consult specific processor's datasheet for how to build the map.
+ * After all, why not Intel just store a direct mapping array?
  */
 static int hswep_pcibus_to_nodeid(int devid)
 {
@@ -697,8 +705,8 @@ int hswep_cpu_init(void)
 
 	uncore_msr_type = HSWEP_UNCORE_MSR_TYPE;
 	
-	/* Init the global uncore_pmu */
-	uncore_pmu.name			= "E5-v3 Uncore PMU";
+	/* Init the global uncore_pmu structure */
+	uncore_pmu.name			= "E5-v3 UNCORE PMU";
 	uncore_pmu.msr_type		= HSWEP_UNCORE_MSR_TYPE;
 	uncore_pmu.global_ctl		= HSWEP_MSR_PMON_GLOBAL_CTL;
 	uncore_pmu.global_status	= HSWEP_MSR_PMON_GLOBAL_STATUS;
@@ -708,7 +716,7 @@ int hswep_cpu_init(void)
 }
 
 static struct pci_driver HSWEP_UNCORE_PCI_DRIVER = {
-	.name		= "HSWEP-UNCORE",
+	.name		= "E5-v3-UNCORE",
 	.id_table	= HSWEP_UNCORE_PCI_IDS
 };
 
@@ -716,7 +724,6 @@ int hswep_pci_init(void)
 {
 	int ret;
 	
-	/* Xeon E5-v3 Datasheet Volume 2 */
 	ret = hswep_pcibus_to_nodeid(0x2F1E);
 	if (ret)
 		return ret;
@@ -724,28 +731,18 @@ int hswep_pci_init(void)
 	uncore_pci_driver	= &HSWEP_UNCORE_PCI_DRIVER;
 	uncore_pci_type		= HSWEP_UNCORE_PCI_TYPE;
 
-	/* Init the global uncore_pmu */
 	uncore_pmu.pci_type	= HSWEP_UNCORE_PCI_TYPE;
 
 	return 0;
 }
 
-
-
-/*
- * Yes, I know defining such events is ugly. Can you provide a pretty one?
- * Anyway, I created such events descriptions just for document meaning.
- * All of these descriptions are got from Ex-v3 Uncore PMU reference manual.
+/******************************************************************************
+ * PMU Monitoring Events
  *
- * In order to emulate NVM, we need to manipulate HA and Cbox only. Besides,
- * we need only a few events only. Sigh, it is not an easy job to choose the
- * rigth events. You know, it is about the whole architecture, the cache, the
- * memory, the mc and so on. During the process of choosing proper events, I
- * got deeper understanding about Intel processor/SoC's architecture.
- *
- * Oh, by the way, I need to look into ring interconnect deeply later!
- * (Mon Dec 21 15:17:06 CST 2015)
- */
+ * Note that: Users can set particuliar events using specific code/mask. The
+ * following defined events are documented here because they could be used in
+ * NVM emulation. I know all these event structure sucks. :(
+ *****************************************************************************/
 
 /*
  * Home Agent Events:	REQUESTS
@@ -855,14 +852,15 @@ struct uncore_event ha_imc_writes_partial = {
 	.desc = "HA to IMC partial-line Non-ISOCH write"
 };
 
-
+/******************************************************************************
+ * Integrated Memory Controller (IMC) Part
+ *
+ * Note that: This section should NOT be included here. It should be separated
+ * like uncore_imc_hswep.c, it is a sublayer of uncore_imc.
+ *****************************************************************************/
 
 /*
- * IMC Part
- */
-
-/*
- * (The same PCI devices as imc pmon)
+ * (The same PCI devices as IMC PMON)
  *
  * IMC0, Channel 0-1 --> 20:0 20:1 (2fb4 2fb5)
  * IMC1, Channel 2-3 --> 21:0 21:1 (2fb0 2fb1)
@@ -928,6 +926,7 @@ __always_unused static void __test3(struct pci_dev *pdev)
 /*
  * Use [thrt_pwr_dimm_[0:2]].THRT_PWR to throttle bandwidth.
  * Bit 11:0, default value after hardware reset: 0xfff
+ * Seriously Yizhou, you should learn more about MC/DRAM! :(
  */
 static int hswep_imc_set_threshold(struct pci_dev *pdev, unsigned int threshold)
 {
@@ -941,7 +940,7 @@ static int hswep_imc_set_threshold(struct pci_dev *pdev, unsigned int threshold)
 		pci_read_config_word(pdev, offset, &config);
 		config &= (1 << 15);
 		
-		/* XXX */
+		/* XXX Relationship???? */
 		switch (threshold) {
 			case 2: /* 1/2 */
 				config |= 0x00ff;
