@@ -48,17 +48,14 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 
-/* CPU Independent Data */
+/* TOP description of the whole system uncore PMU resources */
 struct uncore_pmu uncore_pmu;
+
+unsigned int uncore_pcibus_to_nodeid[256] = { [0 ... 255] = -1, };
+
 struct uncore_box_type *dummy_xxx_type[] = { NULL, };
 struct uncore_box_type **uncore_msr_type = dummy_xxx_type;
 struct uncore_box_type **uncore_pci_type = dummy_xxx_type;
-
-/* Socket(node) numbers */
-unsigned int uncore_socket_number;
-
-/* PCI Bus Number <---> NUMA Node ID */
-unsigned int uncore_pcibus_to_nodeid[256] = { [0 ... 255] = -1, };
 
 /*
  * Since kernel has a uncore PMU module which has claimed all the PCI boxes
@@ -67,9 +64,9 @@ unsigned int uncore_pcibus_to_nodeid[256] = { [0 ... 255] = -1, };
  */
 struct pci_driver *uncore_pci_driver;
 static void __always_unused uncore_pci_remove(struct pci_dev *dev) {}
-static int __always_unused uncore_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
+static int __always_unused uncore_pci_probe(struct pci_dev *dev,
+					    const struct pci_device_id *id)
 {return -EIO;}
-
 
 /**
  * uncore_get_box
@@ -80,17 +77,15 @@ static int __always_unused uncore_pci_probe(struct pci_dev *dev, const struct pc
  *
  * Get a uncore PMU box to perform tasks. Note that each box of its type has
  * its dedicated idx number, and belongs to a specific NUMA node. Therefore, to
- * get a PMU box you have to offer all these three parameters.
+ * get a PMU box you have to offer all these three parameters. Besides, you can
+ * see the idx information after print_boxes.
  */
 struct uncore_box *uncore_get_box(struct uncore_box_type *type,
 				  unsigned int idx, unsigned int nodeid)
 {
 	struct uncore_box *box;
 
-	if (!type)
-		return NULL;
-
-	if (nodeid > UNCORE_MAX_SOCKET)
+	if (!type || idx < 0 || nodeid > UNCORE_MAX_SOCKET)
 		return NULL;
 
 	list_for_each_entry(box, &type->box_list, next) {
@@ -99,6 +94,146 @@ struct uncore_box *uncore_get_box(struct uncore_box_type *type,
 	}
 
 	return NULL;
+}
+
+struct uncore_box *uncore_get_first_box(struct uncore_box_type *type,
+					unsigned int nodeid)
+{
+	struct uncore_box *box;
+
+	if (!type || nodeid > UNCORE_MAX_SOCKET)
+		return NULL;
+
+	list_for_each_entry(box, &type->box_list, next) {
+		if (box->nodeid == nodeid)
+			return box;
+	}
+
+	return NULL;
+}
+
+/**
+ * uncore_show_global
+ * @pmu:	the uncore_pmu in question
+ *
+ * Display the contents of the three global registers. Normally, every
+ * microarchitecture has global registers including: CONTROL/STATUS/CONFIG.
+ */
+static void uncore_show_global(struct uncore_pmu *pmu)
+{
+	unsigned int config;
+
+	pr_info("\n");
+	pr_info("Name String:    %s", pmu->name);
+	rdmsrl(pmu->global_ctl, config);
+	pr_info("Global Control: 0x%x", config);
+	rdmsrl(pmu->global_status, config);
+	pr_info("Global Status:  0x%x", config);
+	rdmsrl(pmu->global_config, config);
+	pr_info("Global Config:  0x%x", config);
+}
+
+extern struct uncore_event ha_requests_reads;
+extern struct uncore_event ha_requests_writes;
+
+static void emulate_nvm(void)
+{
+	struct uncore_box *HA_Box_0, *HA_Box_1;
+	struct uncore_event *event;
+
+	/* Home Agent Box, Box0, Node0 */
+	HA_Box_0 = uncore_get_first_box(uncore_pci_type[UNCORE_PCI_HA_ID], 0);
+	if (!HA_Box_0) {
+		pr_err("Get HA_Box_0 Failed");
+		return;
+	}
+
+	/* Home Agent Box, Box0, Node1 */
+	HA_Box_1 = uncore_get_first_box(uncore_pci_type[UNCORE_PCI_HA_ID], 1);
+	if (!HA_Box_0) {
+		pr_err("Get HA_Box_1 Failed");
+		return;
+	}
+
+	uncore_show_global(&uncore_pmu);
+	uncore_show_box(HA_Box_0);
+	uncore_show_box(HA_Box_1);
+}
+
+/**
+ * uncore_pci_print_boxes
+ * 
+ * Print information about all avaliable PCI type boxes.
+ * Read this to make sure your CPU has the capacity you need
+ * before sampling uncore PMU.
+ */
+static void uncore_pci_print_boxes(void)
+{
+	struct uncore_box_type *type;
+	struct uncore_box *box;
+	int i;
+
+	for (i = 0; uncore_pci_type[i]; i++) {
+		type = uncore_pci_type[i];
+		pr_info("\n");
+		pr_info("PCI Type: %s Boxes: %d",
+			type->name,
+			list_empty(&type->box_list)? 0: type->num_boxes);
+
+		list_for_each_entry(box, &type->box_list, next) {
+			pr_info("......Box%d, in Node%d, %x:%x:%x, %d:%d:%d, Kref = %d",
+			box->idx,
+			box->nodeid,
+			box->pdev->bus->number,
+			box->pdev->vendor,
+			box->pdev->device,
+			box->pdev->bus->number,
+			(box->pdev->devfn >> 3) & 0x1f,
+			(box->pdev->devfn) & 0x7,
+			box->pdev->dev.kobj.kref.refcount.counter);
+		}
+	}
+}
+
+static void uncore_pci_print_mapping(void)
+{
+	int bus;
+
+	pr_info("\n");
+	pr_info("PCI BUS Number to NodeID Mapping:");
+	for (bus = 0; bus < 256; bus++) {
+		if (uncore_pcibus_to_nodeid[bus] != -1) {
+			pr_info("......BUS %d (0x%x) <---> NODE %d",
+				bus, bus, uncore_pcibus_to_nodeid[bus]);
+		}
+	}
+}
+
+/**
+ * uncore_msr_print_boxes
+ * 
+ * Print information about all avaliable MSR type boxes.
+ * Read this to make sure your CPU has the capacity you need
+ * before sampling uncore PMU.
+ */
+static void uncore_msr_print_boxes(void)
+{
+	struct uncore_box_type *type;
+	struct uncore_box *box;
+	int i;
+	
+	for (i = 0; uncore_msr_type[i]; i++) {
+		type = uncore_msr_type[i];
+		pr_info("\n");
+		pr_info("MSR Type: %s Boxes: %d", type->name,
+			list_empty(&type->box_list)?0:type->num_boxes);
+
+		list_for_each_entry(box, &type->box_list, next) {
+			pr_info("......Box%d, in Node%d",
+			box->idx,
+			box->nodeid);
+		}
+	}
 }
 
 /**
@@ -331,130 +466,6 @@ static int __must_check uncore_cpu_init(void)
 error:
 	uncore_cpu_exit();
 	return ret;
-}
-
-/**
- * uncore_pci_print_boxes
- * 
- * Print information about all avaliable PCI type boxes.
- * Read this to make sure your CPU has the capacity you need
- * before sampling uncore PMU.
- */
-static void uncore_pci_print_boxes(void)
-{
-	struct uncore_box_type *type;
-	struct uncore_box *box;
-	int i;
-
-	for (i = 0; uncore_pci_type[i]; i++) {
-		type = uncore_pci_type[i];
-		pr_info("\n");
-		pr_info("PCI Type: %s Boxes: %d",
-			type->name,
-			list_empty(&type->box_list)? 0: type->num_boxes);
-
-		list_for_each_entry(box, &type->box_list, next) {
-			pr_info("......Box%d, in Node%d, %x:%x:%x, %d:%d:%d, Kref = %d",
-			box->idx,
-			box->nodeid,
-			box->pdev->bus->number,
-			box->pdev->vendor,
-			box->pdev->device,
-			box->pdev->bus->number,
-			(box->pdev->devfn >> 3) & 0x1f,
-			(box->pdev->devfn) & 0x7,
-			box->pdev->dev.kobj.kref.refcount.counter);
-		}
-	}
-}
-
-static void uncore_pci_print_mapping(void)
-{
-	int bus;
-
-	pr_info("\n");
-	pr_info("PCI BUS Number to NodeID Mapping:");
-	for (bus = 0; bus < 256; bus++) {
-		if (uncore_pcibus_to_nodeid[bus] != -1) {
-			pr_info("......BUS %d (0x%x) <---> NODE %d",
-				bus, bus, uncore_pcibus_to_nodeid[bus]);
-		}
-	}
-}
-
-/**
- * uncore_msr_print_boxes
- * 
- * Print information about all avaliable MSR type boxes.
- * Read this to make sure your CPU has the capacity you need
- * before sampling uncore PMU.
- */
-static void uncore_msr_print_boxes(void)
-{
-	struct uncore_box_type *type;
-	struct uncore_box *box;
-	int i;
-	
-	for (i = 0; uncore_msr_type[i]; i++) {
-		type = uncore_msr_type[i];
-		pr_info("\n");
-		pr_info("MSR Type: %s Boxes: %d", type->name,
-			list_empty(&type->box_list)?0:type->num_boxes);
-
-		list_for_each_entry(box, &type->box_list, next) {
-			pr_info("......Box%d, in Node%d",
-			box->idx,
-			box->nodeid);
-		}
-	}
-}
-
-extern struct uncore_event ha_requests_reads;
-extern struct uncore_event ha_requests_writes;
-
-static void uncore_show_global(struct uncore_pmu *pmu)
-{
-	unsigned int config;
-
-	pr_info("\n");
-	rdmsrl(pmu->global_ctl, config);
-	pr_info("Global Control: 0x%x", config);
-	rdmsrl(pmu->global_status, config);
-	pr_info("Global Status:  0x%x", config);
-	rdmsrl(pmu->global_config, config);
-	pr_info("Global Config:  0x%x", config);
-}
-
-static void emulate_nvm(void)
-{
-	struct uncore_box *habox;
-	struct uncore_event *event;
-
-	/* Home Agent, Box0, Node1 */
-	habox = uncore_get_box(uncore_pci_type[0], 0, 1);
-	if (!habox) {
-		pr_err("Get box error");
-		return;
-	}
-
-	uncore_show_global(&uncore_pmu);
-
-	event = &ha_requests_writes;
-	
-	/* Step 1: Init */
-	uncore_init_box(habox);
-
-	/* Step 2: Start counting */
-	uncore_enable_box(habox);
-	uncore_enable_event(habox, event);
-
-	udelay(10);
-	
-	/* Step 3: Stop counting */
-	uncore_disable_box(habox);
-
-	/* Step 4: Print info */
-	uncore_show_box(habox);
 }
 
 static int uncore_init(void)

@@ -29,12 +29,31 @@
 #include <linux/hrtimer.h>
 #include <linux/compiler.h>
 
+/* Who got a 8p server??? */
 #define UNCORE_MAX_SOCKET 8
 
 /* PCI Driver Data <--> Box Type and IDX */
 #define UNCORE_PCI_DEV_DATA(type, idx)	(((type) << 8) | (idx))
 #define UNCORE_PCI_DEV_TYPE(data)	(((data) >> 8) & 0xFF)
 #define UNCORE_PCI_DEV_IDX(data)	((data) & 0xFF)
+
+/* PCI Type Array Index */
+enum {
+	UNCORE_PCI_HA_ID,
+	UNCORE_PCI_IMC_ID,
+	UNCORE_PCI_IRP_ID,
+	UNCORE_PCI_QPI_ID,
+	UNCORE_PCI_R2PCIE_ID,
+	UNCORE_PCI_R3QPI_ID,
+};
+
+/* MSR Type Array Index */
+enum {
+	UNCORE_UBOX_ID,
+	UNCORE_PCUBOX_ID,
+	UNCORE_SBOX_ID,
+	UNCORE_CBOX_ID
+};
 
 struct uncore_box_type;
 

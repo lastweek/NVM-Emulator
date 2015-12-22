@@ -90,7 +90,7 @@
 
 /* HSWEP Uncore S-box */
 #define HSWEP_MSR_S_PMON_BOX_CTL		0x720
-#define HSWEP_MSR_S_PMON_BOX_FILTER		0x725
+#define HSWEP_MSR_S_PMON_BOX_STATUS		0x725
 #define HSWEP_MSR_S_PMON_EVNTSEL0		0x721
 #define HSWEP_MSR_S_PMON_CTR0			0x726
 #define HSWEP_MSR_S_MSR_OFFSET			0xA
@@ -153,14 +153,16 @@ static void hswep_uncore_msr_show_box(struct uncore_box *box)
 {
 	unsigned long long value;
 
+/*
 	rdmsrl(uncore_msr_box_status(box), value);
-	pr_info("Box Status: 0x%llx", value);
+	pr_info("MSR Box Status: 0x%llx", value);
 
 	rdmsrl(uncore_msr_perf_ctl(box), value);
-	pr_info("Control: 0x%llx", value);
+	pr_info("MSR Box Control: 0x%llx", value);
 
 	rdmsrl(uncore_msr_perf_ctr(box), value);
-	pr_info("Counter: 0x%llx", value);
+	pr_info("MSR Box Counter: 0x%llx", value);
+*/
 }
 
 static void hswep_uncore_msr_init_box(struct uncore_box *box)
@@ -260,6 +262,7 @@ struct uncore_box_type HSWEP_UNCORE_UBOX = {
 	.fixed_ctr_bits	= 48,
 	.fixed_ctr	= HSWEP_MSR_U_PMON_UCLK_FIXED_CTR,
 	.fixed_ctl	= HSWEP_MSR_U_PMON_UCLK_FIXED_CTL,
+	.box_status	= HSWEP_MSR_U_PMON_BOX_STATUS,
 	.ops		= &HSWEP_UNCORE_UBOX_OPS
 };
 
@@ -286,6 +289,7 @@ struct uncore_box_type HSWEP_UNCORE_SBOX = {
 	.perf_ctl	= HSWEP_MSR_S_PMON_EVNTSEL0,
 	.event_mask	= 0,
 	.box_ctl	= HSWEP_MSR_S_PMON_BOX_CTL,
+	.box_status	= HSWEP_MSR_S_PMON_BOX_STATUS.
 	.msr_offset	= HSWEP_MSR_S_MSR_OFFSET,
 	.ops		= &HSWEP_UNCORE_SBOX_OPS
 };
@@ -332,19 +336,29 @@ static void hswep_uncore_pci_show_box(struct uncore_box *box)
 	unsigned int config, low, high;
 	
 	pr_info("\n");
+	pr_info("PCI Box%d, in Node%d, %x:%x:%x, %d:%d:%d, Kref = %d",
+		box->idx,
+		box->nodeid,
+		box->pdev->bus->number,
+		box->pdev->vendor,
+		box->pdev->device,
+		box->pdev->bus->number,
+		(box->pdev->devfn >> 3) & 0x1f,
+		(box->pdev->devfn) & 0x7,
+		box->pdev->dev.kobj.kref.refcount.counter);
 
 	pci_read_config_dword(pdev, uncore_pci_box_ctl(box), &config);
-	pr_info("Box Control: 0x%x", config);
+	pr_info("PCI Box Control: 0x%x", config);
 
 	pci_read_config_dword(pdev, uncore_pci_box_status(box), &config);
-	pr_info("Box Status: 0x%x", config);
+	pr_info("PCI Box Status:  0x%x", config);
 
 	pci_read_config_dword(pdev, uncore_pci_perf_ctl(box), &config);
-	pr_info(".... PMON_CTL: 0x%x", config);
+	pr_info(".... PMON_CTL:   0x%x", config);
 
 	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box), &low);
 	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box)+4, &high);
-	pr_info(".... PMON_CTR: 0x%x 0x%x -> %Ld", high, low,
+	pr_info(".... PMON_CTR:   0x%x<<32 | 0x%x ---> %Ld", high, low,
 		((u64)high << 32) | (u64)low);
 }
 
@@ -684,6 +698,7 @@ int hswep_cpu_init(void)
 	uncore_msr_type = HSWEP_UNCORE_MSR_TYPE;
 	
 	/* Init the global uncore_pmu */
+	uncore_pmu.name			= "E5-v3 Uncore PMU";
 	uncore_pmu.msr_type		= HSWEP_UNCORE_MSR_TYPE;
 	uncore_pmu.global_ctl		= HSWEP_MSR_PMON_GLOBAL_CTL;
 	uncore_pmu.global_status	= HSWEP_MSR_PMON_GLOBAL_STATUS;
