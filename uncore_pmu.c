@@ -425,10 +425,7 @@ static void uncore_show_global(struct uncore_pmu *pmu)
 	pr_info("Global Config:  0x%x", config);
 }
 
-/*
- * Set a uncore PMU session
- */
-static void uncore_main(void)
+static void emulate_nvm(void)
 {
 	struct uncore_box *habox;
 	struct uncore_event *event;
@@ -494,12 +491,17 @@ static int uncore_init(void)
 	
 	/*
 	 * Throttle bandwidth for all nodes.
-	 * Default to full bandwidth
+	 * Default to full bandwidth.
 	 */
 	uncore_imc_set_threshold_all(1);
 	uncore_imc_enable_throttle_all();
 
-	//uncore_main();
+	/*
+	 * ...Actually, the emulator is just a tiny application of PMU module.
+	 * We set two special sampling sessions for the emulator. We also
+	 * register some functions to do emulating stuff.
+	 */
+	emulate_nvm();
 
 	return 0;
 

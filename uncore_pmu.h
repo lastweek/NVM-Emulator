@@ -239,7 +239,7 @@ static inline unsigned int uncore_msr_perf_ctr(struct uncore_box *box)
 }
 
 /******************************************************************************
- * Generic uncore PMU box's APIs
+ * Generic Uncore PMU Box's APIs
  *****************************************************************************/
 
 /**
@@ -368,7 +368,7 @@ static inline void uncore_write_filter(struct uncore_box *box, u64 value)
 }
 
 /**
- * uncore_read_counter
+ * uncore_read_filter
  * @box:	the box to read
  * @value:	place to hold value
  *
@@ -437,6 +437,10 @@ void uncore_imc_disable_throttle(unsigned int nodeid);
 int uncore_imc_set_threshold_all(unsigned int threshold);
 int uncore_imc_enable_throttle_all(void);
 void uncore_imc_disable_throttle_all(void);
+
+/******************************************************************************
+ * Micro-Architecture Specific Part
+ *****************************************************************************/
 
 /* Sandy Bridge	TODO */
 /* Ivy Bridge	TODO */
