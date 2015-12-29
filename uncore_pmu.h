@@ -463,6 +463,7 @@ void uncore_imc_disable_throttle_all(void);
 
 /* Sandy Bridge	TODO */
 /* Ivy Bridge	TODO */
+
 /* Haswell-EP	*/
 int hswep_cpu_init(void);
 int hswep_pci_init(void);

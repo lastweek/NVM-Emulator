@@ -96,6 +96,16 @@ struct uncore_box *uncore_get_box(struct uncore_box_type *type,
 	return NULL;
 }
 
+/**
+ * uncore_get_first_box
+ * @type:	pointer to box_type
+ * @nodeid:	which NUMA node to get this box
+ * Return:	%NULL on failure
+ *
+ * Get the first box in the box_type list of @nodeid node. We have this
+ * function because some box types only have one avaliable box within a node.
+ * It is more convenient to get box without an idx. (I know...)
+ */
 struct uncore_box *uncore_get_first_box(struct uncore_box_type *type,
 					unsigned int nodeid)
 {
@@ -113,33 +123,47 @@ struct uncore_box *uncore_get_first_box(struct uncore_box_type *type,
 }
 
 /**
- * uncore_show_global
+ * uncore_show_global_pmu
  * @pmu:	the uncore_pmu in question
  *
  * Display the contents of the three global registers. Normally, every
  * microarchitecture has global registers including: CONTROL/STATUS/CONFIG.
  */
-static void uncore_show_global(struct uncore_pmu *pmu)
+static void uncore_show_global_pmu(struct uncore_pmu *pmu)
 {
 	unsigned int config;
 
-	pr_info("\n");
-	pr_info("Name String:    %s", pmu->name);
-	rdmsrl(pmu->global_ctl, config);
-	pr_info("Global Control: 0x%x", config);
-	rdmsrl(pmu->global_status, config);
-	pr_info("Global Status:  0x%x", config);
-	rdmsrl(pmu->global_config, config);
-	pr_info("Global Config:  0x%x", config);
+	pr_info("Name: %s", pmu->name);
+	
+	/* Careful, invalid address would cause #GP */
+	if (pmu->global_ctl) {
+		rdmsrl(pmu->global_ctl, config);
+		pr_info("Uncore PMU Global Control: 0x%x", config);
+	}
+
+	if (pmu->global_status) {
+		rdmsrl(pmu->global_status, config);
+		pr_info("Uncore PMU Global Status:  0x%x", config);
+	}
+
+	if (pmu->global_config) {
+		rdmsrl(pmu->global_config, config);
+		pr_info("Uncore PMU Global Config:  0x%x", config);
+	}
 }
 
-extern struct uncore_event ha_requests_reads;
-extern struct uncore_event ha_requests_writes;
+/******************************************************************************
+ * Uncore PMU Specific Application: [NVM Emulation]
+ * There are some restrictions on the system if you want to emulate NVM.
+ * 	1)	Only one CPU core should be enabled at the emulation node.
+ *	2)	Distribute the memory among different nodes manually.
+ *	3)	I have to say, this emulation is not perfect.
+ *****************************************************************************/
 
 static void emulate_nvm(void)
 {
 	struct uncore_box *HA_Box_0, *HA_Box_1;
-	struct uncore_event *event;
+	struct uncore_box *U_Box_0, *U_Box_1;
 
 	/* Home Agent Box, Box0, Node0 */
 	HA_Box_0 = uncore_get_first_box(uncore_pci_type[UNCORE_PCI_HA_ID], 0);
