@@ -289,7 +289,7 @@ struct uncore_box_type HSWEP_UNCORE_SBOX = {
 	.perf_ctl	= HSWEP_MSR_S_PMON_EVNTSEL0,
 	.event_mask	= 0,
 	.box_ctl	= HSWEP_MSR_S_PMON_BOX_CTL,
-	.box_status	= HSWEP_MSR_S_PMON_BOX_STATUS.
+	.box_status	= HSWEP_MSR_S_PMON_BOX_STATUS,
 	.msr_offset	= HSWEP_MSR_S_MSR_OFFSET,
 	.ops		= &HSWEP_UNCORE_SBOX_OPS
 };
