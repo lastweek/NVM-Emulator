@@ -29,6 +29,8 @@
 #include <linux/hrtimer.h>
 #include <linux/compiler.h>
 
+#define UNCORE_PMU_HRTIMER_INTERVAL     (100 * NSEC_PER_SEC)
+
 /* Who got a 8p server??? */
 #define UNCORE_MAX_SOCKET 8
 

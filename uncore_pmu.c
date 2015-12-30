@@ -68,20 +68,37 @@ static int __always_unused uncore_pci_probe(struct pci_dev *dev,
 					    const struct pci_device_id *id)
 {return -EIO;}
 
+int i = 0;
+
 /*
- * According to kernel developers:
- * The overflow interrupt is unavailable for SandyBridge-EP, is broken for
- * SandyBridge. So we use hrtimer to periodically poll the counter to avoid
- * overflow. This is the default hrtimer function. Specific boxes can have
- * their own ways to handle this, like nvm emulater. :)
+ * This is the default hrtimer function.
  */
 static enum hrtimer_restart uncore_box_hrtimer_def(struct hrtimer *hrtimer)
 {
 	struct uncore_box *box;
 
+	if (i==3)
+		return HRTIMER_NORESTART;
+
 	box = container_of(hrtimer, struct uncore_box, hrtimer);
+	uncore_show_box(box);
+
+	hrtimer_forward_now(hrtimer, ns_to_ktime(box->hrtimer_duration));
+	
+	i++;
+	return HRTIMER_RESTART;
 }
 
+/**
+ * uncore_box_init_hrtimer
+ * @uncore_box:		The box who asked to init hrtimer
+ * @func:		Restart function when polled
+ *
+ * According to kernel developers:
+ * The overflow interrupt is unavailable for SandyBridge-EP, is broken for
+ * SandyBridge. So we use hrtimer to periodically poll the counter to avoid
+ * overflow. Different boxes can have their own funcs to handle this.
+ */
 static void uncore_box_init_hrtimer(struct uncore_box *box,
 			enum hrtimer_restart (*func)(struct hrtimer *hrtimer))
 {
@@ -91,16 +108,17 @@ static void uncore_box_init_hrtimer(struct uncore_box *box,
 
 static void uncore_box_start_hrtimer(struct uncore_box *box)
 {
+	/* Time is relative to now, and is bound to cpu */
 	hrtimer_start(&box->hrtimer, ns_to_ktime(box->hrtimer_duration),
 		HRTIMER_MODE_REL_PINNED);
 }
 
 static void uncore_box_cancel_hrtimer(struct uncore_box *box)
 {
-	hrtimer_cancel();
+	hrtimer_cancel(&box->hrtimer);
 }
 
-/* Hmm. Useless, used to print some information */
+/* Hmm. Useless, to print some information */
 static inline void uncore_box_bind_event(struct uncore_box *box,
 					 struct uncore_event *event)
 {
@@ -320,6 +338,8 @@ static int __must_check uncore_pci_new_box(struct pci_dev *pdev,
 		type->num_boxes++;
 	}
 	
+	uncore_box_init_hrtimer(box, uncore_box_hrtimer_def);
+	box->hrtimer_duration = UNCORE_PMU_HRTIMER_INTERVAL;
 	box->nodeid = uncore_pcibus_to_nodeid[pdev->bus->number];
 	box->box_type = type;
 	box->pdev = pdev;
@@ -431,8 +451,10 @@ static int __must_check uncore_msr_new_box(struct uncore_box_type *type,
 	if (!box)
 		return -ENOMEM;
 
-	box->nodeid = 0;
+	uncore_box_init_hrtimer(box, uncore_box_hrtimer_def);
+	box->hrtimer_duration = UNCORE_PMU_HRTIMER_INTERVAL;
 	box->idx = idx;
+	box->nodeid = 0;	/* XXX */
 	box->box_type = type;
 	list_add_tail(&box->next, &type->box_list);
 
@@ -531,23 +553,31 @@ static void Start_emulate_nvm(void)
 		pr_err("Get HA Box Failed");
 		return;
 	}
-	
+
 	event = &ha_requests_local_reads;
 	uncore_box_bind_event(HA_Box_0, event);
 	uncore_box_bind_event(HA_Box_1, event);
-	
+
 	uncore_init_box(HA_Box_0);
 	uncore_init_box(HA_Box_1);
 	uncore_enable_box(HA_Box_0);
 	uncore_enable_box(HA_Box_1);
+/*
 	uncore_enable_event(HA_Box_0, event);
 	uncore_enable_event(HA_Box_1, event);
-
 	mdelay(100);
-	
+
 	uncore_show_global_pmu(&uncore_pmu);
 	uncore_show_box(HA_Box_0);
 	uncore_show_box(HA_Box_1);
+*/
+	uncore_box_start_hrtimer(HA_Box_0);
+	uncore_box_start_hrtimer(HA_Box_1);
+
+	mdelay(1000);
+
+	uncore_box_cancel_hrtimer(HA_Box_0);
+	uncore_box_cancel_hrtimer(HA_Box_1);
 
 	uncore_disable_box(HA_Box_0);
 	uncore_disable_box(HA_Box_1);
