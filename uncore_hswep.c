@@ -243,6 +243,9 @@ static void hswep_uncore_msr_read_counter(struct uncore_box *box, u64 *value)
  * Actually, some operations may differ among different box types. But we are
  * not building a mature perf system, emulating NVM is the only client for now,
  * so leave the holes. I thought I would not touch this code later. :)
+ * 
+ * If you want to go further, please read the PMU implementation code within
+ * linux kernel, the x86 part is in: arch/x86/kernel/cpu/
  */
 
 const struct uncore_box_ops HSWEP_UNCORE_UBOX_OPS = {
@@ -344,6 +347,7 @@ static void hswep_uncore_pci_show_box(struct uncore_box *box)
 	struct pci_dev *pdev = box->pdev;
 	unsigned int config, low, high;
 	
+	/* The same with some print functions... */
 	pr_info("\n");
 	pr_info("PCI Box%d, in Node%d, %x:%x:%x, %d:%d:%d, Kref = %d",
 		box->idx,
@@ -425,7 +429,7 @@ static void hswep_uncore_pci_disable_event(struct uncore_box *box,
 static void hswep_uncore_pci_write_counter(struct uncore_box *box, u64 value)
 {
 	u32 low, high;
-	
+
 	low = (u32)(value & 0xffffffff);
 	high = (u32)((value & uncore_box_ctr_mask(box)) >> 32);
 

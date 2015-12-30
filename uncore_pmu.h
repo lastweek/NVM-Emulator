@@ -218,6 +218,11 @@ static inline unsigned int uncore_pci_box_ctl(struct uncore_box *box)
 	return box->box_type->box_ctl;
 }
 
+static inline unsigned int uncore_pci_box_filter(struct uncore_box *box)
+{
+	return box->box_type->box_filter0;
+}
+
 static inline unsigned int uncore_pci_perf_ctl(struct uncore_box *box)
 {
 	return box->box_type->perf_ctl;
@@ -245,6 +250,11 @@ static inline unsigned int uncore_msr_box_status(struct uncore_box *box)
 static inline unsigned int uncore_msr_box_ctl(struct uncore_box *box)
 {
 	return box->box_type->box_ctl + uncore_msr_box_offset(box);
+}
+
+static inline unsigned int uncore_msr_box_filter(struct uncore_box *box)
+{
+	return box->box_type->box_filter0 + uncore_msr_box_offset(box);
 }
 
 static inline unsigned int uncore_msr_perf_ctl(struct uncore_box *box)
@@ -377,8 +387,8 @@ static inline void uncore_read_counter(struct uncore_box *box, u64 *value)
  * @box:	the box to write
  * @value:	the value to write
  *
- * Write the filter register of this box. Make sure you got the proper filter
- * opcode. Consulting the manual before you change the filter.
+ * Write the filter register of this box. Make sure you got the right filter
+ * opcodes. Please consult the manual before you modify filters.
  */
 static inline void uncore_write_filter(struct uncore_box *box, u64 value)
 {

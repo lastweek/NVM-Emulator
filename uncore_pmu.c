@@ -179,7 +179,7 @@ static void emulate_nvm(void)
 		return;
 	}
 
-	uncore_show_global(&uncore_pmu);
+	uncore_show_global_pmu(&uncore_pmu);
 	uncore_show_box(HA_Box_0);
 	uncore_show_box(HA_Box_1);
 }
