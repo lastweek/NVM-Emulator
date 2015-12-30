@@ -29,7 +29,7 @@
 #include <linux/hrtimer.h>
 #include <linux/compiler.h>
 
-#define UNCORE_PMU_HRTIMER_INTERVAL     (100 * NSEC_PER_SEC)
+#define UNCORE_PMU_HRTIMER_INTERVAL     (1000000)
 
 /* Who got a 8p server??? */
 #define UNCORE_MAX_SOCKET 8
@@ -177,6 +177,7 @@ struct uncore_box_type {
 /**
  * struct uncore_pmu
  * @name:		Name for uncore PMU
+ * @n_node:		Number of online nodes
  * @pci_type:		PCI type boxes (%NULL if absent)
  * @msr_type:		MSR type boxes (can NOT be NULL)
  * @global_ctl:		MSR address of global control register (per socket)
@@ -190,6 +191,7 @@ struct uncore_box_type {
  */
 struct uncore_pmu {
 	const char		*name;
+	unsigned int		n_node;
 	struct uncore_box_type	**pci_type;
 	struct uncore_box_type	**msr_type;
 	unsigned int		global_ctl;
@@ -279,6 +281,20 @@ static inline unsigned int uncore_msr_perf_ctr(struct uncore_box *box)
 /******************************************************************************
  * Generic Uncore PMU Box's APIs
  *****************************************************************************/
+
+void uncore_box_start_hrtimer(struct uncore_box *box);
+void uncore_box_cancel_hrtimer(struct uncore_box *box);
+
+struct uncore_box *uncore_get_box(struct uncore_box_type *type, unsigned int idx, unsigned int nodeid);
+struct uncore_box *uncore_get_first_box(struct uncore_box_type *type, unsigned int nodeid);
+
+/* Hmm. Useless, to print some information */
+static inline void uncore_box_bind_event(struct uncore_box *box,
+					 struct uncore_event *event)
+{
+	if (box && event)
+		box->event = event;
+}
 
 /**
  * uncore_show_box
@@ -467,7 +483,7 @@ extern struct list_head uncore_imc_devices;
 
 int uncore_imc_init(void);
 void uncore_imc_exit(void);
-void uncore_imc_print_devices(void);
+void uncore_print_imc_devices(void);
 
 int uncore_imc_set_threshold(unsigned int nodeid, unsigned int threshold);
 int uncore_imc_enable_throttle(unsigned int nodeid);
@@ -480,9 +496,6 @@ void uncore_imc_disable_throttle_all(void);
 /******************************************************************************
  * Micro-Architecture Specific Part
  *****************************************************************************/
-
-/* Sandy Bridge	TODO */
-/* Ivy Bridge	TODO */
 
 /* Haswell-EP	*/
 int hswep_cpu_init(void);

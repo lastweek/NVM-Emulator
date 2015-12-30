@@ -34,9 +34,11 @@
 #define pr_fmt(fmt) "UNCORE PMU: " fmt
 
 #include "uncore_pmu.h"
+#include "emulate_nvm.h"
 
 #include <asm/setup.h>
 
+#include <linux/cpumask.h>
 #include <linux/errno.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
@@ -68,7 +70,7 @@ static int __always_unused uncore_pci_probe(struct pci_dev *dev,
 					    const struct pci_device_id *id)
 {return -EIO;}
 
-int i = 0;
+int haha = 0;
 
 /*
  * This is the default hrtimer function.
@@ -77,15 +79,15 @@ static enum hrtimer_restart uncore_box_hrtimer_def(struct hrtimer *hrtimer)
 {
 	struct uncore_box *box;
 
-	if (i==3)
+	if (haha > 3)
 		return HRTIMER_NORESTART;
+	haha++;
 
 	box = container_of(hrtimer, struct uncore_box, hrtimer);
 	uncore_show_box(box);
 
 	hrtimer_forward_now(hrtimer, ns_to_ktime(box->hrtimer_duration));
 	
-	i++;
 	return HRTIMER_RESTART;
 }
 
@@ -106,24 +108,16 @@ static void uncore_box_init_hrtimer(struct uncore_box *box,
 	box->hrtimer.function = func;
 }
 
-static void uncore_box_start_hrtimer(struct uncore_box *box)
+void uncore_box_start_hrtimer(struct uncore_box *box)
 {
 	/* Time is relative to now, and is bound to cpu */
 	hrtimer_start(&box->hrtimer, ns_to_ktime(box->hrtimer_duration),
-		HRTIMER_MODE_REL_PINNED);
+		HRTIMER_MODE_REL);
 }
 
-static void uncore_box_cancel_hrtimer(struct uncore_box *box)
+void uncore_box_cancel_hrtimer(struct uncore_box *box)
 {
 	hrtimer_cancel(&box->hrtimer);
-}
-
-/* Hmm. Useless, to print some information */
-static inline void uncore_box_bind_event(struct uncore_box *box,
-					 struct uncore_event *event)
-{
-	if (box && event)
-		box->event = event;
 }
 
 /**
@@ -212,13 +206,33 @@ static void uncore_show_global_pmu(struct uncore_pmu *pmu)
 }
 
 /**
- * uncore_pci_print_boxes
- * 
- * Print information about all avaliable PCI type boxes.
- * Read this to make sure your CPU has the capacity you need
- * before sampling uncore PMU.
+ * uncore_print_node_info
+ *
+ * Just like command lscpu, this function print the node and cpu mapping
+ * information. PMU is hard-to-code mainly because it has to be read/write on
+ * the *right* cpu or node. Keep that in mind when coding pmu programs.
  */
-static void uncore_pci_print_boxes(void)
+static void uncore_print_node_info(void)
+{
+	int node, cpu;
+	const struct cpumask *mask;
+
+	for_each_online_node(node) {
+		pr_info("Online Node %d", node);
+		mask = cpumask_of_node(node);
+		for_each_cpu_and(cpu, mask, cpu_online_mask) {
+			pr_info("... Online CPU %d", cpu);
+		}
+	}
+}
+
+/**
+ * uncore_print_pci_boxes
+ * 
+ * Print information about all avaliable PCI type boxes. Read this to make sure
+ * your CPU has the capacity you need before sampling or counting uncore PMU.
+ */
+static void uncore_print_pci_boxes(void)
 {
 	struct uncore_box_type *type;
 	struct uncore_box *box;
@@ -246,7 +260,13 @@ static void uncore_pci_print_boxes(void)
 	}
 }
 
-static void uncore_pci_print_mapping(void)
+/**
+ * uncore_print_pci_mapping
+ *
+ * Print the mapping information between PCI bus number and numa node id.
+ * It seems kernel has a internal mapping table, too... lol
+ */
+static void uncore_print_pci_mapping(void)
 {
 	int bus;
 
@@ -261,13 +281,12 @@ static void uncore_pci_print_mapping(void)
 }
 
 /**
- * uncore_msr_print_boxes
+ * uncore_print_msr_boxes
  * 
- * Print information about all avaliable MSR type boxes.
- * Read this to make sure your CPU has the capacity you need
- * before sampling uncore PMU.
+ * Print information about all avaliable MSR type boxes. Read this to make sure
+ * your CPU has the capacity you need before sampling or counting uncore PMU.
  */
-static void uncore_msr_print_boxes(void)
+static void uncore_print_msr_boxes(void)
 {
 	struct uncore_box_type *type;
 	struct uncore_box *box;
@@ -523,71 +542,6 @@ error:
 	return ret;
 }
 
-/******************************************************************************
- * Uncore PMU Specific Application: [NVM Emulation]
- * There are some restrictions on the system if you want to emulate NVM.
- * 	1)	Only one CPU core should be enabled at the emulation node.
- *	2)	Distribute the memory among different nodes manually.
- *	3)	I have to say, this emulation is not perfect.
- *****************************************************************************/
-
-extern struct uncore_event ha_requests_local_reads;
-
-static void Start_emulate_nvm(void)
-{
-	struct uncore_box *HA_Box_0, *HA_Box_1;
-	struct uncore_box *U_Box_0, *U_Box_1;
-	struct uncore_event *event;
-
-	/*
-	 * Throttle bandwidth of all nodes
-	 * Default to full bandwidth
-	 */
-	uncore_imc_set_threshold_all(1);
-	uncore_imc_enable_throttle_all();
-
-	/* Home Agent: (Box0, Node0), (Box0, Node1) */
-	HA_Box_0 = uncore_get_first_box(uncore_pci_type[UNCORE_PCI_HA_ID], 0);
-	HA_Box_1 = uncore_get_first_box(uncore_pci_type[UNCORE_PCI_HA_ID], 1);
-	if (!HA_Box_0 || !HA_Box_1) {
-		pr_err("Get HA Box Failed");
-		return;
-	}
-
-	event = &ha_requests_local_reads;
-	uncore_box_bind_event(HA_Box_0, event);
-	uncore_box_bind_event(HA_Box_1, event);
-
-	uncore_init_box(HA_Box_0);
-	uncore_init_box(HA_Box_1);
-	uncore_enable_box(HA_Box_0);
-	uncore_enable_box(HA_Box_1);
-/*
-	uncore_enable_event(HA_Box_0, event);
-	uncore_enable_event(HA_Box_1, event);
-	mdelay(100);
-
-	uncore_show_global_pmu(&uncore_pmu);
-	uncore_show_box(HA_Box_0);
-	uncore_show_box(HA_Box_1);
-*/
-	uncore_box_start_hrtimer(HA_Box_0);
-	uncore_box_start_hrtimer(HA_Box_1);
-
-	mdelay(1000);
-
-	uncore_box_cancel_hrtimer(HA_Box_0);
-	uncore_box_cancel_hrtimer(HA_Box_1);
-
-	uncore_disable_box(HA_Box_0);
-	uncore_disable_box(HA_Box_1);
-}
-
-static void Finish_emulate_nvm(void)
-{
-	uncore_imc_disable_throttle_all();
-}
-
 static int uncore_init(void)
 {
 	int ret;
@@ -615,15 +569,16 @@ static int uncore_init(void)
 	 * Pay attention to these messages
 	 * Check if everything goes as expected
 	 */
-	uncore_msr_print_boxes();
-	uncore_pci_print_boxes();
-	uncore_pci_print_mapping();
-	uncore_imc_print_devices();
+	uncore_print_node_info();
+	uncore_print_msr_boxes();
+	uncore_print_pci_boxes();
+	uncore_print_pci_mapping();
+	uncore_print_imc_devices();
 	
 	/*
-	 * Emulation is just a client of PMU.
+	 * Emulation is just a client of PMU :)
 	 */
-	Start_emulate_nvm();
+	start_emulate_nvm();
 
 	return 0;
 
@@ -638,15 +593,18 @@ pcierr:
 
 static void uncore_exit(void)
 {
-	pr_info("\033[31mEXIT ON CPU %2d (NODE %2d)\033[0m",
-		smp_processor_id(), numa_node_id());
-
-	Finish_emulate_nvm();
-
+	/*
+	 * Game over, back to DRAM
+	 */
+	finish_emulate_nvm();
+	
 	uncore_proc_remove();
 	uncore_imc_exit();
 	uncore_cpu_exit();
 	uncore_pci_exit();
+	
+	pr_info("\033[31mEXIT ON CPU %2d (NODE %2d)\033[0m",
+		smp_processor_id(), numa_node_id());
 }
 
 module_init(uncore_init);

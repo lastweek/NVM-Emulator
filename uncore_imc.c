@@ -261,7 +261,7 @@ void uncore_imc_disable_throttle_all(void)
 		uncore_imc_disable_throttle(node);
 }
 
-void uncore_imc_print_devices(void)
+void uncore_print_imc_devices(void)
 {
 	struct uncore_imc *imc;
 
