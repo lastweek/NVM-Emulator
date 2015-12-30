@@ -17,20 +17,18 @@
  */
 
 /*
- *	BASIC INFORMATION ABOUT INTEL UNCORE PMU:
- *	For more information, please consult Intel PMU manuals.
+ * Basic information about intel uncore pmu:
+ * Uncore performance monitors represent a per-socket resource that is not
+ * meant to be affected by context switches and thread migration performed
+ * by the OS, it is recommended that the monitoring software agent
+ * establish a fixed affinity binding to prevent cross-talk of event count
+ * from different uncore PMU.
  *
- *	Uncore performance monitors represent a per-socket resource that is not
- *	meant to be affected by context switches and thread migration performed
- *	by the OS, it is recommended that the monitoring software agent
- *	establish a fixed affinity binding to prevent cross-talk of event count
- *	from different uncore PMU.
- *
- *	The programming interface of the counter registers and control regiters
- *	fall into two address spaces:
- *	* Accessed by MSR are PMON registers within the CBo, SBo, PCU, U-Box.
- *	* Accessed by PCI device configuration space are PMON registers within
- *	  the HA, IMC, Intel QPI, R2PCIe and R3QPI units.
+ * The programming interface of the counter registers and control regiters
+ * fall into two address spaces:
+ * $ Accessed by MSR are PMON registers within the CBo, SBo, PCU, U-Box.
+ * $ Accessed by PCI device configuration space are PMON registers within
+ *   the HA, IMC, Intel QPI, R2PCIe and R3QPI units.
  */
 
 #define pr_fmt(fmt) "UNCORE PMU: " fmt
@@ -38,6 +36,7 @@
 #include "uncore_pmu.h"
 
 #include <asm/setup.h>
+
 #include <linux/errno.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
@@ -47,6 +46,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/hrtimer.h>
 
 /* TOP description of the whole system uncore PMU resources */
 struct uncore_pmu uncore_pmu;
@@ -67,6 +67,46 @@ static void __always_unused uncore_pci_remove(struct pci_dev *dev) {}
 static int __always_unused uncore_pci_probe(struct pci_dev *dev,
 					    const struct pci_device_id *id)
 {return -EIO;}
+
+/*
+ * According to kernel developers:
+ * The overflow interrupt is unavailable for SandyBridge-EP, is broken for
+ * SandyBridge. So we use hrtimer to periodically poll the counter to avoid
+ * overflow. This is the default hrtimer function. Specific boxes can have
+ * their own ways to handle this, like nvm emulater. :)
+ */
+static enum hrtimer_restart uncore_box_hrtimer_def(struct hrtimer *hrtimer)
+{
+	struct uncore_box *box;
+
+	box = container_of(hrtimer, struct uncore_box, hrtimer);
+}
+
+static void uncore_box_init_hrtimer(struct uncore_box *box,
+			enum hrtimer_restart (*func)(struct hrtimer *hrtimer))
+{
+	hrtimer_init(&box->hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	box->hrtimer.function = func;
+}
+
+static void uncore_box_start_hrtimer(struct uncore_box *box)
+{
+	hrtimer_start(&box->hrtimer, ns_to_ktime(box->hrtimer_duration),
+		HRTIMER_MODE_REL_PINNED);
+}
+
+static void uncore_box_cancel_hrtimer(struct uncore_box *box)
+{
+	hrtimer_cancel();
+}
+
+/* Hmm. Useless, used to print some information */
+static inline void uncore_box_bind_event(struct uncore_box *box,
+					 struct uncore_event *event)
+{
+	if (box && event)
+		box->event = event;
+}
 
 /**
  * uncore_get_box
@@ -133,6 +173,7 @@ static void uncore_show_global_pmu(struct uncore_pmu *pmu)
 {
 	unsigned int config;
 
+	pr_info("\033[31m------------------------ Global PMU ----------------------\033[0m");
 	pr_info("Name: %s", pmu->name);
 	
 	/* Careful, invalid address would cause #GP */
@@ -150,38 +191,6 @@ static void uncore_show_global_pmu(struct uncore_pmu *pmu)
 		rdmsrl(pmu->global_config, config);
 		pr_info("Uncore PMU Global Config:  0x%x", config);
 	}
-}
-
-/******************************************************************************
- * Uncore PMU Specific Application: [NVM Emulation]
- * There are some restrictions on the system if you want to emulate NVM.
- * 	1)	Only one CPU core should be enabled at the emulation node.
- *	2)	Distribute the memory among different nodes manually.
- *	3)	I have to say, this emulation is not perfect.
- *****************************************************************************/
-
-static void emulate_nvm(void)
-{
-	struct uncore_box *HA_Box_0, *HA_Box_1;
-	struct uncore_box *U_Box_0, *U_Box_1;
-
-	/* Home Agent Box, Box0, Node0 */
-	HA_Box_0 = uncore_get_first_box(uncore_pci_type[UNCORE_PCI_HA_ID], 0);
-	if (!HA_Box_0) {
-		pr_err("Get HA_Box_0 Failed");
-		return;
-	}
-
-	/* Home Agent Box, Box0, Node1 */
-	HA_Box_1 = uncore_get_first_box(uncore_pci_type[UNCORE_PCI_HA_ID], 1);
-	if (!HA_Box_0) {
-		pr_err("Get HA_Box_1 Failed");
-		return;
-	}
-
-	uncore_show_global_pmu(&uncore_pmu);
-	uncore_show_box(HA_Box_0);
-	uncore_show_box(HA_Box_1);
 }
 
 /**
@@ -492,11 +501,68 @@ error:
 	return ret;
 }
 
+/******************************************************************************
+ * Uncore PMU Specific Application: [NVM Emulation]
+ * There are some restrictions on the system if you want to emulate NVM.
+ * 	1)	Only one CPU core should be enabled at the emulation node.
+ *	2)	Distribute the memory among different nodes manually.
+ *	3)	I have to say, this emulation is not perfect.
+ *****************************************************************************/
+
+extern struct uncore_event ha_requests_local_reads;
+
+static void Start_emulate_nvm(void)
+{
+	struct uncore_box *HA_Box_0, *HA_Box_1;
+	struct uncore_box *U_Box_0, *U_Box_1;
+	struct uncore_event *event;
+
+	/*
+	 * Throttle bandwidth of all nodes
+	 * Default to full bandwidth
+	 */
+	uncore_imc_set_threshold_all(1);
+	uncore_imc_enable_throttle_all();
+
+	/* Home Agent: (Box0, Node0), (Box0, Node1) */
+	HA_Box_0 = uncore_get_first_box(uncore_pci_type[UNCORE_PCI_HA_ID], 0);
+	HA_Box_1 = uncore_get_first_box(uncore_pci_type[UNCORE_PCI_HA_ID], 1);
+	if (!HA_Box_0 || !HA_Box_1) {
+		pr_err("Get HA Box Failed");
+		return;
+	}
+	
+	event = &ha_requests_local_reads;
+	uncore_box_bind_event(HA_Box_0, event);
+	uncore_box_bind_event(HA_Box_1, event);
+	
+	uncore_init_box(HA_Box_0);
+	uncore_init_box(HA_Box_1);
+	uncore_enable_box(HA_Box_0);
+	uncore_enable_box(HA_Box_1);
+	uncore_enable_event(HA_Box_0, event);
+	uncore_enable_event(HA_Box_1, event);
+
+	mdelay(100);
+	
+	uncore_show_global_pmu(&uncore_pmu);
+	uncore_show_box(HA_Box_0);
+	uncore_show_box(HA_Box_1);
+
+	uncore_disable_box(HA_Box_0);
+	uncore_disable_box(HA_Box_1);
+}
+
+static void Finish_emulate_nvm(void)
+{
+	uncore_imc_disable_throttle_all();
+}
+
 static int uncore_init(void)
 {
 	int ret;
 
-	pr_info("INIT ON CPU %2d (NODE %2d)",
+	pr_info("\033[31mINIT ON CPU %2d (NODE %2d)\033[0m",
 		smp_processor_id(), numa_node_id());
 
 	ret = uncore_pci_init();
@@ -525,18 +591,9 @@ static int uncore_init(void)
 	uncore_imc_print_devices();
 	
 	/*
-	 * Throttle bandwidth for all nodes.
-	 * Default to full bandwidth.
+	 * Emulation is just a client of PMU.
 	 */
-	uncore_imc_set_threshold_all(1);
-	uncore_imc_enable_throttle_all();
-
-	/*
-	 * ...Actually, the emulator is just a tiny application of PMU module.
-	 * We set two special sampling sessions for the emulator. We also
-	 * register some functions to do emulating stuff.
-	 */
-	emulate_nvm();
+	Start_emulate_nvm();
 
 	return 0;
 
@@ -551,10 +608,11 @@ pcierr:
 
 static void uncore_exit(void)
 {
-	pr_info("EXIT ON CPU %2d (NODE %2d)",
+	pr_info("\033[31mEXIT ON CPU %2d (NODE %2d)\033[0m",
 		smp_processor_id(), numa_node_id());
 
-	uncore_imc_disable_throttle_all();
+	Finish_emulate_nvm();
+
 	uncore_proc_remove();
 	uncore_imc_exit();
 	uncore_cpu_exit();

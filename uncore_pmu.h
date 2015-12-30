@@ -49,10 +49,10 @@ enum {
 
 /* MSR Type Array Index */
 enum {
-	UNCORE_UBOX_ID,
-	UNCORE_PCUBOX_ID,
-	UNCORE_SBOX_ID,
-	UNCORE_CBOX_ID
+	UNCORE_MSR_UBOX_ID,
+	UNCORE_MSR_PCUBOX_ID,
+	UNCORE_MSR_SBOX_ID,
+	UNCORE_MSR_CBOX_ID
 };
 
 struct uncore_box_type;
@@ -62,31 +62,38 @@ struct uncore_box_type;
  * @enable:	Bit mask to enable this event
  * @disable:	Bis mask to disable this event
  * @desc:	Description about this event
+ * @next:	Pointer to next event
  */
 struct uncore_event {
-	u64		enable;
-	u64		disable;
-	const char	*desc;
+	u64			enable;
+	u64			disable;
+	const char		*desc;
+	struct list_head	next;
 };
 
 /**
  * struct uncore_box
- * @idx:	Index of this box
- * @nodeid:	NUMA node id of this box
- * @box_type:	Pointer to the type of this box
- * @pdev:	PCI device of this box (For PCI type box)
- * @next:	List of the same type boxes
+ * @idx:		Index of this box
+ * @nodeid:		NUMA node id of this box
+ * @hrtimer_duration:	Duration of hrtimer
+ * @hrtimer:		hrtimer to poll the box
+ * @event:		Currently counting or sampling event
+ * @box_type:		Pointer to the type of this box
+ * @pdev:		PCI device of this box (For PCI type box)
+ * @next:		List of the same type boxes
  *
  * Describe a single uncore pmu box instance. All boxes of the same type
  * are linked together. Since all boxes of all nodes all mixed together,
  * hence node_id is needed to distinguish two boxes with the same idx but
- * lay in different nodes.
+ * lay in different nodes. Note that, MSR type boxes are bond to specific
+ * cpu, manipulations of this type box should be called on wanted cpu.
  */
 struct uncore_box {
 	unsigned int		idx;
 	unsigned int		nodeid;
-	unsigned int		interval;
-	struct hrtimer		timer;
+	u64			hrtimer_duration;
+	struct hrtimer		hrtimer;
+	struct uncore_event	*event;
 	struct uncore_box_type	*box_type;
 	struct pci_dev		*pdev;
 	struct list_head	next;
@@ -317,6 +324,7 @@ static inline void uncore_enable_box(struct uncore_box *box)
  *
  * Disable the box to count or sample.
  * This method will disbale counting at the box-level. Just freeze the counter.
+ * You could re-enable counting or sampling by calling uncore_enable_box.
  */
 static inline void uncore_disable_box(struct uncore_box *box)
 {

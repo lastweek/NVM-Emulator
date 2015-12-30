@@ -1,10 +1,4 @@
 /*
- *	uncore_pmu.c - Using REMOTE_WRITE_REQUEST to emulate NVM latency
- *	
- *	Xeon 5600 serials	Westmere-EP
- *	Xeon 5500 serials	Nehalem
- * 	Hence we say that Xeon 5000-serials are based on Nehalem.
- *
  *	Copyright (C) 2015 Yizhou Shan <shanyizhou@ict.ac.cn>
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -20,6 +14,23 @@
  *	You should have received a copy of the GNU General Public License along
  *	with this program; if not, write to the Free Software Foundation, Inc.,
  *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+/*
+ * Platform:
+ *	Xeon 5600 serials	Westmere
+ *	Xeon 5500 serials	Nehalem
+ *
+ * One caveat:
+ *  1) This code is some kind dangerous. We are *not* supposed to access MSR
+ *     directly, we should use the API provided by kernel, which ensures some
+ *     sort of consistency. Anyway, live with it.
+ *
+ * Two notes:
+ *  1) This is the first version of using pmu to emulate nvm, all this code is
+ *     binded to Nehalem-EP, and is not bridged to the current uncore_pmu layer.
+ *  2) This module is a self-contained one, you can use it to sample specific
+ *     events. Of course, i guess no one will do that. :) Use perf instead.
  */
 
 #include <linux/delay.h>

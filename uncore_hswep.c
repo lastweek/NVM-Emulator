@@ -43,107 +43,120 @@
 #include <linux/kernel.h>
 #include <linux/types.h>
 
-/* HSWEP Box-Level Control MSR Bit Layout */
-#define HSWEP_MSR_BOX_CTL_RST_CTRL		(1 << 0)
-#define HSWEP_MSR_BOX_CTL_RST_CTRS		(1 << 1)
-#define HSWEP_MSR_BOX_CTL_FRZ			(1 << 8)
-#define HSWEP_MSR_BOX_CTL_INIT			(HSWEP_MSR_BOX_CTL_RST_CTRL | \
-						 HSWEP_MSR_BOX_CTL_RST_CTRS )
+/* HSWEP MSR Box-Level Control Register Bit Layout */
+#define HSWEP_MSR_BOX_CTL_RST_CTRL	(1 << 0)	/* Reset Control */
+#define HSWEP_MSR_BOX_CTL_RST_CTRS	(1 << 1)	/* Reset Counters */
+#define HSWEP_MSR_BOX_CTL_FRZ		(1 << 8)	/* Freeze all counters */
+#define HSWEP_MSR_BOX_CTL_INIT		(HSWEP_MSR_BOX_CTL_RST_CTRL | \
+					 HSWEP_MSR_BOX_CTL_RST_CTRS )
 
-/* HSWEP Box-Level Control PCI Bit Layout */
-#define HSWEP_PCI_BOX_CTL_FRZ			HSWEP_MSR_BOX_CTL_FRZ
-#define HSWEP_PCI_BOX_CTL_INIT			HSWEP_MSR_BOX_CTL_INIT
+/* HSWEP MSR Counter-Level Control Register Bit Layout */
+#define HSWEP_MSR_EVNTSEL_EVENT		0x000000FF	/* Event to counted */
+#define HSWEP_MSR_EVNTSEL_UMASK		0x0000FF00	/* Subevent within the selected event */
+#define HSWEP_MSR_EVNTSEL_RST		(1 << 17)	/* Reset/Clear this counter */
+#define HSWEP_MSR_EVNTSEL_EDGE_DET	(1 << 18)	/* Hard to say... */
+#define HSWEP_MSR_EVNTSEL_TID_EN	(1 << 19)	/* TID filter enable */
+#define HSWEP_MSR_EVNTSEL_EN		(1 << 22)	/* Local counter enable */
+#define HSWEP_MSR_EVNTSEL_INVERT	(1 << 23)	/* Invert comparision against threshold */
+#define HSWEP_MSR_EVNTSEL_THRESHOLD	0xFF000000	/* Threshold used in counter comparison */
+#define HSWEP_MSR_RAW_EVNTSEL_MASK	(HSWEP_MSR_EVNTSEL_EVENT	| \
+					 HSWEP_MSR_EVNTSEL_UMASK	| \
+					 HSWEP_MSR_EVNTSEL_EDGE_DET	| \
+					 HSWEP_MSR_EVNTSEL_INVERT	| \
+					 HSWEP_MSR_EVNTSEL_THRESHOLD)
 
-/* HSWEP Event Select MSR Bit Layout */
-#define HSWEP_MSR_EVNTSEL_EVENT			0x000000FF
-#define HSWEP_MSR_EVNTSEL_UMASK			0x0000FF00
-#define HSWEP_MSR_EVNTSEL_RST			(1 << 17)
-#define HSWEP_MSR_EVNTSEL_EDGE_DET		(1 << 18)
-#define HSWEP_MSR_EVNTSEL_TID_EN		(1 << 19)
-#define HSWEP_MSR_EVNTSEL_EN			(1 << 22)
-#define HSWEP_MSR_EVNTSEL_INVERT		(1 << 23)
-#define HSWEP_MSR_EVNTSEL_THRESHOLD		0xFF000000
-#define HSWEP_MSR_RAW_EVNTSEL_MASK		(HSWEP_MSR_EVNTSEL_EVENT	| \
-						 HSWEP_MSR_EVNTSEL_UMASK	| \
-						 HSWEP_MSR_EVNTSEL_EDGE_DET	| \
-						 HSWEP_MSR_EVNTSEL_INVERT	| \
-						 HSWEP_MSR_EVNTSEL_THRESHOLD)
+/* HSWEP PCI Box-Level Control Register Bit Layout */
+#define HSWEP_PCI_BOX_CTL_FRZ		HSWEP_MSR_BOX_CTL_FRZ
+#define HSWEP_PCI_BOX_CTL_INIT		HSWEP_MSR_BOX_CTL_INIT
+
+/* HSWEP PCI Counter-Level Control Register Bit Layout */
+#define HSWEP_PCI_EVNTSEL_EVENT		0x000000FF	/* Event to counted */
+#define HSWEP_PCI_EVNTSEL_UMASK		0x0000FF00	/* Subevent within the selected event */
+#define HSWEP_PCI_EVNTSEL_RST		(1 << 17)	/* Reset/Clear this counter */
+#define HSWEP_PCI_EVNTSEL_EDGE_DET	(1 << 18)	/* Hard to say... */
+#define HSWEP_PCI_EVNTSEL_OV_EN		(1 << 20)	/* Enable overflow report */
+#define HSWEP_PCI_EVNTSEL_EN		(1 << 22)	/* Local counter enable */
+#define HSWEP_PCI_EVNTSEL_INVERT	(1 << 23)	/* Invert comparision against threshold */
+#define HSWEP_PCI_EVNTSEL_THRESHOLD	0xFF000000	/* Threshold used in counter comparison */
+#define HSWEP_PCI_RAW_EVNTSEL_MASK	(HSWEP_PCI_EVNTSEL_EVENT	| \
+					 HSWEP_PCI_EVNTSEL_UMASK	| \
+					 HSWEP_PCI_EVNTSEL_EDGE_DET	| \
+					 HSWEP_PCI_EVNTSEL_OV_EN	| \
+					 HSWEP_PCI_EVNTSEL_INVERT	| \
+					 HSWEP_PCI_EVNTSEL_THRESHOLD)
 
 /* HSWEP Uncore Global Per-Socket MSRs */
-#define HSWEP_MSR_PMON_GLOBAL_CTL		0x700
-#define HSWEP_MSR_PMON_GLOBAL_STATUS		0x701
-#define HSWEP_MSR_PMON_GLOBAL_CONFIG		0x702
+#define HSWEP_MSR_PMON_GLOBAL_CTL	0x700
+#define HSWEP_MSR_PMON_GLOBAL_STATUS	0x701
+#define HSWEP_MSR_PMON_GLOBAL_CONFIG	0x702
 
 /* HSWEP Uncore U-box */
-#define HSWEP_MSR_U_PMON_BOX_STATUS		0x708
-#define HSWEP_MSR_U_PMON_UCLK_FIXED_CTL		0x703
-#define HSWEP_MSR_U_PMON_UCLK_FIXED_CTR		0x704
-#define HSWEP_MSR_U_PMON_EVNTSEL0		0x705
-#define HSWEP_MSR_U_PMON_CTR0			0x709
+#define HSWEP_MSR_U_PMON_BOX_STATUS	0x708
+#define HSWEP_MSR_U_PMON_UCLK_FIXED_CTL	0x703
+#define HSWEP_MSR_U_PMON_UCLK_FIXED_CTR	0x704
+#define HSWEP_MSR_U_PMON_EVNTSEL0	0x705
+#define HSWEP_MSR_U_PMON_CTR0		0x709
 
 /* HSWEP Uncore PCU-box */
-#define HSWEP_MSR_PCU_PMON_BOX_CTL		0x710
-#define HSWEP_MSR_PCU_PMON_BOX_FILTER		0x715
-#define HSWEP_MSR_PCU_PMON_BOX_STATUS		0x716
-#define HSWEP_MSR_PCU_PMON_EVNTSEL0		0x711
-#define HSWEP_MSR_PCU_PMON_CTR0			0x717
+#define HSWEP_MSR_PCU_PMON_BOX_CTL	0x710
+#define HSWEP_MSR_PCU_PMON_BOX_FILTER	0x715
+#define HSWEP_MSR_PCU_PMON_BOX_STATUS	0x716
+#define HSWEP_MSR_PCU_PMON_EVNTSEL0	0x711
+#define HSWEP_MSR_PCU_PMON_CTR0		0x717
 
 /* HSWEP Uncore S-box */
-#define HSWEP_MSR_S_PMON_BOX_CTL		0x720
-#define HSWEP_MSR_S_PMON_BOX_STATUS		0x725
-#define HSWEP_MSR_S_PMON_EVNTSEL0		0x721
-#define HSWEP_MSR_S_PMON_CTR0			0x726
-#define HSWEP_MSR_S_MSR_OFFSET			0xA
+#define HSWEP_MSR_S_PMON_BOX_CTL	0x720
+#define HSWEP_MSR_S_PMON_BOX_STATUS	0x725
+#define HSWEP_MSR_S_PMON_EVNTSEL0	0x721
+#define HSWEP_MSR_S_PMON_CTR0		0x726
+#define HSWEP_MSR_S_MSR_OFFSET		0xA
 
 /* HSWEP Uncore C-box */
-#define HSWEP_MSR_C_PMON_BOX_CTL		0xE00
-#define HSWEP_MSR_C_PMON_BOX_FILTER0		0xE05
-#define HSWEP_MSR_C_PMON_BOX_FILTER1		0xE06
-#define HSWEP_MSR_C_PMON_BOX_STATUS		0xE07
-#define HSWEP_MSR_C_PMON_EVNTSEL0		0xE01
-#define HSWEP_MSR_C_PMON_CTR0			0xE08
-#define HSWEP_MSR_C_MSR_OFFSET			0x10
-#define HSWEP_MSR_C_EVENTSEL_MASK		(HSWEP_MSR_RAW_EVNTSEL_MASK | \
-						 HSWEP_MSR_EVNTSEL_TID_EN)
+#define HSWEP_MSR_C_PMON_BOX_CTL	0xE00
+#define HSWEP_MSR_C_PMON_BOX_FILTER0	0xE05
+#define HSWEP_MSR_C_PMON_BOX_FILTER1	0xE06
+#define HSWEP_MSR_C_PMON_BOX_STATUS	0xE07
+#define HSWEP_MSR_C_PMON_EVNTSEL0	0xE01
+#define HSWEP_MSR_C_PMON_CTR0		0xE08
+#define HSWEP_MSR_C_MSR_OFFSET		0x10
+#define HSWEP_MSR_C_EVENTSEL_MASK	(HSWEP_MSR_RAW_EVNTSEL_MASK | \
+					 HSWEP_MSR_EVNTSEL_TID_EN)
 
 /* HSWEP Uncore HA-box */
-#define HSWEP_PCI_HA_PMON_BOX_STATUS		0xF8
-#define HSWEP_PCI_HA_PMON_BOX_CTL		0xF4
-#define HSWEP_PCI_HA_PMON_BOX_OPCODEMATCH	0x48
-#define HSWEP_PCI_HA_PMON_BOX_ADDRMATCH1	0x44
-#define HSWEP_PCI_HA_PMON_BOX_ADDRMATCH0	0x40
-#define HSWEP_PCI_HA_PMON_CTL0			0xD8
-#define HSWEP_PCI_HA_PMON_CTR0			0xA0
+#define HSWEP_PCI_HA_PMON_BOX_STATUS	0xF8
+#define HSWEP_PCI_HA_PMON_BOX_CTL	0xF4
+#define HSWEP_PCI_HA_PMON_CTL0		0xD8
+#define HSWEP_PCI_HA_PMON_CTR0		0xA0
 
 /* HSWEP Uncore IMC-box */
-#define HSWEP_PCI_IMC_PMON_BOX_STATUS		0xF8
-#define HSWEP_PCI_IMC_PMON_BOX_CTL		0xF4
-#define HSWEP_PCI_IMC_PMON_CTL0			0xD8
-#define HSWEP_PCI_IMC_PMON_CTR0			0xA0
-#define HSWEP_PCI_IMC_PMON_FIXED_CTL		0xF0
-#define HSWEP_PCI_IMC_PMON_FIXED_CTR		0xD0
+#define HSWEP_PCI_IMC_PMON_BOX_STATUS	0xF8
+#define HSWEP_PCI_IMC_PMON_BOX_CTL	0xF4
+#define HSWEP_PCI_IMC_PMON_CTL0		0xD8
+#define HSWEP_PCI_IMC_PMON_CTR0		0xA0
+#define HSWEP_PCI_IMC_PMON_FIXED_CTL	0xF0
+#define HSWEP_PCI_IMC_PMON_FIXED_CTR	0xD0
 
 /* HSWEP Uncore IRP-box */
-#define HSWEP_PCI_IRP_PMON_BOX_STATUS		0xF8
-#define HSWEP_PCI_IRP_PMON_BOX_CTL		0xF4
+#define HSWEP_PCI_IRP_PMON_BOX_STATUS	0xF8
+#define HSWEP_PCI_IRP_PMON_BOX_CTL	0xF4
 
 /* HSWEP Uncore QPI-box */
-#define HSWEP_PCI_QPI_PMON_BOX_STATUS		0xF8
-#define HSWEP_PCI_QPI_PMON_BOX_CTL		0xF4
-#define HSWEP_PCI_QPI_PMON_CTL0			0xD8
-#define HSWEP_PCI_QPI_PMON_CTR0			0xA0
+#define HSWEP_PCI_QPI_PMON_BOX_STATUS	0xF8
+#define HSWEP_PCI_QPI_PMON_BOX_CTL	0xF4
+#define HSWEP_PCI_QPI_PMON_CTL0		0xD8
+#define HSWEP_PCI_QPI_PMON_CTR0		0xA0
 
 /* HSWEP Uncore R2PCIE-box */
-#define HSWEP_PCI_R2PCIE_PMON_BOX_STATUS	0xF8
-#define HSWEP_PCI_R2PCIE_PMON_BOX_CTL		0xF4
-#define HSWEP_PCI_R2PCIE_PMON_CTL0		0xD8
-#define HSWEP_PCI_R2PCIE_PMON_CTR0		0xA0
+#define HSWEP_PCI_R2PCIE_PMON_BOX_STATUS 0xF8
+#define HSWEP_PCI_R2PCIE_PMON_BOX_CTL	0xF4
+#define HSWEP_PCI_R2PCIE_PMON_CTL0	0xD8
+#define HSWEP_PCI_R2PCIE_PMON_CTR0	0xA0
 
 /* HSWEP Uncore R3QPI-box */
-#define HSWEP_PCI_R3QPI_PMON_BOX_STATUS		0xF8
-#define HSWEP_PCI_R3QPI_PMON_BOX_CTL		0xF4
-#define HSWEP_PCI_R3QPI_PMON_CTL0		0xD8
-#define HSWEP_PCI_R3QPI_PMON_CTR0		0xA0
+#define HSWEP_PCI_R3QPI_PMON_BOX_STATUS	0xF8
+#define HSWEP_PCI_R3QPI_PMON_BOX_CTL	0xF4
+#define HSWEP_PCI_R3QPI_PMON_CTL0	0xD8
+#define HSWEP_PCI_R3QPI_PMON_CTR0	0xA0
 
 /******************************************************************************
  * MSR Type 
@@ -153,7 +166,7 @@ static void hswep_uncore_msr_show_box(struct uncore_box *box)
 {
 	unsigned long long value;
 
-	pr_info("\n");
+	pr_info("\033[031m---------------------- Show Box ----------------------\033[0m");
 	pr_info("MSR Box%d, in Node%d", box->idx, box->nodeid);
 
 	rdmsrl(uncore_msr_box_ctl(box), value);
@@ -229,6 +242,15 @@ static void hswep_uncore_msr_read_counter(struct uncore_box *box, u64 *value)
 	*value = tmp & uncore_box_ctr_mask(box);
 }
 
+/*
+ * Actually, some operations may differ among different box types. But we are
+ * not building a mature perf system, emulating NVM is the only client for now,
+ * so leave the holes. I thought I would not touch this code later. :)
+ * 
+ * If you want to go further, please read the PMU implementation code within
+ * linux kernel. You can find different functions are applied to different boxes.
+ * The x86 PMU part is in: arch/x86/kernel/cpu/perf*.c
+ */
 #define HSWEP_UNCORE_MSR_BOX_OPS()				\
 	.show_box	= hswep_uncore_msr_show_box,		\
 	.init_box	= hswep_uncore_msr_init_box,		\
@@ -238,15 +260,6 @@ static void hswep_uncore_msr_read_counter(struct uncore_box *box, u64 *value)
 	.disable_event	= hswep_uncore_msr_disable_event,	\
 	.write_counter	= hswep_uncore_msr_write_counter,	\
 	.read_counter	= hswep_uncore_msr_read_counter
-
-/*
- * Actually, some operations may differ among different box types. But we are
- * not building a mature perf system, emulating NVM is the only client for now,
- * so leave the holes. I thought I would not touch this code later. :)
- * 
- * If you want to go further, please read the PMU implementation code within
- * linux kernel, the x86 part is in: arch/x86/kernel/cpu/
- */
 
 const struct uncore_box_ops HSWEP_UNCORE_UBOX_OPS = {
 	HSWEP_UNCORE_MSR_BOX_OPS()
@@ -324,10 +337,10 @@ struct uncore_box_type HSWEP_UNCORE_CBOX = {
 };
 
 enum {
-	HSWEP_UNCORE_UBOX_ID	= UNCORE_UBOX_ID,
-	HSWEP_UNCORE_PCUBOX_ID	= UNCORE_PCUBOX_ID,
-	HSWEP_UNCORE_SBOX_ID	= UNCORE_SBOX_ID,
-	HSWEP_UNCORE_CBOX_ID	= UNCORE_CBOX_ID
+	HSWEP_UNCORE_UBOX_ID	= UNCORE_MSR_UBOX_ID,
+	HSWEP_UNCORE_PCUBOX_ID	= UNCORE_MSR_PCUBOX_ID,
+	HSWEP_UNCORE_SBOX_ID	= UNCORE_MSR_SBOX_ID,
+	HSWEP_UNCORE_CBOX_ID	= UNCORE_MSR_CBOX_ID
 };
 
 struct uncore_box_type *HSWEP_UNCORE_MSR_TYPE[] = {
@@ -348,7 +361,7 @@ static void hswep_uncore_pci_show_box(struct uncore_box *box)
 	unsigned int config, low, high;
 	
 	/* The same with some print functions... */
-	pr_info("\n");
+	pr_info("\033[031m---------------------- Show Box ----------------------\033[0m");
 	pr_info("PCI Box%d, in Node%d, %x:%x:%x, %d:%d:%d, Kref = %d",
 		box->idx,
 		box->nodeid,
@@ -366,21 +379,26 @@ static void hswep_uncore_pci_show_box(struct uncore_box *box)
 	pci_read_config_dword(pdev, uncore_pci_box_status(box), &config);
 	pr_info("PCI Box-level Status:  0x%x", config);
 
+	if (box->event)
+		pr_info("... Current Event:     %s", box->event->desc);
+
 	pci_read_config_dword(pdev, uncore_pci_perf_ctl(box), &config);
-	pr_info("........... PMON_CTL:  0x%x", config);
+	pr_info("... Control Register:  0x%x", config);
 
 	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box), &low);
 	pci_read_config_dword(pdev, uncore_pci_perf_ctr(box)+4, &high);
-	pr_info("........... PMON_CTR:  0x%x<<32 | 0x%x ---> %Ld", high, low,
+	pr_info("... Counter Register:  0x%x<<32 | 0x%x ---> %Ld", high, low,
 		((u64)high << 32) | (u64)low);
 }
 
 static void hswep_uncore_pci_init_box(struct uncore_box *box)
 {
+	/* Clear all control and counter registers */
 	pci_write_config_dword(box->pdev,
 			       uncore_pci_box_ctl(box),
 			       HSWEP_PCI_BOX_CTL_INIT);
 
+	/* Write '1' will clear overflow bit */
 	pci_write_config_dword(box->pdev,
 			       uncore_pci_box_status(box),
 			       0xf);
@@ -393,6 +411,7 @@ static void hswep_uncore_pci_enable_box(struct uncore_box *box)
 	unsigned int config = 0; 
 	
 	if (!pci_read_config_dword(dev, ctl, &config)) {
+		/* Freeze all counters */
 		config &= ~HSWEP_PCI_BOX_CTL_FRZ;
 		pci_write_config_dword(dev, ctl, config);
 	}
@@ -405,6 +424,7 @@ static void hswep_uncore_pci_disable_box(struct uncore_box *box)
 	unsigned int config = 0; 
 	
 	if (!pci_read_config_dword(dev, ctl, &config)) {
+		/* Un-Freeze all counters */
 		config |= HSWEP_PCI_BOX_CTL_FRZ;
 		pci_write_config_dword(dev, ctl, config);
 	}
