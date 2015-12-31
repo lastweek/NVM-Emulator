@@ -411,7 +411,7 @@ static void hswep_uncore_pci_enable_box(struct uncore_box *box)
 	unsigned int config = 0; 
 	
 	if (!pci_read_config_dword(dev, ctl, &config)) {
-		/* Freeze all counters */
+		/* Un-Freeze all counters */
 		config &= ~HSWEP_PCI_BOX_CTL_FRZ;
 		pci_write_config_dword(dev, ctl, config);
 	}
@@ -424,7 +424,7 @@ static void hswep_uncore_pci_disable_box(struct uncore_box *box)
 	unsigned int config = 0; 
 	
 	if (!pci_read_config_dword(dev, ctl, &config)) {
-		/* Un-Freeze all counters */
+		/* Freeze all counters */
 		config |= HSWEP_PCI_BOX_CTL_FRZ;
 		pci_write_config_dword(dev, ctl, config);
 	}

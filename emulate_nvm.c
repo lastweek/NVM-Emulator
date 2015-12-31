@@ -71,11 +71,6 @@ static enum hrtimer_restart emulate_hrtimer(struct hrtimer *hrtimer)
 static void start_emulate_latency(void)
 {
 	/*
-	 * Reset whole uncore pmu
-	 */
-	uncore_clear_global_pmu(&uncore_pmu);
-
-	/*
 	 * Home Agent: (Box0, Node0), (Box0, Node1)
 	 */
 	HA_Box_0 = uncore_get_first_box(uncore_pci_type[UNCORE_PCI_HA_ID], 0);
@@ -93,7 +88,7 @@ static void start_emulate_latency(void)
 	uncore_box_bind_event(HA_Box_1, event);
 
 	/*
-	 * a) Init and enable boxes
+	 * a) Init and reset box
 	 */
 	uncore_init_box(HA_Box_0);
 	uncore_init_box(HA_Box_1);
@@ -109,11 +104,9 @@ static void start_emulate_latency(void)
 	 */
 	uncore_enable_event(HA_Box_0, event);
 	uncore_enable_event(HA_Box_1, event);
-
-	uncore_write_counter(HA_Box_0, (u64)-100);
 	
 	/*
-	 * d) Start counting...
+	 * d) Un-Freeze, start counting
 	 */
 	uncore_enable_box(HA_Box_0);
 	uncore_enable_box(HA_Box_1);

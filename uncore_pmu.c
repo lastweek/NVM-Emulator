@@ -516,8 +516,6 @@ static int __must_check uncore_pci_init(void)
 		case 63: /* Haswell-EP */
 			ret = hswep_pci_init();
 			break;
-		default:
-			pr_err("Buy an E5-v3");
 	};
 
 	if (ret)
@@ -627,8 +625,6 @@ static int __must_check uncore_cpu_init(void)
 		case 63: /* Haswell-EP */
 			ret = hswep_cpu_init();
 			break;
-		default:
-			pr_err("Buy an E5-v3");
 	};
 
 	if (ret)
