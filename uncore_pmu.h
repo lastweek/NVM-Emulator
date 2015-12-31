@@ -187,7 +187,8 @@ struct uncore_box_type {
  * This structure is the TOP description about UNCORE_PMU. The main reason to
  * have such a global description structure is sometimes we need to manipulate
  * the global MSR registers, since the scope of these MSRs is per-socket. Almost
- * every microarchitecture has its global MSRs.
+ * every microarchitecture has its global MSRs. Also, remember walking through
+ * all online nodes when using this structure.
  */
 struct uncore_pmu {
 	const char		*name;

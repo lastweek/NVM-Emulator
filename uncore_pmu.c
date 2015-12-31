@@ -50,7 +50,9 @@
 #include <linux/module.h>
 #include <linux/hrtimer.h>
 
-/* TOP description of the whole system uncore PMU resources */
+/*
+ * This is the top description of whole system uncore pmu resources.
+ */
 struct uncore_pmu uncore_pmu;
 
 unsigned int uncore_pcibus_to_nodeid[256] = { [0 ... 255] = -1, };
@@ -94,7 +96,7 @@ int first_online_cpu_of_node(unsigned int node)
 
 /**
  * uncore_call_function_on_node
- * @node:	The node to run function
+ * @node:	The node to execute function
  * @func:	The function to execute
  * @info:	The info passed to function
  * @wait:	If true, wait until function finished on other cpus
@@ -217,6 +219,17 @@ struct uncore_box *uncore_get_first_box(struct uncore_box_type *type,
 	}
 
 	return NULL;
+}
+
+/**
+ * uncore_clear_global_pmu
+ * @pmu:	The uncore_pmu to clear/reset
+ *
+ * This function will c
+ */
+void uncore_clear_global_pmu(struct uncore_pmu *pmu)
+{
+
 }
 
 static void __uncore_print_global_pmu(void *info)
