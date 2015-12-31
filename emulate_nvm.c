@@ -53,7 +53,6 @@ static void finish_emulate_bandwidth(void)
 	uncore_imc_disable_throttle_all();
 }
 
-int haha;
 static enum hrtimer_restart emulate_hrtimer(struct hrtimer *hrtimer)
 {
 	u64 value;
