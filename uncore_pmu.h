@@ -282,13 +282,26 @@ static inline unsigned int uncore_msr_perf_ctr(struct uncore_box *box)
  * Generic Uncore PMU Box's APIs
  *****************************************************************************/
 
+void uncore_print_global_pmu(struct uncore_pmu *pmu);
+
+int first_online_cpu_of_node(unsigned int node);
+int uncore_call_function_on_node(unsigned int node, void (*func)(void *info), void *info, int wait);
+
 void uncore_box_start_hrtimer(struct uncore_box *box);
 void uncore_box_cancel_hrtimer(struct uncore_box *box);
 
 struct uncore_box *uncore_get_box(struct uncore_box_type *type, unsigned int idx, unsigned int nodeid);
 struct uncore_box *uncore_get_first_box(struct uncore_box_type *type, unsigned int nodeid);
 
-/* Hmm. Useless, to print some information */
+/**
+ * uncore_box_bind_event
+ * @box:	the box to bind
+ * @event:	the event to bind
+ *
+ * Bind a event to a box. Actually, it is uselee... This function just build a
+ * link between box and event. When user invoke show_box, it can print some
+ * nice information about current sampling or counting event.
+ */
 static inline void uncore_box_bind_event(struct uncore_box *box,
 					 struct uncore_event *event)
 {

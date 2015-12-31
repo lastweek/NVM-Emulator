@@ -25,29 +25,36 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 
-/******************************************************************************
- * Uncore PMU Specific Application: [NVM Emulation]
- * There are some restrictions on the system if you want to emulate NVM.
- * 	1)	Only one CPU core should be enabled at the emulation node.
- *	2)	Distribute the memory among different nodes manually.
- *	3)	I have to say, this emulation is not perfect.
- *****************************************************************************/
-
 extern struct uncore_event ha_requests_local_reads;
 
+static bool latency_started = false;
 struct uncore_box *HA_Box_0, *HA_Box_1;
 struct uncore_box *U_Box_0, *U_Box_1;
 struct uncore_event *event;
 
-void start_emulate_nvm(void)
+static void start_emulate_bandwidth(void)
 {
 	/*
-	 * Throttle bandwidth of all nodes
 	 * Default to full bandwidth
 	 */
 	uncore_imc_set_threshold_all(1);
-	uncore_imc_enable_throttle_all();
 
+	/*
+	 * Enable throttling at all nodes
+	 */
+	uncore_imc_enable_throttle_all();
+}
+
+static void finish_emulate_bandwidth(void)
+{
+	/*
+	 * Disable throttling at all nodes
+	 */
+	uncore_imc_disable_throttle_all();
+}
+
+static void start_emulate_latency(void)
+{
 	/* Home Agent: (Box0, Node0), (Box0, Node1) */
 	HA_Box_0 = uncore_get_first_box(uncore_pci_type[UNCORE_PCI_HA_ID], 0);
 	HA_Box_1 = uncore_get_first_box(uncore_pci_type[UNCORE_PCI_HA_ID], 1);
@@ -56,36 +63,70 @@ void start_emulate_nvm(void)
 		return;
 	}
 
+	/*
+	 * Bind this event
+	 */
 	event = &ha_requests_local_reads;
 	uncore_box_bind_event(HA_Box_0, event);
 	uncore_box_bind_event(HA_Box_1, event);
 
+	/*
+	 * Init and enable boxes
+	 */
 	uncore_init_box(HA_Box_0);
 	uncore_init_box(HA_Box_1);
 	uncore_enable_box(HA_Box_0);
 	uncore_enable_box(HA_Box_1);
-/*
+
+	/*
+	 * Enable event, start counting
+	 */
 	uncore_enable_event(HA_Box_0, event);
 	uncore_enable_event(HA_Box_1, event);
-	mdelay(100);
-
-	uncore_show_global_pmu(&uncore_pmu);
-	uncore_show_box(HA_Box_0);
-	uncore_show_box(HA_Box_1);
-*/
+	
+	/*
+	 * Start hrtimer
+	 */
 	uncore_box_start_hrtimer(HA_Box_0);
 	uncore_box_start_hrtimer(HA_Box_1);
 
-	mdelay(1000);
+	latency_started = true;
+}
 
-	uncore_box_cancel_hrtimer(HA_Box_0);
-	uncore_box_cancel_hrtimer(HA_Box_1);
+static void finish_emulate_latency(void)
+{
+	if (latency_started) {
+		/*
+		 * Cancel hrtimer
+		 */
+		uncore_box_cancel_hrtimer(HA_Box_0);
+		uncore_box_cancel_hrtimer(HA_Box_1);
 
-	uncore_disable_box(HA_Box_0);
-	uncore_disable_box(HA_Box_1);
+		/*
+		 * Just freeze these boxes
+		 */
+		uncore_disable_box(HA_Box_0);
+		uncore_disable_box(HA_Box_1);
+		
+		/*
+		 * Show some information
+		 */
+		uncore_print_global_pmu(&uncore_pmu);
+		uncore_show_box(HA_Box_0);
+		uncore_show_box(HA_Box_1);
+
+		latency_started = false;
+	}
+}
+
+void start_emulate_nvm(void)
+{
+	start_emulate_bandwidth();
+	start_emulate_latency();
 }
 
 void finish_emulate_nvm(void)
 {
-	uncore_imc_disable_throttle_all();
+	finish_emulate_bandwidth();
+	finish_emulate_latency();
 }

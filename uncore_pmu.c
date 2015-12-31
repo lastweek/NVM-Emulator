@@ -78,7 +78,7 @@ static int __always_unused uncore_pci_probe(struct pci_dev *dev,
  * Find the first online cpu within a physical node. Note that the cpumask of
  * node only include online cpus, so there is no need to use cpumask_first_and
  */
-static int first_online_cpu_of_node(unsigned int node)
+int first_online_cpu_of_node(unsigned int node)
 {
 	int cpu = -1;
 	const struct cpumask *mask;
@@ -102,7 +102,7 @@ static int first_online_cpu_of_node(unsigned int node)
  * Call a simple and fast function on a node. It can run on any online cpus
  * within the node. This functions is a simple wrapper.
  */
-static int uncore_call_function_on_node(unsigned int node,
+int uncore_call_function_on_node(unsigned int node,
 				void (*func)(void *info), void *info, int wait)
 {
 	int cpu, err;
@@ -119,7 +119,7 @@ static int uncore_call_function_on_node(unsigned int node,
 	return err;
 }
 
-int haha = 0;
+static int haha;
 
 /*
  * This is the default hrtimer function.
@@ -128,15 +128,11 @@ static enum hrtimer_restart uncore_box_hrtimer_def(struct hrtimer *hrtimer)
 {
 	struct uncore_box *box;
 
-	if (haha > 3)
-		return HRTIMER_NORESTART;
-	haha++;
-
 	box = container_of(hrtimer, struct uncore_box, hrtimer);
 	uncore_show_box(box);
+	pr_info("%d", haha++);
 
 	hrtimer_forward_now(hrtimer, ns_to_ktime(box->hrtimer_duration));
-	
 	return HRTIMER_RESTART;
 }
 
@@ -255,7 +251,7 @@ static void __uncore_print_global_pmu(void *info)
  * microarchitecture has global registers including: CONTROL/STATUS/CONFIG.
  * This function goes through all online nodes.
  */
-static void uncore_print_global_pmu(struct uncore_pmu *pmu)
+void uncore_print_global_pmu(struct uncore_pmu *pmu)
 {
 	unsigned int node;
 

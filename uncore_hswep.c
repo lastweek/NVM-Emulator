@@ -166,7 +166,7 @@ static void hswep_uncore_msr_show_box(struct uncore_box *box)
 {
 	unsigned long long value;
 
-	pr_info("\033[031m---------------------- Show MSR Box ----------------------\033[0m");
+	pr_info("\033[034m---------------------- Show MSR Box ----------------------\033[0m");
 	pr_info("MSR Box%d, in Node%d", box->idx, box->nodeid);
 
 	rdmsrl(uncore_msr_box_ctl(box), value);
@@ -361,7 +361,7 @@ static void hswep_uncore_pci_show_box(struct uncore_box *box)
 	unsigned int config, low, high;
 	
 	/* The same with some print functions... */
-	pr_info("\033[031m---------------------- Show PCI Box ----------------------\033[0m");
+	pr_info("\033[034m---------------------- Show PCI Box ----------------------\033[0m");
 	pr_info("PCI Box%d, in Node%d, %x:%x:%x, %d:%d:%d, Kref = %d",
 		box->idx,
 		box->nodeid,

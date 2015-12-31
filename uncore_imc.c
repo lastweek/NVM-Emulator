@@ -265,8 +265,7 @@ void uncore_print_imc_devices(void)
 {
 	struct uncore_imc *imc;
 
-	pr_info("\n");
-	pr_info("IMC Devices:");
+	pr_info("\033[34m------------------------ IMC Devices ----------------------\033[0m");
 	list_for_each_entry(imc, &uncore_imc_devices, next) {
 		pr_info("......Node %d, %x:%x:%x, %d:%d:%d, Kref = %d",
 		imc->nodeid,
