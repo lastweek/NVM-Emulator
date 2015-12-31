@@ -35,12 +35,12 @@
 
 extern struct uncore_event ha_requests_local_reads;
 
+struct uncore_box *HA_Box_0, *HA_Box_1;
+struct uncore_box *U_Box_0, *U_Box_1;
+struct uncore_event *event;
+
 void start_emulate_nvm(void)
 {
-	struct uncore_box *HA_Box_0, *HA_Box_1;
-	struct uncore_box *U_Box_0, *U_Box_1;
-	struct uncore_event *event;
-
 	/*
 	 * Throttle bandwidth of all nodes
 	 * Default to full bandwidth
