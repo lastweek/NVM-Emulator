@@ -79,6 +79,15 @@ static void start_emulate_latency(void)
 		pr_err("Get HA Box Failed");
 		return;
 	}
+	
+	/*
+	 * U-Box: (Box0, Node0), (Box0, Node1)
+	 */
+	U_Box_0 = uncore_get_first_box(uncore_msr_type[UNCORE_MSR_UBOX_ID], 0);
+	if (!U_Box_0) {
+		pr_err("Get UBox Failed");
+		return;
+	}
 
 	/*
 	 * Bind this event

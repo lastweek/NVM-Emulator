@@ -167,7 +167,7 @@ static void hswep_uncore_msr_show_box(struct uncore_box *box)
 	unsigned long long value;
 
 	pr_info("\033[034m---------------------- Show MSR Box ----------------------\033[0m");
-	pr_info("MSR Box%d, in Node%d", box->idx, box->nodeid);
+	pr_info("MSR Box %d, on Node %d", box->idx, box->nodeid);
 
 	rdmsrl(uncore_msr_box_ctl(box), value);
 	pr_info("MSR Box-level Control: 0x%llx", value);
@@ -175,11 +175,14 @@ static void hswep_uncore_msr_show_box(struct uncore_box *box)
 	rdmsrl(uncore_msr_box_status(box), value);
 	pr_info("MSR Box-level Status:  0x%llx", value);
 
+	if (box->event)
+		pr_info("... Current Event:     %s", box->event->desc);
+
 	rdmsrl(uncore_msr_perf_ctl(box), value);
-	pr_info("........... PMON_CTL:  0x%llx", value);
+	pr_info("... Control Register:  0x%llx", value);
 
 	rdmsrl(uncore_msr_perf_ctr(box), value);
-	pr_info("........... PMON_CTR:  0x%llx", value);
+	pr_info("... Counter Register:  0x%llx", value);
 }
 
 static void hswep_uncore_msr_init_box(struct uncore_box *box)
@@ -362,7 +365,7 @@ static void hswep_uncore_pci_show_box(struct uncore_box *box)
 	
 	/* The same with some print functions... */
 	pr_info("\033[034m---------------------- Show PCI Box ----------------------\033[0m");
-	pr_info("PCI Box%d, in Node%d, %x:%x:%x, %d:%d:%d, Kref = %d",
+	pr_info("PCI Box %d, on Node %d, %x:%x:%x, %d:%d:%d, Kref = %d",
 		box->idx,
 		box->nodeid,
 		box->pdev->bus->number,
