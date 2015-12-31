@@ -29,10 +29,9 @@
 #include <linux/hrtimer.h>
 #include <linux/compiler.h>
 
-#define UNCORE_PMU_HRTIMER_INTERVAL     (1000000)
+#define UNCORE_PMU_HRTIMER_INTERVAL     (60 * NSEC_PER_SEC)
 
-/* Who got a 8p server??? */
-#define UNCORE_MAX_SOCKET 8
+#define UNCORE_MAX_SOCKET		8
 
 /* PCI Driver Data <--> Box Type and IDX */
 #define UNCORE_PCI_DEV_DATA(type, idx)	(((type) << 8) | (idx))
@@ -283,6 +282,7 @@ static inline unsigned int uncore_msr_perf_ctr(struct uncore_box *box)
  * Generic Uncore PMU Box's APIs
  *****************************************************************************/
 
+void uncore_clear_global_pmu(struct uncore_pmu *pmu);
 void uncore_print_global_pmu(struct uncore_pmu *pmu);
 
 int first_online_cpu_of_node(unsigned int node);
@@ -290,6 +290,9 @@ int uncore_call_function_on_node(unsigned int node, void (*func)(void *info), vo
 
 void uncore_box_start_hrtimer(struct uncore_box *box);
 void uncore_box_cancel_hrtimer(struct uncore_box *box);
+void uncore_box_change_hrtimer(struct uncore_box *box, enum hrtimer_restart (*func)(struct hrtimer *hrtimer));
+void uncore_box_change_duration(struct uncore_box *box, u64 new);
+
 
 struct uncore_box *uncore_get_box(struct uncore_box_type *type, unsigned int idx, unsigned int nodeid);
 struct uncore_box *uncore_get_first_box(struct uncore_box_type *type, unsigned int nodeid);

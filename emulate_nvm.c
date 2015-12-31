@@ -53,9 +53,31 @@ static void finish_emulate_bandwidth(void)
 	uncore_imc_disable_throttle_all();
 }
 
+int haha;
+static enum hrtimer_restart emulate_hrtimer(struct hrtimer *hrtimer)
+{
+	u64 value;
+	struct uncore_box *box;
+
+	box = container_of(hrtimer, struct uncore_box, hrtimer);
+	uncore_show_box(box);
+	pr_info("%d", haha++);
+
+	hrtimer_forward_now(hrtimer, ns_to_ktime(box->hrtimer_duration));
+
+	return HRTIMER_RESTART;
+}
+
 static void start_emulate_latency(void)
 {
-	/* Home Agent: (Box0, Node0), (Box0, Node1) */
+	/*
+	 * Reset whole uncore pmu
+	 */
+	uncore_clear_global_pmu(&uncore_pmu);
+
+	/*
+	 * Home Agent: (Box0, Node0), (Box0, Node1)
+	 */
 	HA_Box_0 = uncore_get_first_box(uncore_pci_type[UNCORE_PCI_HA_ID], 0);
 	HA_Box_1 = uncore_get_first_box(uncore_pci_type[UNCORE_PCI_HA_ID], 1);
 	if (!HA_Box_0 || !HA_Box_1) {
@@ -71,22 +93,43 @@ static void start_emulate_latency(void)
 	uncore_box_bind_event(HA_Box_1, event);
 
 	/*
-	 * Init and enable boxes
+	 * a) Init and enable boxes
 	 */
 	uncore_init_box(HA_Box_0);
 	uncore_init_box(HA_Box_1);
-	uncore_enable_box(HA_Box_0);
-	uncore_enable_box(HA_Box_1);
+	
+	/*
+	 * b) Freeze counter
+	 */
+	uncore_disable_box(HA_Box_0);
+	uncore_disable_box(HA_Box_1);
 
 	/*
-	 * Enable event, start counting
+	 * c) Set and enable event
 	 */
 	uncore_enable_event(HA_Box_0, event);
 	uncore_enable_event(HA_Box_1, event);
+
+	uncore_write_counter(HA_Box_0, (u64)-100);
 	
 	/*
-	 * Start hrtimer
+	 * d) Start counting...
 	 */
+	uncore_enable_box(HA_Box_0);
+	uncore_enable_box(HA_Box_1);
+	
+	/*
+	 * In emulating latency part, the most important thing
+	 * is replacing the original hrtimer function. The original 
+	 * one just collect counts and in case counter overflows.
+	 * But here, we rely on our hrtimer function to send IPI
+	 * to the emulating core, to emulate the slow read latency
+	 * of NVM. Not so hard, huh?
+	 */
+	uncore_box_change_hrtimer(HA_Box_0, emulate_hrtimer);
+	uncore_box_change_hrtimer(HA_Box_1, emulate_hrtimer);
+	uncore_box_change_duration(HA_Box_0, 1000000*100);
+	uncore_box_change_duration(HA_Box_1, 1000000*100);
 	uncore_box_start_hrtimer(HA_Box_0);
 	uncore_box_start_hrtimer(HA_Box_1);
 
@@ -103,7 +146,7 @@ static void finish_emulate_latency(void)
 		uncore_box_cancel_hrtimer(HA_Box_1);
 
 		/*
-		 * Just freeze these boxes
+		 * Freeze these boxes
 		 */
 		uncore_disable_box(HA_Box_0);
 		uncore_disable_box(HA_Box_1);

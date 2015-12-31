@@ -121,8 +121,6 @@ int uncore_call_function_on_node(unsigned int node,
 	return err;
 }
 
-static int haha;
-
 /*
  * This is the default hrtimer function.
  */
@@ -131,10 +129,9 @@ static enum hrtimer_restart uncore_box_hrtimer_def(struct hrtimer *hrtimer)
 	struct uncore_box *box;
 
 	box = container_of(hrtimer, struct uncore_box, hrtimer);
-	uncore_show_box(box);
-	pr_info("%d", haha++);
 
 	hrtimer_forward_now(hrtimer, ns_to_ktime(box->hrtimer_duration));
+
 	return HRTIMER_RESTART;
 }
 
@@ -165,6 +162,17 @@ void uncore_box_start_hrtimer(struct uncore_box *box)
 void uncore_box_cancel_hrtimer(struct uncore_box *box)
 {
 	hrtimer_cancel(&box->hrtimer);
+}
+
+void uncore_box_change_hrtimer(struct uncore_box *box,
+			enum hrtimer_restart (*func)(struct hrtimer *hrtimer))
+{
+	box->hrtimer.function = func;
+}
+
+void uncore_box_change_duration(struct uncore_box *box, u64 new)
+{
+	box->hrtimer_duration = new;
 }
 
 /**
@@ -221,6 +229,24 @@ struct uncore_box *uncore_get_first_box(struct uncore_box_type *type,
 	return NULL;
 }
 
+static void __uncore_clear_global_pmu(void *info)
+{
+	unsigned int status;
+	struct uncore_pmu *pmu;
+
+	pmu = (struct uncore_pmu *)info;
+
+	if (pmu->global_ctl) {
+		wrmsrl(pmu->global_ctl, 0);
+	}
+
+	if (pmu->global_status) {
+		/* RW1C */
+		rdmsrl(pmu->global_status, status);
+		wrmsrl(pmu->global_status, status);
+	}
+}
+
 /**
  * uncore_clear_global_pmu
  * @pmu:	The uncore_pmu to clear/reset
@@ -229,7 +255,15 @@ struct uncore_box *uncore_get_first_box(struct uncore_box_type *type,
  */
 void uncore_clear_global_pmu(struct uncore_pmu *pmu)
 {
+	unsigned int node;
 
+	if (!pmu)
+		return;
+
+	for_each_online_node(node) {
+		uncore_call_function_on_node(node, __uncore_clear_global_pmu,
+				(void *)pmu, 1);
+	}
 }
 
 static void __uncore_print_global_pmu(void *info)
@@ -268,13 +302,16 @@ void uncore_print_global_pmu(struct uncore_pmu *pmu)
 {
 	unsigned int node;
 
+	if (!pmu)
+		return;
+
 	pr_info("\033[34m------------------------ Global PMU ----------------------\033[0m");
 	pr_info("Description: %s", pmu->name);
 
 	for_each_online_node(node) {
 		pr_info("On Node %d:", node);
 		uncore_call_function_on_node(node, __uncore_print_global_pmu,
-				(void *)&uncore_pmu, 1);
+				(void *)pmu, 1);
 	}
 }
 
@@ -644,6 +681,7 @@ static int uncore_init(void)
 	 * Pay attention to these messages
 	 * Check if everything goes as expected
 	 */
+	uncore_clear_global_pmu(&uncore_pmu);
 	uncore_print_global_pmu(&uncore_pmu);
 	uncore_print_node_info();
 	uncore_print_msr_boxes();
@@ -674,6 +712,7 @@ static void uncore_exit(void)
 	 */
 	finish_emulate_nvm();
 	
+	uncore_clear_global_pmu(&uncore_pmu);
 	uncore_proc_remove();
 	uncore_imc_exit();
 	uncore_cpu_exit();
