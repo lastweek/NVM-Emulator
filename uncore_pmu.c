@@ -70,6 +70,55 @@ static int __always_unused uncore_pci_probe(struct pci_dev *dev,
 					    const struct pci_device_id *id)
 {return -EIO;}
 
+/**
+ * first_online_cpu_of_node
+ * @node:	The node to search
+ * @Return:	Positive-value on success
+ *
+ * Find the first online cpu within a physical node. Note that the cpumask of
+ * node only include online cpus, so there is no need to use cpumask_first_and
+ */
+static int first_online_cpu_of_node(unsigned int node)
+{
+	int cpu = -1;
+	const struct cpumask *mask;
+
+	mask = cpumask_of_node(node);
+	cpu = cpumask_first(mask);
+
+	if (cpu > nr_cpu_ids)
+		cpu = -1;
+	
+	return cpu;
+}
+
+/**
+ * uncore_call_function_on_node
+ * @node:	The node to run function
+ * @func:	The function to execute
+ * @info:	The info passed to function
+ * @wait:	If true, wait until function finished on other cpus
+ *
+ * Call a simple and fast function on a node. It can run on any online cpus
+ * within the node. This functions is a simple wrapper.
+ */
+static int uncore_call_function_on_node(unsigned int node,
+				void (*func)(void *info), void *info, int wait)
+{
+	int cpu, err;
+
+	if (node > nr_node_ids || !func)
+		return -EINVAL;
+
+	cpu = first_online_cpu_of_node(node);
+	if (cpu < 0)
+		return -ENXIO;
+
+	err = smp_call_function_single(cpu, func, info, wait);
+
+	return err;
+}
+
 int haha = 0;
 
 /*
@@ -174,34 +223,49 @@ struct uncore_box *uncore_get_first_box(struct uncore_box_type *type,
 	return NULL;
 }
 
-/**
- * uncore_show_global_pmu
- * @pmu:	the uncore_pmu in question
- *
- * Display the contents of the three global registers. Normally, every
- * microarchitecture has global registers including: CONTROL/STATUS/CONFIG.
- */
-static void uncore_show_global_pmu(struct uncore_pmu *pmu)
+static void __uncore_print_global_pmu(void *info)
 {
 	unsigned int config;
+	struct uncore_pmu *pmu;
 
-	pr_info("\033[31m------------------------ Global PMU ----------------------\033[0m");
-	pr_info("Name: %s", pmu->name);
+	pmu = (struct uncore_pmu *)info;
 	
 	/* Careful, invalid address would cause #GP */
 	if (pmu->global_ctl) {
 		rdmsrl(pmu->global_ctl, config);
-		pr_info("Uncore PMU Global Control: 0x%x", config);
+		pr_info("...... PMU Global Control: 0x%x", config);
 	}
 
 	if (pmu->global_status) {
 		rdmsrl(pmu->global_status, config);
-		pr_info("Uncore PMU Global Status:  0x%x", config);
+		pr_info("...... PMU Global Status:  0x%x", config);
 	}
 
 	if (pmu->global_config) {
 		rdmsrl(pmu->global_config, config);
-		pr_info("Uncore PMU Global Config:  0x%x", config);
+		pr_info("...... PMU Global Config:  0x%x", config);
+	}
+}
+
+/**
+ * uncore_print_global_pmu
+ * @pmu:	the uncore_pmu in question
+ *
+ * Display the contents of the three global registers. Normally, every
+ * microarchitecture has global registers including: CONTROL/STATUS/CONFIG.
+ * This function goes through all online nodes.
+ */
+static void uncore_print_global_pmu(struct uncore_pmu *pmu)
+{
+	unsigned int node;
+
+	pr_info("\033[34m------------------------ Global PMU ----------------------\033[0m");
+	pr_info("Description: %s", pmu->name);
+
+	for_each_online_node(node) {
+		pr_info("On Node %d:", node);
+		uncore_call_function_on_node(node, __uncore_print_global_pmu,
+				(void *)&uncore_pmu, 1);
 	}
 }
 
@@ -217,6 +281,7 @@ static void uncore_print_node_info(void)
 	int node, cpu;
 	const struct cpumask *mask;
 
+	pr_info("\033[34m------------------------ Node Info ----------------------\033[0m");
 	for_each_online_node(node) {
 		pr_info("Online Node %d", node);
 		mask = cpumask_of_node(node);
@@ -238,9 +303,9 @@ static void uncore_print_pci_boxes(void)
 	struct uncore_box *box;
 	int i;
 
+	pr_info("\033[34m------------------------ PCI Type Boxes ----------------------\033[0m");
 	for (i = 0; uncore_pci_type[i]; i++) {
 		type = uncore_pci_type[i];
-		pr_info("\n");
 		pr_info("PCI Type: %s Boxes: %d",
 			type->name,
 			list_empty(&type->box_list)? 0: type->num_boxes);
@@ -257,6 +322,7 @@ static void uncore_print_pci_boxes(void)
 			(box->pdev->devfn) & 0x7,
 			box->pdev->dev.kobj.kref.refcount.counter);
 		}
+		pr_info("\n");
 	}
 }
 
@@ -270,8 +336,7 @@ static void uncore_print_pci_mapping(void)
 {
 	int bus;
 
-	pr_info("\n");
-	pr_info("PCI BUS Number to NodeID Mapping:");
+	pr_info("\033[34m------------------------ PCI Bus No. Mapping ----------------------\033[0m");
 	for (bus = 0; bus < 256; bus++) {
 		if (uncore_pcibus_to_nodeid[bus] != -1) {
 			pr_info("......BUS %d (0x%x) <---> NODE %d",
@@ -292,9 +357,9 @@ static void uncore_print_msr_boxes(void)
 	struct uncore_box *box;
 	int i;
 	
+	pr_info("\033[34m------------------------ MSR Type Boxes ----------------------\033[0m");
 	for (i = 0; uncore_msr_type[i]; i++) {
 		type = uncore_msr_type[i];
-		pr_info("\n");
 		pr_info("MSR Type: %s Boxes: %d", type->name,
 			list_empty(&type->box_list)?0:type->num_boxes);
 
@@ -303,6 +368,7 @@ static void uncore_print_msr_boxes(void)
 			box->idx,
 			box->nodeid);
 		}
+		pr_info("\n");
 	}
 }
 
@@ -546,7 +612,7 @@ static int uncore_init(void)
 {
 	int ret;
 
-	pr_info("\033[31mINIT ON CPU %2d (NODE %2d)\033[0m",
+	pr_info("\033[34mINIT ON CPU %2d (NODE %2d)\033[0m",
 		smp_processor_id(), numa_node_id());
 
 	ret = uncore_pci_init();
@@ -569,6 +635,7 @@ static int uncore_init(void)
 	 * Pay attention to these messages
 	 * Check if everything goes as expected
 	 */
+	uncore_print_global_pmu(&uncore_pmu);
 	uncore_print_node_info();
 	uncore_print_msr_boxes();
 	uncore_print_pci_boxes();
@@ -603,7 +670,7 @@ static void uncore_exit(void)
 	uncore_cpu_exit();
 	uncore_pci_exit();
 	
-	pr_info("\033[31mEXIT ON CPU %2d (NODE %2d)\033[0m",
+	pr_info("\033[34mEXIT ON CPU %2d (NODE %2d)\033[0m",
 		smp_processor_id(), numa_node_id());
 }
 
