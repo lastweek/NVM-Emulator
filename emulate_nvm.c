@@ -27,34 +27,17 @@
 
 extern struct uncore_event ha_requests_local_reads;
 
-u64 nvm_hrtimer_duration = 1000000 * 500;
-static unsigned int emulate_nvm_cpu = 2;
+u64 emulate_nvm_hrtimer_duration;
+unsigned int emulate_nvm_cpu;
 static bool latency_started = false;
+
 struct uncore_box *HA_Box_0, *HA_Box_1;
 struct uncore_box *U_Box_0, *U_Box_1;
 struct uncore_event *event;
 
-static void start_emulate_bandwidth(void)
-{
-	/*
-	 * Default to full bandwidth
-	 */
-	uncore_imc_set_threshold_all(1);
-
-	/*
-	 * Enable throttling at all nodes
-	 */
-	uncore_imc_enable_throttle_all();
-}
-
-static void finish_emulate_bandwidth(void)
-{
-	/*
-	 * Disable throttling at all nodes
-	 */
-	uncore_imc_disable_throttle_all();
-}
-
+/*
+ *
+ */
 static void emulate_nvm_func(void *info)
 {
 	u64 delay_ns = *(u64 *)info;
@@ -62,6 +45,9 @@ static void emulate_nvm_func(void *info)
 	pr_info("on cpu %d, delay_ns=%llu", smp_processor_id(), delay_ns);
 }
 
+/*
+ *
+ */
 static u64 counts_to_delay_ns(u64 counts)
 {
 	u64 delay_ns;
@@ -76,26 +62,29 @@ static enum hrtimer_restart emulate_nvm_hrtimer(struct hrtimer *hrtimer)
 	struct uncore_box *box;
 	u64 counts, delay_ns;
 	
-	pr_info("\033[31m--------------------\033[0m");
-
 	box = container_of(hrtimer, struct uncore_box, hrtimer);
 	
-	/*
+	/* Step I:
 	 * a) Freeze counter
 	 * b) Read counter
-	 * c) Clear counter
 	 */
 	uncore_disable_box(box);
 	uncore_read_counter(box, &counts);
-	uncore_write_counter(box, 0);
 
-	/*
+	/* Step II:
 	 * a) Translate counts to real additional delay
 	 * b) Send delay function to remote emulating cpu
 	 */
 	delay_ns = counts_to_delay_ns(counts);
-	smp_call_function_single(emulate_nvm_cpu, emulate_nvm_func, (void *)delay_ns, 1);
+	smp_call_function_single(emulate_nvm_cpu, emulate_nvm_func, &delay_ns, 1);
 
+	/* Step III:
+	 * a) Clear counter
+	 * b) Enable counting
+	 */
+	uncore_write_counter(box, 0);
+	uncore_enable_box(box);
+	
 	uncore_show_box(box);
 
 	hrtimer_forward_now(hrtimer, ns_to_ktime(box->hrtimer_duration));
@@ -162,8 +151,8 @@ static void start_emulate_latency(void)
 	 */
 	uncore_box_change_hrtimer(HA_Box_0, emulate_nvm_hrtimer);
 	uncore_box_change_hrtimer(HA_Box_1, emulate_nvm_hrtimer);
-	uncore_box_change_duration(HA_Box_0, nvm_hrtimer_duration);
-	uncore_box_change_duration(HA_Box_1, nvm_hrtimer_duration);
+	uncore_box_change_duration(HA_Box_0, emulate_nvm_hrtimer_duration);
+	uncore_box_change_duration(HA_Box_1, emulate_nvm_hrtimer_duration);
 	uncore_box_start_hrtimer(HA_Box_0);
 	uncore_box_start_hrtimer(HA_Box_1);
 
@@ -198,8 +187,32 @@ static void finish_emulate_latency(void)
 	}
 }
 
+static void start_emulate_bandwidth(void)
+{
+	/*
+	 * Default to full bandwidth
+	 */
+	uncore_imc_set_threshold_all(1);
+
+	/*
+	 * Enable throttling at all nodes
+	 */
+	uncore_imc_enable_throttle_all();
+}
+
+static void finish_emulate_bandwidth(void)
+{
+	/*
+	 * Disable throttling at all nodes
+	 */
+	uncore_imc_disable_throttle_all();
+}
+
 void start_emulate_nvm(void)
 {
+	emulate_nvm_hrtimer_duration	= 1000000 * 500;
+	emulate_nvm_cpu			= 0;
+
 	start_emulate_bandwidth();
 	start_emulate_latency();
 }
