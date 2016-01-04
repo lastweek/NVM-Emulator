@@ -16,6 +16,8 @@
  *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#define pr_fmt(fmt) "Emulate: " fmt
+
 #include "uncore_pmu.h"
 
 #include <linux/delay.h>
@@ -27,8 +29,15 @@
 
 extern struct uncore_event ha_requests_local_reads;
 
-u64 emulate_nvm_hrtimer_duration;
+u64 dram_read_latency_ns;
+u64 nvm_read_latency_ns;
+u64 read_latency_delta_ns;
+
 unsigned int emulate_nvm_cpu;
+unsigned int emulate_nvm_node;
+
+u64 emulate_nvm_hrtimer_duration;
+
 static bool latency_started = false;
 
 struct uncore_box *HA_Box_0, *HA_Box_1;
@@ -45,16 +54,9 @@ static void emulate_nvm_func(void *info)
 	pr_info("on cpu %d, delay_ns=%llu", smp_processor_id(), delay_ns);
 }
 
-/*
- *
- */
-static u64 counts_to_delay_ns(u64 counts)
+static inline u64 counts_to_delay_ns(u64 counts)
 {
-	u64 delay_ns;
-
-	delay_ns = counts;
-
-	return delay_ns;
+	return (counts * read_latency_delta_ns);
 }
 
 static enum hrtimer_restart emulate_nvm_hrtimer(struct hrtimer *hrtimer)
@@ -85,10 +87,9 @@ static enum hrtimer_restart emulate_nvm_hrtimer(struct hrtimer *hrtimer)
 	uncore_write_counter(box, 0);
 	uncore_enable_box(box);
 	
-	uncore_show_box(box);
+	//uncore_show_box(box);
 
 	hrtimer_forward_now(hrtimer, ns_to_ktime(box->hrtimer_duration));
-
 	return HRTIMER_RESTART;
 }
 
@@ -119,27 +120,14 @@ static void start_emulate_latency(void)
 
 	/*
 	 * a) Init and reset box
-	 */
-	uncore_init_box(HA_Box_0);
-	uncore_init_box(HA_Box_1);
-	
-	/*
 	 * b) Freeze counter
-	 */
-	uncore_disable_box(HA_Box_0);
-	uncore_disable_box(HA_Box_1);
-
-	/*
 	 * c) Set and enable event
-	 */
-	uncore_enable_event(HA_Box_0, event);
-	uncore_enable_event(HA_Box_1, event);
-	
-	/*
 	 * d) Un-Freeze, start counting
 	 */
+	uncore_init_box(HA_Box_0);
+	uncore_disable_box(HA_Box_0);
+	uncore_enable_event(HA_Box_0, event);
 	uncore_enable_box(HA_Box_0);
-	uncore_enable_box(HA_Box_1);
 	
 	/*
 	 * In emulating latency part, the most important thing
@@ -208,17 +196,62 @@ static void finish_emulate_bandwidth(void)
 	uncore_imc_disable_throttle_all();
 }
 
+void show_emulate_parameter(void)
+{
+	pr_info("------------------------ Emulation Parameters ----------------------");
+	pr_info("Hrtimer Duration: %llu ns\n", emulate_nvm_hrtimer_duration);
+	pr_info("Emulated CPU %2d (Node %2d)", emulate_nvm_cpu, emulate_nvm_node);
+	
+	pr_info("Latency Model:");
+	pr_info("\t--------------------");
+	pr_info("\t|_______| Read (ns) |");
+	pr_info("\t| NVM   |    %3llu    |", nvm_read_latency_ns);
+	pr_info("\t| DRAM  |    %3llu    |", dram_read_latency_ns);
+	pr_info("\t| Delta |    %3llu    |", read_latency_delta_ns);
+	pr_info("\t--------------------");
+}
+
+static void check_platform_configuration(void)
+{
+
+}
+
 void start_emulate_nvm(void)
 {
-	emulate_nvm_hrtimer_duration	= 1000000 * 500;
-	emulate_nvm_cpu			= 0;
+	/*
+	 * Memory Latency Model
+	 */
+	dram_read_latency_ns  = 100;
+	nvm_read_latency_ns   = 300;
+	read_latency_delta_ns = 200;
 
+	/*
+	 * The CPU core used to emulate nvm
+	 * and which node this CPU belongs
+	 */
+	emulate_nvm_cpu = 0;
+	emulate_nvm_node = cpu_to_node(emulate_nvm_cpu);
+
+	/*
+	 * Hrtimer forward duration (ns)
+	 */
+	emulate_nvm_hrtimer_duration = 1000000 * 500;
+
+	show_emulate_parameter();
+	
+	pr_info("Checking platform Configuration...");
+	check_platform_configuration();
+	
+	pr_info("Start emulating bandwidth...");
 	start_emulate_bandwidth();
+	
+	pr_info("Start emulating latency...");
 	start_emulate_latency();
 }
 
 void finish_emulate_nvm(void)
 {
+	pr_info("Finish emulating NVM...");
 	finish_emulate_bandwidth();
 	finish_emulate_latency();
 }
