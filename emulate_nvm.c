@@ -115,7 +115,7 @@ static enum hrtimer_restart emulate_nvm_hrtimer(struct hrtimer *hrtimer)
 	return HRTIMER_RESTART;
 }
 
-static void start_emulate_latency(void)
+static int start_emulate_latency(void)
 {
 	/*
 	 * Home Agent: (Box0, Node0), (Box0, Node1)
@@ -124,7 +124,7 @@ static void start_emulate_latency(void)
 	HA_Box_1 = uncore_get_first_box(uncore_pci_type[UNCORE_PCI_HA_ID], 1);
 	if (!HA_Box_0 || !HA_Box_1) {
 		pr_err("Get HA Box Failed");
-		return;
+		return -ENXIO;
 	}
 	
 	event = &ha_requests_remote_reads;
@@ -154,6 +154,8 @@ static void start_emulate_latency(void)
 	uncore_box_start_hrtimer(HA_Box_1);
 
 	latency_started = true;
+
+	return 0;
 }
 
 static void finish_emulate_latency(void)
@@ -184,7 +186,7 @@ static void finish_emulate_latency(void)
 	}
 }
 
-static void start_emulate_bandwidth(void)
+static int start_emulate_bandwidth(void)
 {
 	/*
 	 * Default to full bandwidth
@@ -195,6 +197,8 @@ static void start_emulate_bandwidth(void)
 	 * Enable throttling at all nodes
 	 */
 	uncore_imc_enable_throttle_all();
+
+	return 0;
 }
 
 static void finish_emulate_bandwidth(void)
@@ -208,7 +212,8 @@ static void finish_emulate_bandwidth(void)
 void show_emulate_parameter(void)
 {
 	pr_info("------------------------ Emulation Parameters ----------------------");
-	pr_info("Hrtimer Duration: %llu ns\n", emulate_nvm_hrtimer_duration_ns);
+	pr_info("Hrtimer Duration: %llu ns (%llu ms)\n", emulate_nvm_hrtimer_duration_ns,
+		emulate_nvm_hrtimer_duration_ns/1000000);
 	pr_info("Polling CPU:  CPU%2d (Node %2d)", polling_cpu, polling_node);
 	pr_info("Emulated CPU: CPU%2d (Node %2d)", emulate_nvm_cpu, emulate_nvm_node);
 	
@@ -222,11 +227,18 @@ void show_emulate_parameter(void)
 	pr_info("------------------------ Emulation Parameters ----------------------");
 }
 
-static void prepare_platform_configuration(void)
+static int prepare_platform_configuration(void)
 {
 	int cpu;
 	const struct cpumask *mask;
 	
+	cpu = smp_processor_id();
+	if (cpu != polling_cpu) {
+		pr_info("\033[31mERROR: current cpu is %2d, not polling cpu %2d\033[0m",
+			cpu, polling_cpu);
+		return -1;
+	}
+
 	/*
  	 * In hybrid-memory configuration model, CPUs except the
 	 * emulating one must be offlined. We have to do this because
@@ -240,11 +252,18 @@ static void prepare_platform_configuration(void)
 			cpu_down(cpu);
 	}
 
+	/*
+	 * Hmm, this could be a little strict. All CPUs of polling node
+	 * except the polling cpu should be offlined, too. It is OK if
+	 * they are still online, however...
+	 */
 	mask = cpumask_of_node(polling_node);
 	for_each_cpu(cpu, mask) {
 		if (cpu != polling_cpu)
 			cpu_down(cpu);
 	}
+
+	return 0;
 }
 
 static void restore_platform_configuration(void)
@@ -267,6 +286,8 @@ static void restore_platform_configuration(void)
 
 void start_emulate_nvm(void)
 {
+	int ret;
+
 	/*
 	 * Memory Latency Model
 	 */
@@ -283,7 +304,7 @@ void start_emulate_nvm(void)
 	 */
 	polling_cpu = 6;
 	emulate_nvm_cpu = 0;
-	
+
 	polling_node = cpu_to_node(polling_cpu);
 	emulate_nvm_node = cpu_to_node(emulate_nvm_cpu);
 
@@ -294,21 +315,34 @@ void start_emulate_nvm(void)
 	emulate_nvm_hrtimer_duration_ns = 1000000 * 100;
 
 	show_emulate_parameter();
-	
+
+	ret = prepare_platform_configuration();
+	if (ret) {
+		pr_info("Preparing platform... \033[31mFAIL\033[0m");
+		return;
+	}
 	pr_info("Preparing platform... \033[32mOK\033[0m");
-	prepare_platform_configuration();
 	
-	pr_info("Start emulating bandwidth... \033[32mOK\033[0m");
-	start_emulate_bandwidth();
+	ret = start_emulate_bandwidth();
+	if (ret) {
+		pr_info("Emulating bandwidth... \033[31mFAIL\033[0m");
+		return;
+	}
+	pr_info("Emulating bandwidth... \033[32mOK\033[0m");
 	
-	pr_info("Start emulating latency... \033[32mOK\033[0m");
-	start_emulate_latency();
+	ret = start_emulate_latency();
+	if (ret){
+		finish_emulate_bandwidth();
+		pr_info("Emulating latency... \033[31mFAIL\033[0m");
+		return;
+	}
+	pr_info("Emulating latency... \033[32mOK\033[0m");
 }
 
 void finish_emulate_nvm(void)
 {
-	pr_info("Finish emulating NVM... \033[32mOK\033[0m");
 	restore_platform_configuration();
 	finish_emulate_bandwidth();
 	finish_emulate_latency();
+	pr_info("Finish emulating NVM... \033[32mOK\033[0m");
 }
