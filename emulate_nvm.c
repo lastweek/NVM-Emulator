@@ -28,7 +28,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 
-/* Xeon E5 Home agent events */
+/* TODO more general. */
 extern struct uncore_event ha_requests_local_reads;
 extern struct uncore_event ha_requests_remote_reads;
 
