@@ -18,3 +18,6 @@
 
 void start_emulate_nvm(void);
 void finish_emulate_nvm(void);
+
+int emulate_nvm_proc_create(void);
+void emulate_nvm_proc_remove(void);

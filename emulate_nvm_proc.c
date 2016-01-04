@@ -16,7 +16,6 @@
  *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include "uncore_pmu.h"
 #include "emulate_nvm.h"
 
 #include <asm/uaccess.h>
@@ -29,3 +28,68 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 
+extern u64 read_latency_delta_ns;
+extern u64 hrtimer_jiffies;
+
+u64 proc_counts;
+
+static int emulate_nvm_proc_show(struct seq_file *m, void *v)
+{
+	seq_printf(m, "this moment, counts=%llu, delay_ns=%llu",
+			proc_counts, proc_counts*read_latency_delta_ns);
+	
+	seq_printf(m, "total jiffies = %llu", hrtimer_jiffies);
+	
+	return 0;
+}
+
+static int emulate_nvm_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, emulate_nvm_proc_show, NULL);
+}
+
+static ssize_t emulate_nvm_proc_write(struct file *file, const char __user *buf,
+				   size_t count, loff_t *offs)
+{
+	char ctl[2];
+	
+	if (count !=2 || *offs)
+		return -EINVAL;
+	
+	if (copy_from_user(ctl, buf, count))
+		return -EFAULT;
+	
+	switch (ctl[0]) {
+		/*TODO modify parameters */
+		default:
+			count = -EINVAL;
+	}
+
+	return count;
+}
+
+const struct file_operations emulate_nvm_proc_fops = {
+	.open		= emulate_nvm_proc_open,
+	.read		= seq_read,
+	.write		= emulate_nvm_proc_write,
+	.llseek		= seq_lseek,
+	.release	= single_release
+};
+
+static bool is_proc_registed = false;
+
+int __must_check emulate_nvm_proc_create(void)
+{
+	if (proc_create("emulate_nvm", 0444, NULL, &emulate_nvm_proc_fops)) {
+		is_proc_registed = true;
+		return 0;
+	}
+
+	return -ENOENT;
+}
+
+void emulate_nvm_proc_remove(void)
+{
+	if (is_proc_registed)
+		remove_proc_entry("emulate_nvm", NULL);
+}

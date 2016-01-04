@@ -31,6 +31,7 @@ uncore-y += uncore_imc.o
 uncore-y += uncore_proc.o
 uncore-y += uncore_hswep.o
 uncore-y += emulate_nvm.o
+uncore-y += emulate_nvm_proc.o
 
 KERNEL_VERSION = /lib/modules/$(shell uname -r)/build/
 

@@ -19,6 +19,7 @@
 #define pr_fmt(fmt) fmt
 
 #include "uncore_pmu.h"
+#include "emulate_nvm.h"
 
 #include <linux/cpu.h>
 #include <linux/delay.h>
@@ -44,6 +45,9 @@ unsigned int emulate_nvm_node;
 
 u64 emulate_nvm_hrtimer_duration_ns;
 
+u64 hrtimer_jiffies;
+
+static bool emulation_started = false;
 static bool latency_started = false;
 static struct uncore_box *HA_Box_0, *HA_Box_1;
 static struct uncore_event *event;
@@ -74,6 +78,8 @@ static inline u64 counts_to_delay_ns(u64 counts)
 	return (counts * read_latency_delta_ns);
 }
 
+extern u64 proc_counts;
+
 static enum hrtimer_restart emulate_nvm_hrtimer(struct hrtimer *hrtimer)
 {
 	struct uncore_box *box;
@@ -88,6 +94,7 @@ static enum hrtimer_restart emulate_nvm_hrtimer(struct hrtimer *hrtimer)
 	 */
 	uncore_disable_box(box);
 	uncore_read_counter(box, &counts);
+	proc_counts = counts;
 
 	/*
 	 * Step II:
@@ -96,13 +103,13 @@ static enum hrtimer_restart emulate_nvm_hrtimer(struct hrtimer *hrtimer)
 	 */
 	delay_ns = counts_to_delay_ns(counts);
 	smp_call_function_single(emulate_nvm_cpu, emulate_nvm_func, &delay_ns, 1);
-	
+
 	#ifdef verbose
 	pr_info("on cpu %d, delay_ns=%llu, udelay=%llu", smp_processor_id(), delay_ns,
 			delay_ns/1000);
 	uncore_show_box(box);
 	#endif
-	
+
 	/*
 	 * Step III:
 	 * a) Clear counter
@@ -110,7 +117,9 @@ static enum hrtimer_restart emulate_nvm_hrtimer(struct hrtimer *hrtimer)
 	 */
 	uncore_write_counter(box, 0);
 	uncore_enable_box(box);
-	
+
+	hrtimer_jiffies++;
+
 	hrtimer_forward_now(hrtimer, ns_to_ktime(box->hrtimer_duration));
 	return HRTIMER_RESTART;
 }
@@ -316,6 +325,10 @@ void start_emulate_nvm(void)
 
 	show_emulate_parameter();
 
+	ret = emulate_nvm_proc_create();
+	if (!ret)
+		pr_info("Creating /proc/emulate_nvm... \033[32mOK\033[0m");
+
 	ret = prepare_platform_configuration();
 	if (ret) {
 		pr_info("Preparing platform... \033[31mFAIL\033[0m");
@@ -337,12 +350,18 @@ void start_emulate_nvm(void)
 		return;
 	}
 	pr_info("Emulating latency... \033[32mOK\033[0m");
+
+	emulation_started = true;
 }
 
 void finish_emulate_nvm(void)
 {
-	restore_platform_configuration();
-	finish_emulate_bandwidth();
-	finish_emulate_latency();
-	pr_info("Finish emulating NVM... \033[32mOK\033[0m");
+	if (emulation_started) {
+		emulate_nvm_proc_remove();
+		restore_platform_configuration();
+		finish_emulate_bandwidth();
+		finish_emulate_latency();
+		pr_info("Finish emulating NVM... \033[32mOK\033[0m");
+		emulation_started = false;
+	}
 }
