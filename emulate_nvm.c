@@ -27,6 +27,8 @@
 
 extern struct uncore_event ha_requests_local_reads;
 
+u64 nvm_hrtimer_duration = 1000000 * 500;
+static unsigned int emulate_nvm_cpu = 2;
 static bool latency_started = false;
 struct uncore_box *HA_Box_0, *HA_Box_1;
 struct uncore_box *U_Box_0, *U_Box_1;
@@ -53,14 +55,48 @@ static void finish_emulate_bandwidth(void)
 	uncore_imc_disable_throttle_all();
 }
 
-static enum hrtimer_restart emulate_hrtimer(struct hrtimer *hrtimer)
+static void emulate_nvm_func(void *info)
 {
-	u64 value;
+	u64 delay_ns = *(u64 *)info;
+
+	pr_info("on cpu %d, delay_ns=%llu", smp_processor_id(), delay_ns);
+}
+
+static u64 counts_to_delay_ns(u64 counts)
+{
+	u64 delay_ns;
+
+	delay_ns = counts;
+
+	return delay_ns;
+}
+
+static enum hrtimer_restart emulate_nvm_hrtimer(struct hrtimer *hrtimer)
+{
 	struct uncore_box *box;
+	u64 counts, delay_ns;
+	
+	pr_info("\033[31m--------------------\033[0m");
 
 	box = container_of(hrtimer, struct uncore_box, hrtimer);
+	
+	/*
+	 * a) Freeze counter
+	 * b) Read counter
+	 * c) Clear counter
+	 */
+	uncore_disable_box(box);
+	uncore_read_counter(box, &counts);
+	uncore_write_counter(box, 0);
+
+	/*
+	 * a) Translate counts to real additional delay
+	 * b) Send delay function to remote emulating cpu
+	 */
+	delay_ns = counts_to_delay_ns(counts);
+	smp_call_function_single(emulate_nvm_cpu, emulate_nvm_func, (void *)delay_ns, 1);
+
 	uncore_show_box(box);
-	pr_info("%d", haha++);
 
 	hrtimer_forward_now(hrtimer, ns_to_ktime(box->hrtimer_duration));
 
@@ -79,7 +115,7 @@ static void start_emulate_latency(void)
 		return;
 	}
 	
-	/*
+	/* XXX
 	 * U-Box: (Box0, Node0), (Box0, Node1)
 	 */
 	U_Box_0 = uncore_get_first_box(uncore_msr_type[UNCORE_MSR_UBOX_ID], 0);
@@ -88,9 +124,6 @@ static void start_emulate_latency(void)
 		return;
 	}
 
-	/*
-	 * Bind this event
-	 */
 	event = &ha_requests_local_reads;
 	uncore_box_bind_event(HA_Box_0, event);
 	uncore_box_bind_event(HA_Box_1, event);
@@ -127,10 +160,10 @@ static void start_emulate_latency(void)
 	 * to the emulating core, to emulate the slow read latency
 	 * of NVM. Not so hard, huh?
 	 */
-	uncore_box_change_hrtimer(HA_Box_0, emulate_hrtimer);
-	uncore_box_change_hrtimer(HA_Box_1, emulate_hrtimer);
-	uncore_box_change_duration(HA_Box_0, 1000000*100);
-	uncore_box_change_duration(HA_Box_1, 1000000*100);
+	uncore_box_change_hrtimer(HA_Box_0, emulate_nvm_hrtimer);
+	uncore_box_change_hrtimer(HA_Box_1, emulate_nvm_hrtimer);
+	uncore_box_change_duration(HA_Box_0, nvm_hrtimer_duration);
+	uncore_box_change_duration(HA_Box_1, nvm_hrtimer_duration);
 	uncore_box_start_hrtimer(HA_Box_0);
 	uncore_box_start_hrtimer(HA_Box_1);
 
@@ -147,17 +180,19 @@ static void finish_emulate_latency(void)
 		uncore_box_cancel_hrtimer(HA_Box_1);
 
 		/*
-		 * Freeze these boxes
+		 * Show some information, if you wanna
 		 */
 		uncore_disable_box(HA_Box_0);
-		uncore_disable_box(HA_Box_1);
-		
-		/*
-		 * Show some information
-		 */
-		uncore_print_global_pmu(&uncore_pmu);
 		uncore_show_box(HA_Box_0);
+		uncore_disable_box(HA_Box_1);
 		uncore_show_box(HA_Box_1);
+		uncore_print_global_pmu(&uncore_pmu);
+
+		/*
+		 * Clear these boxes and exit
+		 */
+		uncore_clear_box(HA_Box_0);
+		uncore_clear_box(HA_Box_1);
 
 		latency_started = false;
 	}

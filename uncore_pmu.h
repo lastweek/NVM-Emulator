@@ -119,6 +119,7 @@ struct uncore_box {
 struct uncore_box_ops {
 	void (*show_box)(struct uncore_box *box);
 	void (*init_box)(struct uncore_box *box);
+	void (*clear_box)(struct uncore_box *box);
 	void (*enable_box)(struct uncore_box *box);
 	void (*disable_box)(struct uncore_box *box);
 	void (*enable_event)(struct uncore_box *box, struct uncore_event *event);
@@ -337,6 +338,20 @@ static inline void uncore_init_box(struct uncore_box *box)
 {
 	if (box->box_type->ops->init_box)
 		box->box_type->ops->init_box(box);
+}
+
+/**
+ * uncore_clear_box
+ * @box:	the box to clear
+ *
+ * Clear control and counter registers of this box. Normally, it is the same
+ * method with init_box. We have this function because the name 'clear' is more
+ * proper when exit some monitoring session.
+ */
+static inline void uncore_clear_box(struct uncore_box *box)
+{
+	if (box->box_type->ops->clear_box)
+		box->box_type->ops->clear_box(box);
 }
 
 /**

@@ -257,6 +257,7 @@ static void hswep_uncore_msr_read_counter(struct uncore_box *box, u64 *value)
 #define HSWEP_UNCORE_MSR_BOX_OPS()				\
 	.show_box	= hswep_uncore_msr_show_box,		\
 	.init_box	= hswep_uncore_msr_init_box,		\
+	.clear_box	= hswep_uncore_msr_init_box,		\
 	.enable_box	= hswep_uncore_msr_enable_box,		\
 	.disable_box	= hswep_uncore_msr_disable_box,		\
 	.enable_event	= hswep_uncore_msr_enable_event,	\
@@ -474,6 +475,7 @@ static void hswep_uncore_pci_read_counter(struct uncore_box *box, u64 *value)
 #define HSWEP_UNCORE_PCI_BOX_OPS()				\
 	.show_box	= hswep_uncore_pci_show_box,		\
 	.init_box	= hswep_uncore_pci_init_box,		\
+	.clear_box	= hswep_uncore_pci_init_box,		\
 	.enable_box	= hswep_uncore_pci_enable_box,		\
 	.disable_box	= hswep_uncore_pci_disable_box,		\
 	.enable_event	= hswep_uncore_pci_enable_event,	\
