@@ -1,0 +1,41 @@
+# Gnuplot script
+# Wed Jan  6 14:21:20 CST 2016
+
+clear
+reset
+unset key
+
+# Rotate x axis label
+set xtics nomirror rotate by -45
+
+# Plot horizontal dotted lines
+set grid y
+set auto y
+
+# Set each coluemn's title label
+set key top left outside horizontal autotitle columnhead
+
+set key autotitle columnhead
+
+# Make some gap between the histogram boxes
+set boxwidth 0.8 relative
+
+# Give the histogram boxes a solid border
+set style fill solid border -1
+
+# Select histogram mode
+set style data histogram
+
+# Select clustered histogram
+set style histogram clustered gap 1 title offset 2,0.25
+
+set title "SPEC2006 Runtime (s) with different memory" 
+
+#plot for [COL=2:16] 'spec_runtime.dat' using COL:xticlabels(1) title columnheader
+plot \
+newhistogram "Full Bandwidth", \
+for [COL=2:4] 'spec-hybrid.dat' using COL:xtic(1) title columnheader, \
+newhistogram "Half Bandwidth", \
+for [COL=5:7] 'spec-hybrid.dat' using COL:xtic(1) title columnheader, \
+newhistogram "Quarter Bandwidth", \
+for [COL=8:10] 'spec-hybrid.dat' using COL:xtic(1) title columnheader \

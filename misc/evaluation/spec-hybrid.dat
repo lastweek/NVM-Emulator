@@ -1,0 +1,14 @@
+# Copyright (C) 2016 Yizhou Shan <shanyizhou@ict.ac.cn>
+#
+# Data: SPEC2006 reported runtime (s)
+#
+# 1-DRAM:	1/1 bandwidth, pure DRAM
+# 2-NVM:	1/2 bandwidth, pure NVM
+# 4-Hybrid:	1/4 bandwidth, hybrid DRAM and NVM. (Policy is interleave)
+
+SPEC     1-DRAM   1-NVM   1-Hybrid       2-DRAM   2-NVM   2-Hybind       4-DRAM    4-NVM   4-Hybrid
+GCC      268      996     793            275      1010    789            327       1030    811
+BZIP     424      463     445            425      463     446            425       463     446
+MCF      225      1610    1200           239      1610    1210           349       1630    1220
+BWAVES   506      2810    2200           652      2830    2240           1070      3750    2320
+MILC     464      3180    2660           542      3210    2690           893       3390    2810
