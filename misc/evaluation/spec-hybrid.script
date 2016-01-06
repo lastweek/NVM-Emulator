@@ -5,6 +5,9 @@ clear
 reset
 unset key
 
+#set terminal pngcairo size 1000,400
+#set output 'test.png'
+
 # Rotate x axis label
 set xtics nomirror rotate by -45
 
@@ -21,7 +24,8 @@ set key autotitle columnhead
 set boxwidth 0.8 relative
 
 # Give the histogram boxes a solid border
-set style fill solid border -1
+#set style fill solid border -1
+set style fill pattern border
 
 # Select histogram mode
 set style data histogram
@@ -29,13 +33,13 @@ set style data histogram
 # Select clustered histogram
 set style histogram clustered gap 1 title offset 2,0.25
 
-set title "SPEC2006 Runtime (s) with different memory" 
+set title "SPEC2006 Runtime(s) with different memory/bandwith" 
 
 #plot for [COL=2:16] 'spec_runtime.dat' using COL:xticlabels(1) title columnheader
 plot \
-newhistogram "Full Bandwidth", \
+newhistogram "1/1 Bandwidth" fs solid 2, \
 for [COL=2:4] 'spec-hybrid.dat' using COL:xtic(1) title columnheader, \
-newhistogram "Half Bandwidth", \
+newhistogram "1/2 Bandwidth" fs pattern 3, \
 for [COL=5:7] 'spec-hybrid.dat' using COL:xtic(1) title columnheader, \
-newhistogram "Quarter Bandwidth", \
+newhistogram "1/4 Bandwidth", \
 for [COL=8:10] 'spec-hybrid.dat' using COL:xtic(1) title columnheader \
