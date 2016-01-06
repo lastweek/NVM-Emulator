@@ -35,10 +35,10 @@ u64 proc_counts;
 
 static int emulate_nvm_proc_show(struct seq_file *m, void *v)
 {
-	seq_printf(m, "this moment, counts=%llu, delay_ns=%llu",
+	seq_printf(m, "this moment, counts=%llu, delay_ns=%llu\n",
 			proc_counts, proc_counts*read_latency_delta_ns);
 	
-	seq_printf(m, "total jiffies = %llu", hrtimer_jiffies);
+	seq_printf(m, "total jiffies = %llu\n", hrtimer_jiffies);
 	
 	return 0;
 }
