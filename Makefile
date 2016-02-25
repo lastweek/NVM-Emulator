@@ -18,11 +18,11 @@ obj-m    := uncore.o
 obj-m    += core.o
 obj-m	 += migrate.o
 
-# core pmu
+# composite core pmu
 core-y   := core_pmu.o
 core-y   += core_proc.o
 
-# uncore pmu
+# composite uncore pmu
 uncore-y := uncore_pmu.o
 uncore-y += uncore_imc.o
 uncore-y += uncore_proc.o

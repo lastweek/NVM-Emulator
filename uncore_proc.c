@@ -21,6 +21,7 @@
 #include "uncore_pmu.h"
 
 #include <asm/uaccess.h>
+
 #include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/mutex.h>

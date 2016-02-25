@@ -33,19 +33,20 @@
  *     events. Of course, i guess no one will do that. :) Use perf instead.
  */
 
-#include <linux/delay.h>
-#include <linux/hrtimer.h>
-#include <linux/init.h>
-#include <linux/kernel.h>
-#include <linux/ktime.h>
-#include <linux/list.h>
-#include <linux/module.h>
+#include <asm/nmi.h>
+
 #include <linux/pci.h>
+#include <linux/smp.h>
+#include <linux/init.h>
+#include <linux/list.h>
+#include <linux/delay.h>
+#include <linux/ktime.h>
+#include <linux/sched.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/percpu.h>
 #include <linux/string.h>
-#include <linux/smp.h>
-#include <linux/sched.h>
-#include <asm/nmi.h>
+#include <linux/hrtimer.h>
 
 #define __AC(X,Y)	(X##Y)
 

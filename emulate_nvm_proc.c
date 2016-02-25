@@ -19,10 +19,11 @@
 #include "emulate_nvm.h"
 
 #include <asm/uaccess.h>
-#include <linux/errno.h>
+
 #include <linux/list.h>
-#include <linux/types.h>
 #include <linux/init.h>
+#include <linux/errno.h>
+#include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/proc_fs.h>

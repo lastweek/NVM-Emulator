@@ -22,10 +22,10 @@
 #include "emulate_nvm.h"
 
 #include <linux/cpu.h>
-#include <linux/delay.h>
-#include <linux/list.h>
-#include <linux/types.h>
 #include <linux/init.h>
+#include <linux/list.h>
+#include <linux/delay.h>
+#include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 

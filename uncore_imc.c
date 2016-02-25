@@ -25,6 +25,7 @@
 #include "uncore_pmu.h"
 
 #include <asm/setup.h>
+
 #include <linux/bug.h>
 #include <linux/pci.h>
 #include <linux/list.h>

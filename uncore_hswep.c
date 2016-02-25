@@ -39,9 +39,10 @@
 #include "uncore_pmu.h"
 
 #include <asm/setup.h>
+
 #include <linux/pci.h>
-#include <linux/kernel.h>
 #include <linux/types.h>
+#include <linux/kernel.h>
 
 /* HSWEP MSR Box-Level Control Register Bit Layout */
 #define HSWEP_MSR_BOX_CTL_RST_CTRL	(1 << 0)	/* Reset Control */

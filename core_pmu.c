@@ -34,18 +34,18 @@
 
 #include "core_pmu.h"
 
+#include <asm/nmi.h>
+#include <asm/msr.h>
+
+#include <linux/smp.h>
 #include <linux/init.h>
+#include <linux/sched.h>
+#include <linux/delay.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/string.h>
-#include <linux/smp.h>
-#include <linux/sched.h>
 #include <linux/percpu.h>
 #include <linux/cpumask.h>
-#include <linux/delay.h>
-
-#include <asm/nmi.h>
-#include <asm/msr.h>
 
 #define __MSR_IA32_PMC0				0x0C1
 #define __MSR_IA32_PERFEVTSEL0			0x186

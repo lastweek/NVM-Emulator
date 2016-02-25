@@ -16,29 +16,19 @@
  *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+/*
+ * WARNING: Dangerous code, doublecheck before use it.
+ */
+
+#include <linux/smp.h>
 #include <linux/init.h>
+#include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/smp.h>
-#include <linux/types.h>
-#include <asm/io.h>
-#include <asm/fixmap.h>
-#include <asm/page.h>
 
-/*
- * Derived from arch/x86/cpu/apic/io_apic.c
- * It seems that kernel do _not_ want any module
- * to access or modify IO-APIC, because no useful
- * exported function or variable exsit in io_apic.c
- *
- * The IO_APIC_BASE() function is BUGGY. Because i
- * assume the base address is 0xfec00000, which may
- * be relocated by kernel(or BIOS?). The relocated
- * address seems to avaliable in MP table.
- *
- * For now, i have little understanding about IO-APIC,
- * and it is not well documented. FIX this code later.
- */
+#include <asm/io.h>
+#include <asm/page.h>
+#include <asm/fixmap.h>
 
 /*
  * The structure of the IO-APIC:

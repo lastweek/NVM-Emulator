@@ -24,10 +24,10 @@
 #include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/mutex.h>
-#include <linux/proc_fs.h>
-#include <linux/seq_file.h>
 #include <linux/mutex.h>
 #include <linux/percpu.h>
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 
 const char pmu_proc_format[] = "CPU %2d, NMI times = %lld\n";
 
