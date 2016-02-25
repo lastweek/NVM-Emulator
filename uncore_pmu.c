@@ -714,7 +714,7 @@ static void uncore_exit(void)
 	uncore_cpu_exit();
 	uncore_pci_exit();
 	
-	pr_info("\033[34mEXIT ON CPU %2d (NODE %2d)\033[0m",
+	pr_info("EXIT ON CPU %2d (NODE %2d)",
 		smp_processor_id(), numa_node_id());
 }
 

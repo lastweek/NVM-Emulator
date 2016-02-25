@@ -231,7 +231,7 @@ static int prepare_platform_configuration(void)
 	
 	cpu = smp_processor_id();
 	if (cpu != polling_cpu) {
-		pr_info("\033[31mERROR: current cpu is %2d, not polling cpu %2d\033[0m",
+		printk(KERN_CONT "ERROR: current CPU:%2d is not polling CPU:%2d... ",
 			cpu, polling_cpu);
 		return -1;
 	}
@@ -281,17 +281,10 @@ static void restore_platform_configuration(void)
 	}
 }
 
-#define pr_fail()	printk(KERN_CONT "\033[31m fail \033[0m")
-#define pr_okay()	printk(KERN_CONT "\033[32m okay \033[0m")
+#define pr_fail		printk(KERN_CONT "\033[31m fail \033[0m")
+#define pr_okay		printk(KERN_CONT "\033[32m okay \033[0m")
 
-#define pr_result(ret)		\
-do {				\
-	if (ret) {		\
-		pr_fail();	\
-		return;		\
-	}			\
-	pr_okay();		\
-} while (0)
+#define PR_RESULT()	(ret)? pr_fail: pr_okay
 
 void start_emulate_nvm(void)
 {
@@ -327,23 +320,37 @@ void start_emulate_nvm(void)
 
 	pr_info("creating /proc/emulate_nvm... ");
 	ret = emulate_nvm_proc_create();
-	pr_result(ret);
+	PR_RESULT();
+	if (ret)
+		return;
 
 	pr_info("preparing platform... ");
 	ret = prepare_platform_configuration();
-	pr_result(ret);
+	PR_RESULT();
+	if (ret)
+		goto out;
 	
 	pr_info("emulating bandwidth... ");
 	ret = start_emulate_bandwidth();
-	pr_result(ret);
+	PR_RESULT();
+	if (ret)
+		goto out1;
 	
 	pr_info("emulating latency... ");
 	ret = start_emulate_latency();
+	PR_RESULT();
 	if (ret)
-		finish_emulate_bandwidth();
-	pr_result(ret);
+		goto out2;
 
 	emulation_started = true;
+	return;
+
+out2:
+	finish_emulate_bandwidth();
+out1:
+	restore_platform_configuration();
+out:
+	emulate_nvm_proc_remove();
 }
 
 void finish_emulate_nvm(void)
