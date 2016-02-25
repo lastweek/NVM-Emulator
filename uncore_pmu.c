@@ -38,17 +38,17 @@
 
 #include <asm/setup.h>
 
-#include <linux/cpumask.h>
-#include <linux/errno.h>
-#include <linux/delay.h>
-#include <linux/slab.h>
 #include <linux/pci.h>
-#include <linux/list.h>
-#include <linux/types.h>
+#include <linux/slab.h>
 #include <linux/init.h>
+#include <linux/list.h>
+#include <linux/delay.h>
+#include <linux/errno.h>
+#include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/hrtimer.h>
+#include <linux/cpumask.h>
 
 /*
  * This is the top description of whole system uncore pmu resources.
