@@ -22,18 +22,8 @@
 #include <linux/module.h>
 #include <linux/hrtimer.h>
 
-static unsigned long migrate_threshold;
-static unsigned long timer_interval_ns;
-
-void set_migrate_threshold(unsigned long new)
-{
-	migrate_threshold = new;
-}
-
-void set_timer_interval_ns(unsigned long new)
-{
-	timer_interval_ns = new;
-}
+unsigned long migrate_threshold;
+unsigned long timer_interval_ns;
 
 /*
  * restart function, do things here.. 
@@ -46,39 +36,26 @@ static enum hrtimer_restart hrtimer_def(struct hrtimer *hrtimer)
 	return HRTIMER_RESTART;
 }
 
-static void migrate_init_hrtimer(struct hrtimer *timer)
-{
-	hrtimer_init(timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-	timer->function = hrtimer_def;
-}
-
-static void migrate_start_hrtimer(struct hrtimer *timer)
-{
-	/* time is relative to now, and is bound to cpu */
-	hrtimer_start(timer, ns_to_ktime(timer_interval_ns), HRTIMER_MODE_REL);
-}
-
-static void migrate_cancel_hrtimer(struct hrtimer *timer)
-{
-	hrtimer_cancel(timer);
-}
-
-struct hrtimer migrate_hrtimer;
+static struct hrtimer migrate_hrtimer;
 
 static int pm_init(void)
 {
 	timer_interval_ns = 1000000;
 	migrate_threshold = 1000;
 
-	migrate_init_hrtimer(&migrate_hrtimer);
-	migrate_start_hrtimer(&migrate_hrtimer);
+	/* init hrtimer */
+	hrtimer_init(&migrate_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	migrate_hrtimer.function = hrtimer_def;
+	
+	/* time is relative to now, and is bound to cpu */
+	hrtimer_start(&migrate_hrtimer, ns_to_ktime(timer_interval_ns), HRTIMER_MODE_REL);
 
 	return 0;
 }
 
 static void pm_exit(void)
 {
-	migrate_cancel_hrtimer(&migrate_hrtimer);
+	hrtimer_cancel(&migrate_hrtimer);
 }
 
 module_init(pm_init);
