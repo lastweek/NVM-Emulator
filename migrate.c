@@ -29,7 +29,6 @@ static pid_t pid;
 static unsigned long timer_interval_ns;
 static struct hrtimer migrate_hrtimer;
 
-/* It is x86 not ARM, son. */
 #define pte_accessed	pte_young
 
 #ifdef debug
@@ -38,6 +37,10 @@ static struct hrtimer migrate_hrtimer;
 #define DEBUG_INFO(format...) do { } while (0)
 #endif
 
+/*
+ * Each page should have a corresponding counter. The page
+ * should be migrated once the counter reaches threshold.
+ */
 static void collect_statistics(unsigned long pfn)
 {
 	/*
@@ -65,11 +68,8 @@ static unsigned long clear_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 			/*
 			 * The physical page, which this pte points to, has
 			 * been read or written to during this time period.
-			 * We need do two things here:
-			 *  - collect statistics
-			 *  - clear accessed bit
 			 */
-			MIGRATE_DEBUG("clear at: %#lx", addr);
+			MIGRATE_DEBUG("clear at pfn: %#lx", pte_pfn(ptecont));
 			collect_statistics(pte_pfn(ptecont));
 			pte_clear_flags(ptecont, _PAGE_ACCESSED)
 		}
@@ -112,7 +112,11 @@ static unsigned long clear_pud_range(struct vm_area_struct *vma, pgd_t *pgd,
 	return addr;
 }
 
-/* walking through page table */
+/*
+ * Walking through page table. It's expansive, absolutely.
+ * I do hope you can evaluate how expansive it is at your
+ * machine and tell me. :-)
+ */
 static void clear_page_range(struct vm_area_struct *vma)
 {
 	pgd_t *pgd;
@@ -135,29 +139,39 @@ static void clear_single_vma(struct vm_area_struct *vma)
 	clear_page_range(vma);
 }
 
-static void do_clear_and_migrate(struct task_struct *task)
+static enum hrtimer_restart hrtimer_def(struct hrtimer *hrtimer)
 {
-	struct mm_struct *mm = task->mm;
-	struct vm_area_struct *vma = mm->mmap;
+	struct vm_area_struct *vma;
+	struct task_struct *task;
+	struct mm_struct *mm;
 
-	/* have to hold the sem? better solution? */
+	/*
+	 * Currently, this demo assumes the userspace process: pid
+	 * is being monitored. You should make it more general and
+	 * be able to catch running process.
+	 */
+	task = find_task_by_vpid(pid);
+	if (unlikely(!task))
+		return HRTIMER_NORESTART;
+
+	mm = task->mm;
+	vma = mm->mmap;
+
+	/*
+	 * Maybe we should not hold the semaphore, since
+	 * the only thing we touch is the accessed bit.
+	 *
+	 * There is no need to flush TLB, since the accessed
+	 * bit will not cause inconsistency. On the other,
+	 * TLB flush is very expansive if we do it frequently.
+	 */
 	down_write(&mm->mmap_sem);
 	while (vma) {
 		clear_single_vma(vma);
 		vma = vma->next;
 	}
 	up_write(&mm->mmap_sem);
-}
 
-static enum hrtimer_restart hrtimer_def(struct hrtimer *hrtimer)
-{
-	struct task_struct *task;
-
-	task = find_task_by_vpid(pid);
-	if (unlikely(!task))
-		return HRTIMER_NORESTART;
-
-	do_clear_and_migrate(task);
 	hrtimer_forward_now(hrtimer, ns_to_ktime(timer_interval_ns));
 	return HRTIMER_RESTART
 }
