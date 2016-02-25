@@ -1,9 +1,3 @@
-#
-#	Makefile for PMU Modules of Linux
-#
-#	Build the core_pmu and uncore_pmu modules, both of them are composite
-#	modules. CPU-specific object is "plug-on", one is enough.
-#
 #	Copyright (C) 2015-2016 Yizhou Shan <shanyizhou@ict.ac.cn>
 #
 #	This program is free software; you can redistribute it and/or modify
@@ -22,10 +16,13 @@
 
 obj-m    := uncore.o
 obj-m    += core.o
+obj-m	 += migrate.o
 
+# core pmu
 core-y   := core_pmu.o
 core-y   += core_proc.o
 
+# uncore pmu
 uncore-y := uncore_pmu.o
 uncore-y += uncore_imc.o
 uncore-y += uncore_proc.o
