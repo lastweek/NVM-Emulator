@@ -170,24 +170,18 @@ static int start_emulate_latency(void)
 static void finish_emulate_latency(void)
 {
 	if (latency_started) {
-		/*
-		 * Cancel hrtimer
-		 */
+		/* cancel hrtimer */
 		uncore_box_cancel_hrtimer(HA_Box_0);
 		uncore_box_cancel_hrtimer(HA_Box_1);
 
-		/*
-		 * Show some information, if you wanna
-		 */
+		/* show some information, if you wanna */
 		uncore_disable_box(HA_Box_0);
 		uncore_show_box(HA_Box_0);
 		uncore_disable_box(HA_Box_1);
 		uncore_show_box(HA_Box_1);
 		uncore_print_global_pmu(&uncore_pmu);
 
-		/*
-		 * Clear these boxes and exit
-		 */
+		/* clear these boxes and exit */
 		uncore_clear_box(HA_Box_0);
 		uncore_clear_box(HA_Box_1);
 
@@ -197,14 +191,10 @@ static void finish_emulate_latency(void)
 
 static int start_emulate_bandwidth(void)
 {
-	/*
-	 * Default to full bandwidth
-	 */
+	/* default to full bandwidth */
 	uncore_imc_set_threshold_all(1);
 
-	/*
-	 * Enable throttling at all nodes
-	 */
+	/* enable throttling at all nodes */
 	uncore_imc_enable_throttle_all();
 
 	return 0;
@@ -212,9 +202,7 @@ static int start_emulate_bandwidth(void)
 
 static void finish_emulate_bandwidth(void)
 {
-	/*
-	 * Disable throttling at all nodes
-	 */
+	/* disable throttling at all nodes */
 	uncore_imc_disable_throttle_all();
 }
 
@@ -293,6 +281,18 @@ static void restore_platform_configuration(void)
 	}
 }
 
+#define pr_fail()	printk(KERN_CONT "\033[31m fail \033[0m")
+#define pr_okay()	printk(KERN_CONT "\033[32m okay \033[0m")
+
+#define pr_result(ret)		\
+do {				\
+	if (ret) {		\
+		pr_fail();	\
+		return;		\
+	}			\
+	pr_okay();		\
+} while (0)
+
 void start_emulate_nvm(void)
 {
 	int ret;
@@ -325,31 +325,23 @@ void start_emulate_nvm(void)
 
 	show_emulate_parameter();
 
+	pr_info("creating /proc/emulate_nvm... ");
 	ret = emulate_nvm_proc_create();
-	if (!ret)
-		pr_info("Creating /proc/emulate_nvm... \033[32mOK\033[0m");
+	pr_result(ret);
 
+	pr_info("preparing platform... ");
 	ret = prepare_platform_configuration();
-	if (ret) {
-		pr_info("Preparing platform... \033[31mFAIL\033[0m");
-		return;
-	}
-	pr_info("Preparing platform... \033[32mOK\033[0m");
+	pr_result(ret);
 	
+	pr_info("emulating bandwidth... ");
 	ret = start_emulate_bandwidth();
-	if (ret) {
-		pr_info("Emulating bandwidth... \033[31mFAIL\033[0m");
-		return;
-	}
-	pr_info("Emulating bandwidth... \033[32mOK\033[0m");
+	pr_result(ret);
 	
+	pr_info("emulating latency... ");
 	ret = start_emulate_latency();
-	if (ret){
+	if (ret)
 		finish_emulate_bandwidth();
-		pr_info("Emulating latency... \033[31mFAIL\033[0m");
-		return;
-	}
-	pr_info("Emulating latency... \033[32mOK\033[0m");
+	pr_result(ret);
 
 	emulation_started = true;
 }
@@ -361,7 +353,7 @@ void finish_emulate_nvm(void)
 		restore_platform_configuration();
 		finish_emulate_bandwidth();
 		finish_emulate_latency();
-		pr_info("Finish emulating NVM... \033[32mOK\033[0m");
+		pr_info("finish emulating nvm... ");
 		emulation_started = false;
 	}
 }
