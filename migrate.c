@@ -59,7 +59,7 @@ static void TIME_INFO(void)
 	if (!freq)
 		freq = cpu_khz;
 
-	pr_info("CPU MHz: %u.%03u", (freq / 1000), (freq %1000));
+	pr_info("CPU MHz: %u.%03u", (freq / 1000), (freq % 1000));
 	pr_info("Average tsc cycles: %lld, of %lld samples", average, c);
 	pr_info("Average page table walking time: %lld ns", (1000*average)/freq);
 }
@@ -198,7 +198,7 @@ static enum hrtimer_restart hrtimer_def(struct hrtimer *hrtimer)
 	 * the only thing we touch is the accessed bit.
 	 *
 	 * There is no need to flush TLB, since the accessed
-	 * bit will not cause inconsistency. On the other,
+	 * bit will not cause inconsistency. On the other hand,
 	 * TLB flush is very expansive if we do it frequently.
 	 */
 	GET_START_TIME();
