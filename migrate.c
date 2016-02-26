@@ -16,30 +16,64 @@
  *	51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <asm/pgtable.h>
-
+#include <linux/mm.h>
 #include <linux/init.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/hrtimer.h>
+#include <linux/cpufreq.h>
+
+#include <asm/msr.h>
+#include <asm/pgtable.h>
+#include <asm/processor.h>
 
 static pid_t pid;
 static unsigned long timer_interval_ns;
 static struct hrtimer migrate_hrtimer;
 
-#define pte_accessed	pte_young
-
-#ifdef debug
-#define DEBUG_INFO(format...) do { pr_info(format); } while (0)
+#ifndef DEBUG_INFO
+# define DEBUG_INFO(format...)	pr_info(format)
 #else
-#define DEBUG_INFO(format...) do { } while (0)
+# define DEBUG_INFO(format...)
+#endif
+
+#ifndef WALKING_TIME
+unsigned long long start, end, average, c;
+static void GET_START_TIME(void)
+{
+	c++;
+	rdtscll(start);
+}
+static void GET_END_TIME(void)
+{
+	rdtscll(end);
+	average = ((average*(c-1))+(end-start))/c;
+}
+static void TIME_INFO(void)
+{
+	unsigned int freq;
+
+	freq = cpufreq_quick_get(smp_processor_id());
+	if (!freq)
+		freq = cpu_khz;
+
+	pr_info("CPU MHz: %u.%03u", (freq / 1000), (freq %1000));
+	pr_info("Average tsc cycles: %lld, of %lld samples", average, c);
+	pr_info("Average page table walking time: %lld ns", (1000*average)/freq);
+}
+#else
+static void GET_START_TIME(void){}
+static void GET_END_TIME(void){}
+static void TIME_INFO(void){}
 #endif
 
 /*
  * Each page should have a corresponding counter. The page
  * should be migrated once the counter reaches threshold.
+ *
+ * Based the pfn, you can do everything.
  */
 static void collect_statistics(unsigned long pfn)
 {
@@ -57,21 +91,25 @@ static unsigned long clear_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 	pte_t *pte;
 	pte_t ptecont;
 
-	pte = pte_offset_map(pmd, addr);
-	ptecont = *pte;
-
 	do {
+		pte = pte_offset_map(pmd, addr);
+		ptecont = *pte;
+
 		if (pte_none(ptecont))
 			continue;
 
-		if (pte_present(ptecont) && pte_accessed(ptecont)) {
+		/*
+		 * pte_young is a confusing name, though it AND _PAGE_ACCESSED
+		 * Instead, I think we should call it pte_accessed
+		 */
+		if (pte_present(ptecont) && pte_young(ptecont)) {
 			/*
 			 * The physical page, which this pte points to, has
 			 * been read or written to during this time period.
 			 */
-			MIGRATE_DEBUG("clear at pfn: %#lx", pte_pfn(ptecont));
+			DEBUG_INFO("[%#016lx - %#016lx], pfn = %#013lx", addr, end, pte_pfn(ptecont));
 			collect_statistics(pte_pfn(ptecont));
-			pte_clear_flags(ptecont, _PAGE_ACCESSED)
+			pte_clear_flags(ptecont, _PAGE_ACCESSED);
 		}
 	} while (pte++, addr += PAGE_SIZE, addr != end);
 
@@ -87,7 +125,7 @@ static unsigned long clear_pmd_range(struct vm_area_struct *vma, pud_t *pud,
 	pmd = pmd_offset(pud, addr);
 	do {
 		next = pmd_addr_end(addr, end);
-		if (pmd_none_or_clear_bad(pmd))
+		if (pmd_none(*pmd))
 			continue;
 		next = clear_pte_range(vma, pmd, addr, next);
 	} while (pmd++, addr = next, addr != end);
@@ -104,7 +142,7 @@ static unsigned long clear_pud_range(struct vm_area_struct *vma, pgd_t *pgd,
 	pud = pud_offset(pgd, addr);
 	do {
 		next = pud_addr_end(addr, end);
-		if (pud_none_or_clear_bad(pud))
+		if (pud_none(*pud))
 			continue;
 		next = clear_pmd_range(vma, pud, addr, end);
 	} while (pud++, addr = next, addr != end);
@@ -113,9 +151,7 @@ static unsigned long clear_pud_range(struct vm_area_struct *vma, pgd_t *pgd,
 }
 
 /*
- * Walking through page table. It's expansive, absolutely.
- * I do hope you can evaluate how expansive it is at your
- * machine and tell me. :-)
+ * Walking through page table.
  */
 static void clear_page_range(struct vm_area_struct *vma)
 {
@@ -125,10 +161,10 @@ static void clear_page_range(struct vm_area_struct *vma)
 	addr = vma->vm_start;
 	end = vma->vm_end;
 
-	pgd = pgd_offset(vma->vm_mm);
+	pgd = pgd_offset(vma->vm_mm, addr);
 	do {
 		next = pgd_addr_end(addr, end);
-		if (pgd_none_or_clear_bad(pgd))
+		if (pgd_none(*pgd))
 			continue;
 		next = clear_pud_range(vma, pgd, addr, next);
 	} while (pgd++, addr = next, addr != end);
@@ -150,7 +186,7 @@ static enum hrtimer_restart hrtimer_def(struct hrtimer *hrtimer)
 	 * is being monitored. You should make it more general and
 	 * be able to catch running process.
 	 */
-	task = find_task_by_vpid(pid);
+	task = pid_task(find_vpid(pid), PIDTYPE_PID);
 	if (unlikely(!task))
 		return HRTIMER_NORESTART;
 
@@ -165,21 +201,26 @@ static enum hrtimer_restart hrtimer_def(struct hrtimer *hrtimer)
 	 * bit will not cause inconsistency. On the other,
 	 * TLB flush is very expansive if we do it frequently.
 	 */
+	GET_START_TIME();
 	down_write(&mm->mmap_sem);
 	while (vma) {
 		clear_single_vma(vma);
-		vma = vma->next;
+		vma = vma->vm_next;
 	}
 	up_write(&mm->mmap_sem);
+	GET_END_TIME();
 
 	hrtimer_forward_now(hrtimer, ns_to_ktime(timer_interval_ns));
-	return HRTIMER_RESTART
+	return HRTIMER_NORESTART;
 }
 
 static int migrate_init(void)
 {
 	/* timer restart interval */
 	timer_interval_ns = 2000000000;
+	
+	/* the process to migrate */
+	pid = 1;
 
 	hrtimer_init(&migrate_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	migrate_hrtimer.function = hrtimer_def;
@@ -191,6 +232,7 @@ static int migrate_init(void)
 static void migrate_exit(void)
 {
 	hrtimer_cancel(&migrate_hrtimer);
+	TIME_INFO();
 }
 
 module_init(migrate_init);
