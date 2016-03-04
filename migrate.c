@@ -144,7 +144,7 @@ static unsigned long clear_pud_range(struct vm_area_struct *vma, pgd_t *pgd,
 		next = pud_addr_end(addr, end);
 		if (pud_none(*pud))
 			continue;
-		next = clear_pmd_range(vma, pud, addr, end);
+		next = clear_pmd_range(vma, pud, addr, next);
 	} while (pud++, addr = next, addr != end);
 
 	return addr;
