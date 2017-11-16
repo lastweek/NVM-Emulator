@@ -1,7 +1,7 @@
-#Non-Volatile Memory Emulator
-#####Copyright (C) 2015-2016 Yizhou Shan <shanyizhou@ict.ac.cn>
+# Non-Volatile Memory Emulator
+## Copyright (C) 2015-2016 Yizhou Shan <syzwhat@gmail.com>
 
-(Project done in ICT. Not maintained anymore.)
+(Project done in Institute of Computing Technology, Chinese Academy of Science (ICT, CAS) around 2016. It is *not* maintained anymore. Happy to know one group in HUST has extended this emulator and used it in their research.)
 
 The basic idea is to use Intel PMU to count number of read/writes requests  
 issued from CPU to Memory. Based on this, the emulator manually inject delays  
