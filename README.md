@@ -1,5 +1,5 @@
 # Non-Volatile Memory Emulator
-## Copyright (C) 2015-2016 Yizhou Shan <syzwhat@gmail.com>
+## Copyright (C) 2015-2018 Yizhou Shan \<syzwhat@gmail.com\>. All rights Reserved.
 
 (Project done in Institute of Computing Technology, Chinese Academy of Science (ICT, CAS) around 2016. It is *not* maintained anymore. Happy to know one group in HUST has extended this emulator and used it in their research.)
 
@@ -15,3 +15,6 @@ a lot during These 2 or 3 years. Previously all x86-pmu-events code is
 in arch/x86/kernel/cpu/, now they have a standalone directory in arch/x86/events/.  
 
 Anyway, let us see when toothpaste company Intel will have PM ready for markets.
+
+## Publications use this emulator
+[1] Caching or Not: Rethinking Virtual File System for Non-Volatile Main Memory, __HotStorage'18__
